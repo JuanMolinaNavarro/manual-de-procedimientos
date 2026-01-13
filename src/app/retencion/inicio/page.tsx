@@ -123,7 +123,7 @@ export default function RetencionInicioPage() {
                 “Lamentamos lo sucedido. Revisando tu cuenta veo el error en la facturación. Voy a corregirlo y puedo ofrecerte estas opciones.”
               </p>
             </div>
-            <Bonificaciones tipo="A" />
+            <Bonificaciones />
             <hr />
             <h2>1.2 Cliente insatisfecho con el servicio</h2>
             <h3>Procedimiento</h3>
@@ -132,7 +132,7 @@ export default function RetencionInicioPage() {
               <li>Validar su experiencia.</li>
               <li>Ofrecer soluciones concretas.</li>
             </ul>
-            <Bonificaciones tipo="B" />
+            <Bonificaciones />
           </article>
         </div>
       </details>

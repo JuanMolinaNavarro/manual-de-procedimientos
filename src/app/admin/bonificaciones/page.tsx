@@ -24,7 +24,7 @@ import {
 
 interface Bonificacion {
   id: number;
-  tipo: 'A' | 'B';
+  empresa: string;
   titulo: string;
   descripcion: string | null;
   condiciones: string | null;
@@ -125,7 +125,7 @@ export default function BonificacionesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-16">Tipo</TableHead>
+                  <TableHead className="w-32">Empresa</TableHead>
                   <TableHead>Título</TableHead>
                   <TableHead className="hidden md:table-cell">Vigencia</TableHead>
                   <TableHead className="w-32 text-center">Estado</TableHead>
@@ -136,8 +136,8 @@ export default function BonificacionesPage() {
                 {bonificaciones.map((bonificacion) => (
                   <TableRow key={bonificacion.id}>
                     <TableCell>
-                      <Badge variant={bonificacion.tipo === 'A' ? 'default' : 'secondary'}>
-                        Tipo {bonificacion.tipo}
+                      <Badge variant="secondary">
+                        {bonificacion.empresa}
                       </Badge>
                     </TableCell>
                     <TableCell>

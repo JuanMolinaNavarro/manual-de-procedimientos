@@ -1,14 +1,15 @@
 /**
  * bonificaciones.ts - Funciones de acceso a datos para bonificaciones
  *
- * Contiene operaciones CRUD y lógica de filtrado por tipo y vigencia.
+ * Contiene operaciones CRUD y lógica de filtrado por empresa y vigencia.
  */
 
 import { getDb } from './db';
+import { type Empresa } from './empresas';
 
 export interface Bonificacion {
   id: number;
-  tipo: 'A' | 'B';
+  empresa: Empresa | string;
   titulo: string;
   descripcion: string | null;
   condiciones: string | null;
@@ -20,7 +21,7 @@ export interface Bonificacion {
 }
 
 export interface CreateBonificacionData {
-  tipo: 'A' | 'B';
+  empresa: Empresa;
   titulo: string;
   descripcion?: string;
   condiciones?: string;
@@ -29,7 +30,7 @@ export interface CreateBonificacionData {
 }
 
 export interface UpdateBonificacionData {
-  tipo?: 'A' | 'B';
+  empresa?: Empresa;
   titulo?: string;
   descripcion?: string;
   condiciones?: string;
@@ -45,20 +46,27 @@ function mapBonificacion(row: Record<string, unknown>): Bonificacion {
   } as Bonificacion;
 }
 
-export function getBonificacionesActivas(tipo: string): Bonificacion[] {
+export function getBonificacionesActivas(empresa?: string | null): Bonificacion[] {
   const db = getDb();
   const today = new Date().toISOString().split('T')[0];
+  const params: Array<string> = [today, today];
+  let whereEmpresa = '';
+
+  if (empresa) {
+    whereEmpresa = 'AND empresa = ?';
+    params.push(empresa);
+  }
 
   const stmt = db.prepare(`
     SELECT * FROM bonificaciones
-    WHERE tipo = ?
-      AND activa = 1
+    WHERE activa = 1
       AND (vigencia_desde IS NULL OR vigencia_desde <= ?)
       AND (vigencia_hasta IS NULL OR vigencia_hasta >= ?)
+      ${whereEmpresa}
     ORDER BY id DESC
   `);
 
-  const rows = stmt.all(tipo, today, today) as Record<string, unknown>[];
+  const rows = stmt.all(...params) as Record<string, unknown>[];
   return rows.map(mapBonificacion);
 }
 
@@ -79,12 +87,12 @@ export function getBonificacionById(id: number): Bonificacion | null {
 export function createBonificacion(data: CreateBonificacionData): Bonificacion {
   const db = getDb();
   const stmt = db.prepare(`
-    INSERT INTO bonificaciones (tipo, titulo, descripcion, condiciones, vigencia_desde, vigencia_hasta)
+    INSERT INTO bonificaciones (empresa, titulo, descripcion, condiciones, vigencia_desde, vigencia_hasta)
     VALUES (?, ?, ?, ?, ?, ?)
   `);
 
   const result = stmt.run(
-    data.tipo,
+    data.empresa,
     data.titulo,
     data.descripcion || null,
     data.condiciones || null,
@@ -109,9 +117,9 @@ export function updateBonificacion(
   const updates: string[] = [];
   const values: unknown[] = [];
 
-  if (data.tipo !== undefined) {
-    updates.push('tipo = ?');
-    values.push(data.tipo);
+  if (data.empresa !== undefined) {
+    updates.push('empresa = ?');
+    values.push(data.empresa);
   }
   if (data.titulo !== undefined) {
     updates.push('titulo = ?');

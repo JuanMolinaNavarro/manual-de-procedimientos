@@ -14,10 +14,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
+import { EMPRESAS } from '@/lib/empresas';
 
 interface Bonificacion {
   id: number;
-  tipo: 'A' | 'B';
+  empresa: string;
   titulo: string;
   descripcion: string | null;
   condiciones: string | null;
@@ -93,7 +94,7 @@ export default function EditarBonificacionPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tipo: formData.tipo,
+          empresa: formData.empresa,
           titulo: formData.titulo,
           descripcion: formData.descripcion || null,
           condiciones: formData.condiciones || null,
@@ -143,31 +144,19 @@ export default function EditarBonificacionPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="tipo">Tipo de bonificación</Label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="tipo"
-                    value="A"
-                    checked={formData.tipo === 'A'}
-                    onChange={(event) => handleChange('tipo', event.target.value)}
-                    className="w-4 h-4"
-                  />
-                  <span>Tipo A</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="tipo"
-                    value="B"
-                    checked={formData.tipo === 'B'}
-                    onChange={(event) => handleChange('tipo', event.target.value)}
-                    className="w-4 h-4"
-                  />
-                  <span>Tipo B</span>
-                </label>
-              </div>
+              <Label htmlFor="empresa">Empresa</Label>
+              <select
+                id="empresa"
+                value={formData.empresa}
+                onChange={(event) => handleChange('empresa', event.target.value)}
+                className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {EMPRESAS.map((empresa) => (
+                  <option key={empresa} value={empresa}>
+                    {empresa}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-2">

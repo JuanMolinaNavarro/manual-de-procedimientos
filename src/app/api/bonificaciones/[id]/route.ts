@@ -13,6 +13,7 @@ import {
   type UpdateBonificacionData,
 } from '@/lib/bonificaciones';
 import { cookies } from 'next/headers';
+import { EMPRESAS } from '@/lib/empresas';
 
 async function isAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
@@ -46,9 +47,9 @@ export async function PUT(
 
     const body = await request.json() as UpdateBonificacionData;
 
-    if (body.tipo && body.tipo !== 'A' && body.tipo !== 'B') {
+    if (body.empresa && !EMPRESAS.includes(body.empresa)) {
       return NextResponse.json(
-        { error: 'El tipo debe ser "A" o "B"' },
+        { error: 'La empresa indicada no es válida' },
         { status: 400 }
       );
     }

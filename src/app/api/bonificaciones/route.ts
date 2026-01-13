@@ -1,7 +1,7 @@
 /**
  * API Route: /api/bonificaciones
  *
- * GET - Obtiene bonificaciones activas filtradas por tipo
+ * GET - Obtiene bonificaciones activas filtradas por empresa
  * POST - Crea una nueva bonificación (requiere autenticación admin)
  */
 
@@ -12,6 +12,7 @@ import {
   getBonificacionesActivas,
   type CreateBonificacionData,
 } from '@/lib/bonificaciones';
+import { EMPRESAS } from '@/lib/empresas';
 import { cookies } from 'next/headers';
 
 async function isAdmin(): Promise<boolean> {
@@ -23,7 +24,7 @@ async function isAdmin(): Promise<boolean> {
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const tipo = searchParams.get('tipo');
+    const empresa = searchParams.get('empresa');
     const all = searchParams.get('all');
 
     if (all === 'true') {
@@ -34,21 +35,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(bonificaciones);
     }
 
-    if (!tipo) {
+    if (empresa && !EMPRESAS.includes(empresa)) {
       return NextResponse.json(
-        { error: 'El parámetro "tipo" es requerido' },
+        { error: 'La empresa indicada no es válida' },
         { status: 400 }
       );
     }
 
-    if (tipo !== 'A' && tipo !== 'B') {
-      return NextResponse.json(
-        { error: 'El tipo debe ser "A" o "B"' },
-        { status: 400 }
-      );
-    }
-
-    const bonificaciones = getBonificacionesActivas(tipo);
+    const bonificaciones = getBonificacionesActivas(empresa);
     return NextResponse.json(bonificaciones);
   } catch (error) {
     console.error('Error en GET /api/bonificaciones:', error);
@@ -67,16 +61,16 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json() as CreateBonificacionData;
 
-    if (!body.tipo || !body.titulo) {
+    if (!body.empresa || !body.titulo) {
       return NextResponse.json(
-        { error: 'Los campos "tipo" y "titulo" son requeridos' },
+        { error: 'Los campos "empresa" y "titulo" son requeridos' },
         { status: 400 }
       );
     }
 
-    if (body.tipo !== 'A' && body.tipo !== 'B') {
+    if (!EMPRESAS.includes(body.empresa)) {
       return NextResponse.json(
-        { error: 'El tipo debe ser "A" o "B"' },
+        { error: 'La empresa indicada no es válida' },
         { status: 400 }
       );
     }

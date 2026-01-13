@@ -2,7 +2,7 @@
  * Componente Bonificaciones
  *
  * Componente React para mostrar bonificaciones en documentos MDX.
- * Uso: <Bonificaciones tipo="A" />
+ * Uso: <Bonificaciones />
  *
  * - Solo lectura
  * - Muestra título, descripción y condiciones
@@ -13,34 +13,30 @@
 
 import { useEffect, useState } from 'react';
 
+import { EMPRESAS } from '@/lib/empresas';
+
 interface Bonificacion {
   id: number;
-  tipo: 'A' | 'B';
+  empresa: string;
   titulo: string;
   descripcion: string | null;
   condiciones: string | null;
 }
 
-interface BonificacionesProps {
-  /**
-   * Tipo de bonificación a mostrar: 'A' o 'B'
-   */
-  tipo: 'A' | 'B';
-}
-
 /**
- * Muestra las bonificaciones activas de un tipo específico.
+ * Muestra las bonificaciones activas y permite filtrar por empresa.
  * Diseñado para uso en documentación MDX del manual de procedimientos.
  */
-export default function Bonificaciones({ tipo }: BonificacionesProps) {
+export default function Bonificaciones() {
   const [bonificaciones, setBonificaciones] = useState<Bonificacion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [empresaSeleccionada, setEmpresaSeleccionada] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchBonificaciones = async () => {
       try {
-        const response = await fetch(`/api/bonificaciones?tipo=${tipo}`);
+        const response = await fetch('/api/bonificaciones');
         if (!response.ok) {
           throw new Error('Error al cargar bonificaciones');
         }
@@ -55,7 +51,11 @@ export default function Bonificaciones({ tipo }: BonificacionesProps) {
     };
 
     fetchBonificaciones();
-  }, [tipo]);
+  }, []);
+
+  const bonificacionesFiltradas = empresaSeleccionada
+    ? bonificaciones.filter((bonificacion) => bonificacion.empresa === empresaSeleccionada)
+    : bonificaciones;
 
   if (loading) {
     return (
@@ -78,12 +78,12 @@ export default function Bonificaciones({ tipo }: BonificacionesProps) {
     );
   }
 
-  if (bonificaciones.length === 0) {
+  if (bonificacionesFiltradas.length === 0) {
     return (
       <div className="my-6 rounded-xl border border-amber-700/40 bg-amber-950/30 p-4 text-amber-200">
         <span className="font-medium">Sin bonificaciones disponibles</span>
         <p className="mt-1 text-sm">
-          No hay bonificaciones de tipo {tipo} activas en este momento.
+          No hay bonificaciones activas en este momento.
         </p>
       </div>
     );
@@ -92,20 +92,46 @@ export default function Bonificaciones({ tipo }: BonificacionesProps) {
   return (
     <div className="my-6 space-y-4">
       <div className="flex items-center gap-3">
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/5 text-xs font-semibold text-white/80">
-          {tipo}
-        </span>
-        <h4 className="text-lg font-semibold text-white">
-          Bonificaciones disponibles
-        </h4>
+        <h4 className="text-lg font-semibold text-white">Bonificaciones disponibles</h4>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setEmpresaSeleccionada(null)}
+          className={`rounded-full border px-4 py-1.5 text-sm transition ${
+            empresaSeleccionada === null
+              ? 'border-white/30 bg-white/10 text-white'
+              : 'border-white/10 bg-white/5 text-white/70 hover:border-white/30 hover:text-white'
+          }`}
+        >
+          Todas
+        </button>
+        {EMPRESAS.map((empresa) => (
+          <button
+            key={empresa}
+            type="button"
+            onClick={() => setEmpresaSeleccionada(empresa)}
+            className={`rounded-full border px-4 py-1.5 text-sm transition ${
+              empresaSeleccionada === empresa
+                ? 'border-white/30 bg-white/10 text-white'
+                : 'border-white/10 bg-white/5 text-white/70 hover:border-white/30 hover:text-white'
+            }`}
+          >
+            {empresa}
+          </button>
+        ))}
       </div>
 
       <div className="grid gap-3">
-        {bonificaciones.map((bonificacion) => (
+        {bonificacionesFiltradas.map((bonificacion) => (
           <div
             key={bonificacion.id}
             className="rounded-xl border border-white/10 bg-white/5 p-4 transition-colors hover:border-white/20"
           >
+            <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/50">
+              {bonificacion.empresa}
+            </div>
             <h5 className="mb-2 font-semibold text-white">
               {bonificacion.titulo}
             </h5>

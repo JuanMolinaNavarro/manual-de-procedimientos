@@ -21,7 +21,7 @@ export default function ProcedimientoBFacturacionPage() {
         </div>
       </div>
 
-      <Bonificaciones tipo="B" />
+      <Bonificaciones />
     </div>
   );
 }
