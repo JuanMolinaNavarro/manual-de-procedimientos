@@ -24,7 +24,7 @@ async function isAdmin(): Promise<boolean> {
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const empresa = searchParams.get('empresa');
+    const empresa = searchParams.get('empresa')?.trim();
     const all = searchParams.get('all');
 
     if (all === 'true') {
@@ -61,21 +61,26 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json() as CreateBonificacionData;
 
-    if (!body.empresa || !body.titulo) {
+    const empresa = body.empresa?.trim();
+
+    if (!empresa || !body.titulo) {
       return NextResponse.json(
         { error: 'Los campos "empresa" y "titulo" son requeridos' },
         { status: 400 }
       );
     }
 
-    if (!EMPRESAS.includes(body.empresa)) {
+    if (!EMPRESAS.includes(empresa)) {
       return NextResponse.json(
         { error: 'La empresa indicada no es válida' },
         { status: 400 }
       );
     }
 
-    const bonificacion = createBonificacion(body);
+    const bonificacion = createBonificacion({
+      ...body,
+      empresa,
+    });
     return NextResponse.json(bonificacion, { status: 201 });
   } catch (error) {
     console.error('Error en POST /api/bonificaciones:', error);

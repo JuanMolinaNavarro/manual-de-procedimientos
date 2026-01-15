@@ -59,30 +59,37 @@ export default function RetencionLayout({
                 >
                   Continuación
                 </Link>
-                <Link
-                  className="block rounded-md px-3 py-2 text-white/70 hover:bg-white/5 hover:text-white"
-                  href="/retencion/facturacion"
-                >
-                  Facturación
-                </Link>
-                <Link
-                  className="block rounded-md px-3 py-2 text-white/70 hover:bg-white/5 hover:text-white"
-                  href="/retencion/competencia"
-                >
-                  Competencia
-                </Link>
-                <Link
-                  className="block rounded-md px-3 py-2 text-white/70 hover:bg-white/5 hover:text-white"
-                  href="/retencion/personales"
-                >
-                  Personales
-                </Link>
-                <Link
-                  className="block rounded-md px-3 py-2 text-white/70 hover:bg-white/5 hover:text-white"
-                  href="/retencion/tecnicos"
-                >
-                  Técnicos
-                </Link>
+                <details className="rounded-md px-2">
+                  <summary className="cursor-pointer rounded-md px-1 py-2 text-sm font-semibold text-white/80">
+                    Motivos
+                  </summary>
+                  <div className="mt-2 space-y-1 pl-2">
+                    <Link
+                      className="block rounded-md px-3 py-2 text-white/70 hover:bg-white/5 hover:text-white"
+                      href="/retencion/facturacion"
+                    >
+                      Facturación
+                    </Link>
+                    <Link
+                      className="block rounded-md px-3 py-2 text-white/70 hover:bg-white/5 hover:text-white"
+                      href="/retencion/competencia"
+                    >
+                      Competencia
+                    </Link>
+                    <Link
+                      className="block rounded-md px-3 py-2 text-white/70 hover:bg-white/5 hover:text-white"
+                      href="/retencion/personales"
+                    >
+                      Personales
+                    </Link>
+                    <Link
+                      className="block rounded-md px-3 py-2 text-white/70 hover:bg-white/5 hover:text-white"
+                      href="/retencion/tecnicos"
+                    >
+                      Técnicos
+                    </Link>
+                  </div>
+                </details>
               </nav>
             </details>
           </div>

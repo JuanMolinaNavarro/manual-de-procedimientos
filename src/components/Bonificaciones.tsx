@@ -78,17 +78,6 @@ export default function Bonificaciones() {
     );
   }
 
-  if (bonificacionesFiltradas.length === 0) {
-    return (
-      <div className="my-6 rounded-xl border border-amber-700/40 bg-amber-950/30 p-4 text-amber-200">
-        <span className="font-medium">Sin bonificaciones disponibles</span>
-        <p className="mt-1 text-sm">
-          No hay bonificaciones activas en este momento.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="my-6 space-y-4">
       <div className="flex items-center gap-3">
@@ -123,38 +112,47 @@ export default function Bonificaciones() {
         ))}
       </div>
 
-      <div className="grid gap-3">
-        {bonificacionesFiltradas.map((bonificacion) => (
-          <div
-            key={bonificacion.id}
-            className="rounded-xl border border-white/10 bg-white/5 p-4 transition-colors hover:border-white/20"
-          >
-            <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/50">
-              {bonificacion.empresa}
-            </div>
-            <h5 className="mb-2 font-semibold text-white">
-              {bonificacion.titulo}
-            </h5>
-
-            {bonificacion.descripcion && (
-              <p className="mb-3 text-sm text-white/70">
-                {bonificacion.descripcion}
-              </p>
-            )}
-
-            {bonificacion.condiciones && (
-              <div className="mt-3 border-t border-white/10 pt-3">
-                <span className="text-xs font-medium uppercase tracking-wide text-white/50">
-                  Condiciones
-                </span>
-                <p className="mt-1 text-sm text-white/75">
-                  {bonificacion.condiciones}
-                </p>
+      {bonificacionesFiltradas.length === 0 ? (
+        <div className="rounded-xl border border-amber-700/40 bg-amber-950/30 p-4 text-amber-200">
+          <span className="font-medium">Sin bonificaciones disponibles</span>
+          <p className="mt-1 text-sm">
+            No hay bonificaciones activas en este momento.
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-3">
+          {bonificacionesFiltradas.map((bonificacion) => (
+            <div
+              key={bonificacion.id}
+              className="rounded-xl border border-white/10 bg-white/5 p-4 transition-colors hover:border-white/20"
+            >
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/50">
+                {bonificacion.empresa}
               </div>
-            )}
-          </div>
-        ))}
-      </div>
+              <h5 className="mb-2 font-semibold text-white">
+                {bonificacion.titulo}
+              </h5>
+
+              {bonificacion.descripcion && (
+                <p className="mb-3 text-sm text-white/70">
+                  {bonificacion.descripcion}
+                </p>
+              )}
+
+              {bonificacion.condiciones && (
+                <div className="mt-3 border-t border-white/10 pt-3">
+                  <span className="text-xs font-medium uppercase tracking-wide text-white/50">
+                    Condiciones
+                  </span>
+                  <p className="mt-1 text-sm text-white/75">
+                    {bonificacion.condiciones}
+                  </p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

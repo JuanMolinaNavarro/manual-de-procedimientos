@@ -21,7 +21,8 @@ function LoginForm() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const from = searchParams.get('from') || '/admin/bonificaciones';
+  const rawFrom = searchParams.get('from') || '/admin/bonificaciones';
+  const from = rawFrom === '/admin/salir' ? '/admin/bonificaciones' : rawFrom;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();

@@ -76,6 +76,20 @@ export default function BonificacionesPage() {
     }
   };
 
+  const deleteBonificacion = async (id: number) => {
+    const confirmado = window.confirm(
+      '¿Eliminar esta bonificación de forma permanente? Esta acción no se puede deshacer.'
+    );
+    if (!confirmado) return;
+
+    try {
+      await fetch(`/api/bonificaciones/${id}?hard=true`, { method: 'DELETE' });
+      fetchBonificaciones();
+    } catch (err) {
+      console.error('Error al eliminar:', err);
+    }
+  };
+
   const formatDate = (date: string | null) => {
     if (!date) return '-';
     return new Date(date).toLocaleDateString('es-AR');
@@ -129,7 +143,7 @@ export default function BonificacionesPage() {
                   <TableHead>Título</TableHead>
                   <TableHead className="hidden md:table-cell">Vigencia</TableHead>
                   <TableHead className="w-32 text-center">Estado</TableHead>
-                  <TableHead className="w-32 text-right">Acciones</TableHead>
+                  <TableHead className="w-40 text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -169,13 +183,22 @@ export default function BonificacionesPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => router.push(`/admin/bonificaciones/${bonificacion.id}/editar`)}
-                      >
-                        Editar
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => router.push(`/admin/bonificaciones/${bonificacion.id}/editar`)}
+                        >
+                          Editar
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteBonificacion(bonificacion.id)}
+                        >
+                          Eliminar
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

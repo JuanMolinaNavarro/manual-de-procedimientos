@@ -1,27 +1,15 @@
-/**
- * Layout del Panel de Administración
- *
- * Proporciona la estructura común para todas las páginas de admin.
- */
+import { cookies } from 'next/headers';
+import AdminBackButton from '@/components/AdminBackButton';
+import AdminLogoutButton from '@/components/AdminLogoutButton';
 
-'use client';
-
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const router = useRouter();
-
-  const handleLogout = async () => {
-    await fetch('/api/admin/login', { method: 'DELETE' });
-    router.push('/admin/login');
-    router.refresh();
-  };
+  const cookieStore = await cookies();
+  const session = cookieStore.get('admin_session');
+  const isAuthed = Boolean(session);
 
   return (
     <div className="min-h-screen bg-background">
@@ -41,12 +29,8 @@ export default function AdminLayout({
             </nav>
           </div>
           <div className="flex items-center gap-2">
-            <Button asChild variant="secondary" className="text-sm">
-              <Link href="/retencion/inicio">Volver al inicio</Link>
-            </Button>
-            <Button variant="outline" onClick={handleLogout} className="text-sm">
-              Cerrar sesión
-            </Button>
+            <AdminBackButton />
+            {isAuthed && <AdminLogoutButton />}
           </div>
         </div>
       </header>

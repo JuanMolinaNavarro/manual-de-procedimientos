@@ -182,3 +182,10 @@ export function activateBonificacion(id: number): boolean {
   const result = stmt.run(id);
   return result.changes > 0;
 }
+
+export function deleteBonificacion(id: number): boolean {
+  const db = getDb();
+  const stmt = db.prepare('DELETE FROM bonificaciones WHERE id = ?');
+  const result = stmt.run(id);
+  return result.changes > 0;
+}

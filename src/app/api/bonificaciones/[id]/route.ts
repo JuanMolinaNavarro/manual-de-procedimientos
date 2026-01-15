@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  deleteBonificacion,
   getBonificacionById,
   softDeleteBonificacion,
   updateBonificacion,
@@ -47,14 +48,19 @@ export async function PUT(
 
     const body = await request.json() as UpdateBonificacionData;
 
-    if (body.empresa && !EMPRESAS.includes(body.empresa)) {
+    const empresa = body.empresa?.trim();
+
+    if (empresa && !EMPRESAS.includes(empresa)) {
       return NextResponse.json(
         { error: 'La empresa indicada no es válida' },
         { status: 400 }
       );
     }
 
-    const updated = updateBonificacion(bonificacionId, body);
+    const updated = updateBonificacion(bonificacionId, {
+      ...body,
+      empresa,
+    });
     return NextResponse.json(updated);
   } catch (error) {
     console.error('Error en PUT /api/bonificaciones/[id]:', error);
@@ -81,7 +87,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
     }
 
-    const success = softDeleteBonificacion(bonificacionId);
+    const hardDelete = request.nextUrl.searchParams.get('hard') === 'true';
+    const success = hardDelete
+      ? deleteBonificacion(bonificacionId)
+      : softDeleteBonificacion(bonificacionId);
 
     if (!success) {
       return NextResponse.json(
@@ -91,7 +100,9 @@ export async function DELETE(
     }
 
     return NextResponse.json({
-      message: 'Bonificación desactivada correctamente',
+      message: hardDelete
+        ? 'Bonificación eliminada correctamente'
+        : 'Bonificación desactivada correctamente',
     });
   } catch (error) {
     console.error('Error en DELETE /api/bonificaciones/[id]:', error);

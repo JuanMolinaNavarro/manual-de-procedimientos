@@ -34,7 +34,7 @@ export default function RetencionFacturacionPage() {
         <div className="flex flex-wrap gap-3">
           <Link
             className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 hover:border-white/30 hover:text-white"
-            href="/retencion/facturacion/procedimiento-a"
+            href="/retencion/facturacion/factura-mal-cargada"
           >
             Factura mal cargada
           </Link>
