@@ -5,15 +5,15 @@ export default function ProcedimientoBFacturacionPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <h1 className="text-3xl font-semibold text-white">Procedimiento de Resolución</h1>
-        <p className="text-white/70">
+        <h1 className="text-3xl font-semibold text-foreground">Procedimiento B</h1>
+        <p className="text-muted-foreground">
           Resolución específica para casos de facturación.
         </p>
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-        <p className="text-sm text-white/60">Mensaje sugerido</p>
-        <p className="mt-2 text-white/90">
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <p className="text-sm text-muted-foreground">Mensaje sugerido</p>
+        <p className="mt-2 text-foreground">
           “Lamentamos lo sucedido, viendo tu situación, puedo ofrecerte...”
         </p>
         <div className="mt-4">

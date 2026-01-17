@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import AdminBackButton from '@/components/AdminBackButton';
 import AdminLogoutButton from '@/components/AdminLogoutButton';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export default async function AdminLayout({
   children,
@@ -29,6 +30,7 @@ export default async function AdminLayout({
             </nav>
           </div>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <AdminBackButton />
             {isAuthed && <AdminLogoutButton />}
           </div>

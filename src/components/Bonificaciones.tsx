@@ -12,7 +12,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-
 import { EMPRESAS } from '@/lib/empresas';
 
 interface Bonificacion {
@@ -59,11 +58,11 @@ export default function Bonificaciones() {
 
   if (loading) {
     return (
-      <div className="my-6 rounded-xl border border-white/10 bg-white/5 p-4">
+      <div className="my-6 rounded-xl border border-border bg-card p-4">
         <div className="flex animate-pulse space-x-4">
           <div className="flex-1 space-y-3">
-            <div className="h-4 w-3/4 rounded bg-white/10"></div>
-            <div className="h-3 w-1/2 rounded bg-white/10"></div>
+            <div className="h-4 w-3/4 rounded bg-muted"></div>
+            <div className="h-3 w-1/2 rounded bg-muted"></div>
           </div>
         </div>
       </div>
@@ -72,7 +71,7 @@ export default function Bonificaciones() {
 
   if (error) {
     return (
-      <div className="my-6 rounded-xl border border-red-900/50 bg-red-950/30 p-4 text-red-300">
+      <div className="my-6 rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-destructive">
         {error}
       </div>
     );
@@ -81,7 +80,7 @@ export default function Bonificaciones() {
   return (
     <div className="my-6 space-y-4">
       <div className="flex items-center gap-3">
-        <h4 className="text-lg font-semibold text-white">Bonificaciones disponibles</h4>
+        <h4 className="text-lg font-semibold text-foreground">Bonificaciones disponibles</h4>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -90,8 +89,8 @@ export default function Bonificaciones() {
           onClick={() => setEmpresaSeleccionada(null)}
           className={`rounded-full border px-4 py-1.5 text-sm transition ${
             empresaSeleccionada === null
-              ? 'border-white/30 bg-white/10 text-white'
-              : 'border-white/10 bg-white/5 text-white/70 hover:border-white/30 hover:text-white'
+              ? 'border-border bg-muted text-foreground'
+              : 'border-border bg-card text-muted-foreground hover:text-foreground'
           }`}
         >
           Todas
@@ -103,8 +102,8 @@ export default function Bonificaciones() {
             onClick={() => setEmpresaSeleccionada(empresa)}
             className={`rounded-full border px-4 py-1.5 text-sm transition ${
               empresaSeleccionada === empresa
-                ? 'border-white/30 bg-white/10 text-white'
-                : 'border-white/10 bg-white/5 text-white/70 hover:border-white/30 hover:text-white'
+                ? 'border-border bg-muted text-foreground'
+                : 'border-border bg-card text-muted-foreground hover:text-foreground'
             }`}
           >
             {empresa}
@@ -113,7 +112,7 @@ export default function Bonificaciones() {
       </div>
 
       {bonificacionesFiltradas.length === 0 ? (
-        <div className="rounded-xl border border-amber-700/40 bg-amber-950/30 p-4 text-amber-200">
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-700 dark:text-amber-200">
           <span className="font-medium">Sin bonificaciones disponibles</span>
           <p className="mt-1 text-sm">
             No hay bonificaciones activas en este momento.
@@ -124,27 +123,27 @@ export default function Bonificaciones() {
           {bonificacionesFiltradas.map((bonificacion) => (
             <div
               key={bonificacion.id}
-              className="rounded-xl border border-white/10 bg-white/5 p-4 transition-colors hover:border-white/20"
+              className="rounded-xl border border-border bg-card p-4 transition-colors hover:border-muted-foreground/40"
             >
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/50">
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">
                 {bonificacion.empresa}
               </div>
-              <h5 className="mb-2 font-semibold text-white">
+              <h5 className="mb-2 font-semibold text-foreground">
                 {bonificacion.titulo}
               </h5>
 
               {bonificacion.descripcion && (
-                <p className="mb-3 text-sm text-white/70">
+                <p className="mb-3 text-sm text-muted-foreground">
                   {bonificacion.descripcion}
                 </p>
               )}
 
               {bonificacion.condiciones && (
-                <div className="mt-3 border-t border-white/10 pt-3">
-                  <span className="text-xs font-medium uppercase tracking-wide text-white/50">
+                <div className="mt-3 border-t border-border pt-3">
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Condiciones
                   </span>
-                  <p className="mt-1 text-sm text-white/75">
+                  <p className="mt-1 text-sm text-foreground/80">
                     {bonificacion.condiciones}
                   </p>
                 </div>
