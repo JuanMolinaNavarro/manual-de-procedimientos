@@ -4,18 +4,43 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Bonificaciones from '@/components/Bonificaciones';
 import CopyButton from '@/components/CopyButton';
 
+const SESSION_KEY = 'agente_nombre';
+
+const obligatorios = [
+  'Plan actual del abonado',
+  'Antigüedad',
+  'Historial de tickets',
+  'Pagos',
+  'Beneficios activos',
+  'Fecha de alta',
+];
+
+const objetivos = [
+  'Evitar confrontación',
+  'Justificar la pregunta siguiente',
+  'Posicionarse como solucionador, no retenedor agresivo',
+];
+
+const reglasOperativas = [
+  'No interrumpir',
+  'No corregir',
+  'No explicar políticas',
+  'No ofrecer soluciones todavía',
+  'Entender y tomar nota literal del motivo',
+];
+
 export default function RetencionInicioPage() {
   const [nombre, setNombre] = useState('');
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('agente_nombre');
+    const stored = sessionStorage.getItem(SESSION_KEY);
     if (stored) {
       setNombre(stored);
     }
@@ -23,10 +48,18 @@ export default function RetencionInicioPage() {
 
   const handleNombreChange = (value: string) => {
     setNombre(value);
-    sessionStorage.setItem('agente_nombre', value);
+    sessionStorage.setItem(SESSION_KEY, value);
   };
 
-  const nombreAgente = nombre.trim() ? nombre.trim() : '[Agente]';
+  const nombreAgente = useMemo(() => {
+    const trimmed = nombre.trim();
+    return trimmed ? trimmed : '[Agente]';
+  }, [nombre]);
+
+  const saludo = `Hola, mi nombre es ${nombreAgente}, gracias por comunicarte. 😊 Lamento que estés pasando por esta situación, voy a acompañarte para resolverlo de la mejor manera posible. 🤝`;
+  const antesDeAvanzar =
+    'Antes de avanzar con el trámite, necesito entender bien qué fue lo que pasó para ayudarte correctamente. 🧭';
+  const motivoProceso = '¿Me contás qué fue lo que te llevó a elegir este proceso? 📝';
 
   return (
     <div className="flex flex-col gap-6">
@@ -47,14 +80,11 @@ export default function RetencionInicioPage() {
           <p className="text-xs uppercase tracking-[0.25em] text-amber-800/70 dark:text-amber-200/70">
             Obligatorio
           </p>
-          <h2 className="mt-2 text-lg font-semibold">Tener a mano en ISP/COLUMBO:</h2>
+          <h2 className="mt-2 text-lg font-semibold">Tener a mano en ISP Boss/Columbo:</h2>
           <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-amber-900/90 dark:text-amber-200/90">
-            <li>Plan actual del abonado</li>
-            <li>Antigüedad</li>
-            <li>Historial de tickets</li>
-            <li>Pagos</li>
-            <li>Beneficios activos</li>
-            <li>Fecha de alta</li>
+            {obligatorios.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
           </ul>
         </div>
 
@@ -69,47 +99,47 @@ export default function RetencionInicioPage() {
 
         <div className="space-y-2 rounded-2xl border border-border bg-card p-5">
           <label htmlFor="agente-nombre" className="text-sm font-semibold text-foreground">
-            Escribí tu nombre! 👇😊
+            Introduci tu nombre! 👇😊
           </label>
           <Input
             id="agente-nombre"
-            placeholder="Ej: Juan"
+            placeholder="Ej: Camila"
             value={nombre}
             onChange={(event) => handleNombreChange(event.target.value)}
           />
+          <p className="text-xs text-muted-foreground">
+            Se guarda solo en esta pestaña para agilizar tus respuestas.
+          </p>
         </div>
 
         <div className="prose dark:prose-invert max-w-none">
           <h2>Objetivo del bloque</h2>
           <ul className="list-disc pl-5 text-foreground">
-            <li>Evitar confrontación</li>
-            <li>Justificar la pregunta siguiente</li>
-            <li>Posicionarse como solucionador, no retenedor agresivo</li>
+            {objetivos.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
           </ul>
         </div>
 
         <div className="space-y-4">
           <div className="rounded-2xl border border-border bg-card p-5">
-            <p className="text-sm text-muted-foreground">Respuesta sugerida</p>
-            <p className="mt-2 text-foreground">
-              “Hola, mi nombre es {nombreAgente}, gracias por comunicarte. 😊 Lamento que estés pasando
-              por esta situación, voy a acompañarte para resolverlo de la mejor manera posible. 🤝”
-            </p>
-            <div className="mt-4">
-              <CopyButton text={`Hola, mi nombre es ${nombreAgente}, gracias por comunicarte. 😊 Lamento que estés pasando por esta situación, voy a acompañarte para resolverlo de la mejor manera posible. 🤝`} />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">Respuesta sugerida</p>
+              <CopyButton text={saludo} />
             </div>
+            <p className="mt-3 text-foreground">“{saludo}”</p>
           </div>
 
-          <p className="text-sm text-muted-foreground">Nota: No mencionar la palabra baja aún.</p>
+          <div className="rounded-2xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+            Nota: No mencionar la palabra baja aún.
+          </div>
 
           <div className="rounded-2xl border border-border bg-card p-5">
-            <p className="text-sm text-muted-foreground">Respuesta sugerida</p>
-            <p className="mt-2 text-foreground">
-              “Antes de avanzar con el trámite, necesito entender bien qué fue lo que pasó para ayudarte correctamente. 🧭”
-            </p>
-            <div className="mt-4">
-              <CopyButton text="Antes de avanzar con el trámite, necesito entender bien qué fue lo que pasó para ayudarte correctamente. 🧭" />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">Respuesta sugerida</p>
+              <CopyButton text={antesDeAvanzar} />
             </div>
+            <p className="mt-3 text-foreground">“{antesDeAvanzar}”</p>
           </div>
         </div>
 
@@ -118,20 +148,18 @@ export default function RetencionInicioPage() {
             Regla operativa del bloque
           </p>
           <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-amber-900/90 dark:text-amber-200/90">
-            <li>No interrumpir</li>
-            <li>No corregir</li>
-            <li>No explicar políticas</li>
-            <li>No ofrecer soluciones todavía</li>
-            <li>Entender y tomar nota literal del motivo</li>
+            {reglasOperativas.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
           </ul>
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-5">
-          <p className="text-sm text-muted-foreground">Respuesta sugerida</p>
-          <p className="mt-2 text-foreground">“¿Me contás qué fue lo que te llevó a elegir este proceso? 📝”</p>
-          <div className="mt-4">
-            <CopyButton text="¿Me contás qué fue lo que te llevó a elegir este proceso? 📝" />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">Respuesta sugerida</p>
+            <CopyButton text={motivoProceso} />
           </div>
+          <p className="mt-3 text-foreground">“{motivoProceso}”</p>
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-5">
