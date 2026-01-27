@@ -12,8 +12,15 @@ import {
   getBonificacionesActivas,
   type CreateBonificacionData,
 } from '@/lib/bonificaciones';
-import { EMPRESAS } from '@/lib/empresas';
+import { EMPRESAS, type Empresa } from '@/lib/empresas';
 import { cookies } from 'next/headers';
+
+// TypeScript no permite includes(string) sobre un union literal.
+const EMPRESAS_STRINGS: readonly string[] = EMPRESAS;
+
+function isEmpresa(value: string): value is Empresa {
+  return EMPRESAS_STRINGS.includes(value);
+}
 
 async function isAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
@@ -24,7 +31,7 @@ async function isAdmin(): Promise<boolean> {
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const empresa = searchParams.get('empresa')?.trim();
+    const empresaRaw = searchParams.get('empresa')?.trim();
     const all = searchParams.get('all');
 
     if (all === 'true') {
@@ -35,12 +42,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(bonificaciones);
     }
 
-    if (empresa && !EMPRESAS.includes(empresa)) {
+    if (empresaRaw && !isEmpresa(empresaRaw)) {
       return NextResponse.json(
         { error: 'La empresa indicada no es válida' },
         { status: 400 }
       );
     }
+
+    const empresa: Empresa | null =
+      empresaRaw && isEmpresa(empresaRaw) ? empresaRaw : null;
 
     const bonificaciones = getBonificacionesActivas(empresa);
     return NextResponse.json(bonificaciones);
@@ -60,17 +70,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json() as CreateBonificacionData;
+    const empresaRaw = body.empresa?.trim();
 
-    const empresa = body.empresa?.trim();
-
-    if (!empresa || !body.titulo) {
+    if (!empresaRaw || !body.titulo) {
       return NextResponse.json(
         { error: 'Los campos "empresa" y "titulo" son requeridos' },
         { status: 400 }
       );
     }
 
-    if (!EMPRESAS.includes(empresa)) {
+    if (!isEmpresa(empresaRaw)) {
       return NextResponse.json(
         { error: 'La empresa indicada no es válida' },
         { status: 400 }
@@ -79,8 +88,9 @@ export async function POST(request: NextRequest) {
 
     const bonificacion = createBonificacion({
       ...body,
-      empresa,
+      empresa: empresaRaw,
     });
+
     return NextResponse.json(bonificacion, { status: 201 });
   } catch (error) {
     console.error('Error en POST /api/bonificaciones:', error);
@@ -90,3 +100,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

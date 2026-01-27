@@ -40,9 +40,12 @@ export async function POST(request: NextRequest) {
       message: 'Inicio de sesión exitoso',
     });
 
+    // En LAN por HTTP, una cookie "secure" no se guarda.
+    const isHttps = request.nextUrl.protocol === 'https:';
+
     response.cookies.set('admin_session', adminPassword, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isHttps,
       sameSite: 'lax',
       path: '/',
       maxAge: 60 * 60 * 24,
@@ -68,3 +71,4 @@ export async function DELETE() {
 
   return response;
 }
+

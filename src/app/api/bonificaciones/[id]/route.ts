@@ -2,7 +2,7 @@
  * API Route: /api/bonificaciones/[id]
  *
  * PUT - Actualiza una bonificación existente
- * DELETE - Soft delete (desactiva la bonificación)
+ * DELETE - Soft delete (desactiva la bonificación) o borrado real
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -14,7 +14,14 @@ import {
   type UpdateBonificacionData,
 } from '@/lib/bonificaciones';
 import { cookies } from 'next/headers';
-import { EMPRESAS } from '@/lib/empresas';
+import { EMPRESAS, type Empresa } from '@/lib/empresas';
+
+// TypeScript no permite includes(string) sobre un union literal.
+const EMPRESAS_STRINGS: readonly string[] = EMPRESAS;
+
+function isEmpresa(value: string): value is Empresa {
+  return EMPRESAS_STRINGS.includes(value);
+}
 
 async function isAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
@@ -47,20 +54,23 @@ export async function PUT(
     }
 
     const body = await request.json() as UpdateBonificacionData;
+    const empresaRaw = body.empresa?.trim();
 
-    const empresa = body.empresa?.trim();
-
-    if (empresa && !EMPRESAS.includes(empresa)) {
+    if (empresaRaw && !isEmpresa(empresaRaw)) {
       return NextResponse.json(
         { error: 'La empresa indicada no es válida' },
         { status: 400 }
       );
     }
 
+    const empresa: Empresa | undefined =
+      empresaRaw && isEmpresa(empresaRaw) ? empresaRaw : undefined;
+
     const updated = updateBonificacion(bonificacionId, {
       ...body,
       empresa,
     });
+
     return NextResponse.json(updated);
   } catch (error) {
     console.error('Error en PUT /api/bonificaciones/[id]:', error);
@@ -112,3 +122,4 @@ export async function DELETE(
     );
   }
 }
+
