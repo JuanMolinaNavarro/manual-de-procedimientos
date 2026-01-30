@@ -21,6 +21,7 @@ interface Bonificacion {
   empresa: string;
   titulo: string;
   descripcion: string | null;
+  mensaje_sugerido: string | null;
   condiciones: string | null;
   activa: boolean;
   vigencia_desde: string | null;
@@ -67,6 +68,7 @@ export default function EditarBonificacionPage() {
         setFormData({
           ...bonificacion,
           descripcion: bonificacion.descripcion ?? '',
+          mensaje_sugerido: bonificacion.mensaje_sugerido ?? '',
           condiciones: bonificacion.condiciones ?? '',
           vigencia_desde: bonificacion.vigencia_desde ?? '',
           vigencia_hasta: bonificacion.vigencia_hasta ?? '',
@@ -97,6 +99,7 @@ export default function EditarBonificacionPage() {
           empresa: formData.empresa,
           titulo: formData.titulo,
           descripcion: formData.descripcion || null,
+          mensaje_sugerido: formData.mensaje_sugerido || null,
           condiciones: formData.condiciones || null,
           activa: formData.activa,
           vigencia_desde: formData.vigencia_desde || null,
@@ -177,6 +180,17 @@ export default function EditarBonificacionPage() {
                 placeholder="Describa brevemente en qué consiste esta bonificación"
                 value={formData.descripcion ?? ''}
                 onChange={(event) => handleChange('descripcion', event.target.value)}
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="mensaje_sugerido">Mensaje sugerido (opcional)</Label>
+              <Textarea
+                id="mensaje_sugerido"
+                placeholder="Ej: Esta bonificacion aplica en el proximo ciclo."
+                value={formData.mensaje_sugerido ?? ''}
+                onChange={(event) => handleChange('mensaje_sugerido', event.target.value)}
                 rows={3}
               />
             </div>

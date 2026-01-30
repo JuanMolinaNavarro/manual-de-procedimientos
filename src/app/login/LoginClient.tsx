@@ -1,0 +1,98 @@
+/**
+ * Login principal del sitio (no admin).
+ */
+
+'use client';
+
+import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
+export default function SiteLoginPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const from = searchParams.get('from') || '/retencion/inicio';
+
+  const [usuario, setUsuario] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usuario, password }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'No se pudo iniciar sesion');
+      }
+
+      router.push(from);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Acceso al manual</CardTitle>
+          <CardDescription>
+            Ingresa tu usuario y contrasena para continuar
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="usuario">Usuario</Label>
+              <Input
+                id="usuario"
+                value={usuario}
+                onChange={(event) => setUsuario(event.target.value)}
+                placeholder="Ej: agente01"
+                autoComplete="username"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Contrasena</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Ingresa tu contrasena"
+                autoComplete="current-password"
+                required
+              />
+            </div>
+
+            {error && (
+              <div className="rounded-md border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-300">
+                {error}
+              </div>
+            )}
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Ingresando...' : 'Ingresar'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

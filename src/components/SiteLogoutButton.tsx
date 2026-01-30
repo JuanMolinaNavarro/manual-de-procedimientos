@@ -1,5 +1,5 @@
 /**
- * Botón de cierre de sesión del panel admin.
+ * Botón para cerrar sesión del sitio (no admin).
  */
 
 'use client';
@@ -7,17 +7,16 @@
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 
-export default function AdminLogoutButton() {
+export default function SiteLogoutButton() {
   const router = useRouter();
 
   const handleLogout = async () => {
     await fetch('/api/login', { method: 'DELETE' });
     router.push('/login');
-    router.refresh();
   };
 
   return (
-    <Button variant="outline" onClick={handleLogout} className="text-sm">
+    <Button variant="outline" size="sm" onClick={handleLogout}>
       Cerrar sesión
     </Button>
   );

@@ -23,10 +23,18 @@ function isEmpresa(value: string): value is Empresa {
   return EMPRESAS_STRINGS.includes(value);
 }
 
+
+function getRoleFromSession(value: string | undefined) {
+  if (!value) return null;
+  const parts = value.split('|');
+  return parts.length > 1 ? parts[1] : null;
+}
+
 async function isAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
-  const session = cookieStore.get('admin_session');
-  return session?.value === process.env.ADMIN_PASSWORD;
+  const session = cookieStore.get('site_session');
+  const role = getRoleFromSession(session?.value);
+  return role === 'admin';
 }
 
 export async function PUT(
@@ -45,7 +53,7 @@ export async function PUT(
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
     }
 
-    const existing = getBonificacionById(bonificacionId);
+    const existing = await getBonificacionById(bonificacionId);
     if (!existing) {
       return NextResponse.json(
         { error: 'Bonificación no encontrada' },
@@ -66,7 +74,7 @@ export async function PUT(
     const empresa: Empresa | undefined =
       empresaRaw && isEmpresa(empresaRaw) ? empresaRaw : undefined;
 
-    const updated = updateBonificacion(bonificacionId, {
+    const updated = await updateBonificacion(bonificacionId, {
       ...body,
       empresa,
     });
@@ -99,8 +107,8 @@ export async function DELETE(
 
     const hardDelete = request.nextUrl.searchParams.get('hard') === 'true';
     const success = hardDelete
-      ? deleteBonificacion(bonificacionId)
-      : softDeleteBonificacion(bonificacionId);
+      ? await deleteBonificacion(bonificacionId)
+      : await softDeleteBonificacion(bonificacionId);
 
     if (!success) {
       return NextResponse.json(
@@ -122,4 +130,3 @@ export async function DELETE(
     );
   }
 }
-

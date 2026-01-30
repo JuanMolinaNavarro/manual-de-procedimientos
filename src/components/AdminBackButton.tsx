@@ -1,5 +1,5 @@
-/**
- * Botón para volver al inicio y cerrar sesión.
+﻿/**
+ * Boton para volver al inicio sin cerrar sesion.
  */
 
 'use client';
@@ -10,8 +10,7 @@ import { Button } from '@/components/ui/button';
 export default function AdminBackButton() {
   const router = useRouter();
 
-  const handleBack = async () => {
-    await fetch('/api/admin/login', { method: 'DELETE' });
+  const handleBack = () => {
     router.push('/retencion/inicio');
     router.refresh();
   };

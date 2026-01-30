@@ -9,7 +9,7 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const cookieStore = await cookies();
-  const session = cookieStore.get('admin_session');
+  const session = cookieStore.get('site_session');
   const isAuthed = Boolean(session);
 
   return (
@@ -26,6 +26,12 @@ export default async function AdminLayout({
                 className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
               >
                 Bonificaciones
+              </a>
+              <a
+                href="/admin/usuarios"
+                className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                Usuarios
               </a>
             </nav>
           </div>

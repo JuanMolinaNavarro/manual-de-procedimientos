@@ -1,11 +1,19 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
+import { cookies } from 'next/headers';
 import ThemeToggle from '@/components/ThemeToggle';
+import SiteLogoutButton from '@/components/SiteLogoutButton';
 
-export default function RetencionLayout({
+export default async function RetencionLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const cookieStore = await cookies();
+  const session = cookieStore.get('site_session')?.value;
+  const isAuthed = Boolean(session);
+  const role = session?.split('|')[1] ?? null;
+  const isAdmin = role === 'admin';
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="relative isolate">
@@ -18,17 +26,22 @@ export default function RetencionLayout({
                 Manual de Procedimientos - Callcenter
               </span>
               <span className="rounded-full border border-border bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
-                Atención y Retención
+                Atencion y Retencion
               </span>
             </div>
-            <div className="hidden items-center gap-4 text-sm text-muted-foreground md:flex">
-              <Link className="hover:text-foreground" href="/retencion/inicio">
-                Retención
-              </Link>
-              <Link className="hover:text-foreground" href="/admin/login">
-                Panel admin
-              </Link>
+            <div className="flex items-center gap-3">
+              <div className="hidden items-center gap-4 text-sm text-muted-foreground md:flex">
+                <Link className="hover:text-foreground" href="/retencion/inicio">
+                  Retencion
+                </Link>
+                {isAdmin && (
+                  <Link className="hover:text-foreground" href="/admin/bonificaciones">
+                    Panel admin
+                  </Link>
+                )}
+              </div>
               <ThemeToggle />
+              {isAuthed && <SiteLogoutButton />}
             </div>
           </div>
         </header>
@@ -46,7 +59,7 @@ export default function RetencionLayout({
           <div className="rounded-xl border border-border bg-card p-3">
             <details open>
               <summary className="cursor-pointer text-sm font-semibold text-foreground">
-                Retención
+                Retencion
               </summary>
               <nav className="mt-3 space-y-1 text-sm">
                 <Link
@@ -59,7 +72,7 @@ export default function RetencionLayout({
                   className="block rounded-md px-3 py-2 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                   href="/retencion/continuacion"
                 >
-                  Continuación
+                  Continuacion
                 </Link>
                 <details className="rounded-md px-2">
                   <summary className="cursor-pointer rounded-md px-1 py-2 text-sm font-semibold text-foreground/80">
@@ -70,7 +83,7 @@ export default function RetencionLayout({
                       className="block rounded-md px-3 py-2 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                       href="/retencion/facturacion"
                     >
-                      Facturación
+                      Facturacion
                     </Link>
                     <Link
                       className="block rounded-md px-3 py-2 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
@@ -88,7 +101,7 @@ export default function RetencionLayout({
                       className="block rounded-md px-3 py-2 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                       href="/retencion/tecnicos"
                     >
-                      Técnicos
+                      Tecnicos
                     </Link>
                   </div>
                 </details>
@@ -103,11 +116,11 @@ export default function RetencionLayout({
 
         <aside className="hidden lg:block">
           <div className="rounded-2xl border border-border bg-card p-4">
-            <p className="text-sm font-semibold text-foreground">Checklist rápido</p>
+            <p className="text-sm font-semibold text-foreground">Checklist rapido</p>
             <ul className="mt-4 list-disc space-y-3 pl-5 text-sm text-muted-foreground">
               <li>Confirmar datos del cliente.</li>
-              <li>Documentar el motivo de retención.</li>
-              <li>Ofrecer bonificación compatible.</li>
+              <li>Documentar el motivo de retencion.</li>
+              <li>Ofrecer bonificacion compatible.</li>
               <li>Registrar resultado en CRM.</li>
             </ul>
           </div>

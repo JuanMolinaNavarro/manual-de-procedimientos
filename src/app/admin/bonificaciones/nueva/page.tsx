@@ -24,6 +24,7 @@ export default function NuevaBonificacionPage() {
     empresa: EMPRESAS[0],
     titulo: '',
     descripcion: '',
+    mensaje_sugerido: '',
     condiciones: '',
     vigencia_desde: '',
     vigencia_hasta: '',
@@ -44,6 +45,7 @@ export default function NuevaBonificacionPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          mensaje_sugerido: formData.mensaje_sugerido || null,
           vigencia_desde: formData.vigencia_desde || null,
           vigencia_hasta: formData.vigencia_hasta || null,
         }),
@@ -106,6 +108,17 @@ export default function NuevaBonificacionPage() {
                 placeholder="Describa brevemente en qué consiste esta bonificación"
                 value={formData.descripcion}
                 onChange={(event) => handleChange('descripcion', event.target.value)}
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="mensaje_sugerido">Mensaje sugerido (opcional)</Label>
+              <Textarea
+                id="mensaje_sugerido"
+                placeholder="Ej: Esta bonificacion aplica en el proximo ciclo."
+                value={formData.mensaje_sugerido}
+                onChange={(event) => handleChange('mensaje_sugerido', event.target.value)}
                 rows={3}
               />
             </div>

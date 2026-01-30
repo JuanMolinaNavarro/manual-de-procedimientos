@@ -1,29 +1,61 @@
 /**
  * Middleware de Next.js
  *
- * Protege las rutas /admin/* verificando la autenticación.
- * Redirige a /admin/login si no está autenticado.
+ * - Protege /admin/* con rol admin.
+ * - Protege el resto del sitio con sesion valida.
  */
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+function getRoleFromSession(value: string | undefined) {
+  if (!value) return null;
+  const parts = value.split('|');
+  return parts.length > 1 ? parts[1] : null;
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
-    const session = request.cookies.get('admin_session');
+  if (
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/api/login') ||
+    pathname.startsWith('/_next') ||
+    pathname === '/favicon.ico' ||
+    pathname === '/robots.txt' ||
+    pathname === '/sitemap.xml'
+  ) {
+    return NextResponse.next();
+  }
 
-    if (!session || session.value !== process.env.ADMIN_PASSWORD) {
-      const loginUrl = new URL('/admin/login', request.url);
-      loginUrl.searchParams.set('from', pathname);
-      return NextResponse.redirect(loginUrl);
+  const session = request.cookies.get('site_session');
+  const role = getRoleFromSession(session?.value);
+
+  if (!session) {
+    if (pathname.startsWith('/api')) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('from', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
+    if (role !== 'admin') {
+      if (pathname.startsWith('/api')) {
+        return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+      }
+      return NextResponse.redirect(new URL('/retencion/inicio', request.url));
+    }
+  }
+
+  if (pathname === '/login') {
+    return NextResponse.redirect(new URL('/retencion/inicio', request.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ['/:path*'],
 };

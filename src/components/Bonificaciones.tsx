@@ -13,12 +13,14 @@
 
 import { useEffect, useState } from 'react';
 import { EMPRESAS } from '@/lib/empresas';
+import CopyButton from '@/components/CopyButton';
 
 interface Bonificacion {
   id: number;
   empresa: string;
   titulo: string;
   descripcion: string | null;
+  mensaje_sugerido: string | null;
   condiciones: string | null;
 }
 
@@ -146,6 +148,20 @@ export default function Bonificaciones() {
                   <p className="mt-1 text-sm text-foreground/80">
                     {bonificacion.condiciones}
                   </p>
+                </div>
+              )}
+
+              {bonificacion.mensaje_sugerido && (
+                <div className="mt-3 border-t border-border pt-3">
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Mensaje sugerido
+                  </span>
+                  <p className="mt-1 text-sm text-foreground/80">
+                    {bonificacion.mensaje_sugerido}
+                  </p>
+                  <div className="mt-3">
+                    <CopyButton text={bonificacion.mensaje_sugerido} />
+                  </div>
                 </div>
               )}
             </div>

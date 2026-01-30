@@ -27,6 +27,7 @@ interface Bonificacion {
   empresa: string;
   titulo: string;
   descripcion: string | null;
+  mensaje_sugerido: string | null;
   condiciones: string | null;
   activa: boolean;
   vigencia_desde: string | null;

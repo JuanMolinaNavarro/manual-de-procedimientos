@@ -1,0 +1,35 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Bonificacion {
+  id             Int      @id @default(autoincrement())
+  empresa        String
+  titulo         String
+  descripcion    String?
+  mensaje_sugerido String?
+  condiciones    String?
+  activa         Boolean  @default(true)
+  vigencia_desde String?
+  vigencia_hasta String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  @@map("bonificaciones")
+}
+
+model Usuario {
+  id         Int      @id @default(autoincrement())
+  usuario    String   @unique
+  password   String
+  rol        String   @default("agente")
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("usuarios")
+}

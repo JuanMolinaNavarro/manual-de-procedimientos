@@ -22,10 +22,24 @@ function isEmpresa(value: string): value is Empresa {
   return EMPRESAS_STRINGS.includes(value);
 }
 
+
+function getRoleFromSession(value: string | undefined) {
+  if (!value) return null;
+  const parts = value.split('|');
+  return parts.length > 1 ? parts[1] : null;
+}
+
+async function isSiteAuthed(): Promise<boolean> {
+  const cookieStore = await cookies();
+  const session = cookieStore.get('site_session');
+  return Boolean(session?.value);
+}
+
 async function isAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
-  const session = cookieStore.get('admin_session');
-  return session?.value === process.env.ADMIN_PASSWORD;
+  const session = cookieStore.get('site_session');
+  const role = getRoleFromSession(session?.value);
+  return role === 'admin';
 }
 
 export async function GET(request: NextRequest) {
@@ -38,8 +52,12 @@ export async function GET(request: NextRequest) {
       if (!await isAdmin()) {
         return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
       }
-      const bonificaciones = getAllBonificaciones();
+      const bonificaciones = await getAllBonificaciones();
       return NextResponse.json(bonificaciones);
+    }
+
+    if (!await isSiteAuthed()) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
     if (empresaRaw && !isEmpresa(empresaRaw)) {
@@ -52,7 +70,7 @@ export async function GET(request: NextRequest) {
     const empresa: Empresa | null =
       empresaRaw && isEmpresa(empresaRaw) ? empresaRaw : null;
 
-    const bonificaciones = getBonificacionesActivas(empresa);
+    const bonificaciones = await getBonificacionesActivas(empresa);
     return NextResponse.json(bonificaciones);
   } catch (error) {
     console.error('Error en GET /api/bonificaciones:', error);
@@ -86,7 +104,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const bonificacion = createBonificacion({
+    const bonificacion = await createBonificacion({
       ...body,
       empresa: empresaRaw,
     });
@@ -100,4 +118,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
