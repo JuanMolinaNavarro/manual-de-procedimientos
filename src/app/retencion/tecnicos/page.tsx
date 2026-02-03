@@ -4,7 +4,7 @@ import CopyButton from '@/components/CopyButton';
 const motivos = [
   'Sin señal',
   'Baja señal',
-  'Los Rojo',
+  'LOS Rojo',
   'Cable Cortado',
   'MicroCortes',
   'Lentitud',

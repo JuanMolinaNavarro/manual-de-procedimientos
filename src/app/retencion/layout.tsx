@@ -1,5 +1,6 @@
 ﻿import Link from 'next/link';
 import { cookies } from 'next/headers';
+import { prisma } from '@/lib/prisma';
 import ThemeToggle from '@/components/ThemeToggle';
 import SiteLogoutButton from '@/components/SiteLogoutButton';
 
@@ -9,10 +10,22 @@ export default async function RetencionLayout({
   children: React.ReactNode;
 }) {
   const cookieStore = await cookies();
-  const session = cookieStore.get('site_session')?.value;
-  const isAuthed = Boolean(session);
-  const role = session?.split('|')[1] ?? null;
+  const sessionValue = cookieStore.get('site_session')?.value;
+  const usuario = sessionValue ? sessionValue.split('|')[0] : null;
+  const role = sessionValue ? sessionValue.split('|')[1] : null;
+  const isAuthed = Boolean(sessionValue);
   const isAdmin = role === 'admin';
+
+  const usuarioRecord = usuario
+    ? await prisma.usuario.findUnique({
+        where: { usuario },
+        select: { nombre: true, apellido: true, usuario: true },
+      })
+    : null;
+
+  const nombreCompleto = usuarioRecord
+    ? [usuarioRecord.nombre, usuarioRecord.apellido].filter(Boolean).join(' ').trim() || usuarioRecord.usuario
+    : null;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -40,6 +53,9 @@ export default async function RetencionLayout({
                   </Link>
                 )}
               </div>
+              {nombreCompleto && (
+                <span className="hidden text-sm text-muted-foreground md:inline">{nombreCompleto}</span>
+              )}
               <ThemeToggle />
               {isAuthed && <SiteLogoutButton />}
             </div>

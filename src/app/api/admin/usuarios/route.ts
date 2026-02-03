@@ -46,10 +46,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const body = (await request.json()) as { usuario?: string; password?: string; rol?: string };
+    const body = (await request.json()) as {
+      usuario?: string;
+      password?: string;
+      rol?: string;
+      nombre?: string;
+      apellido?: string;
+    };
     const usuario = body.usuario?.trim();
     const password = body.password?.trim();
     const rol = body.rol?.trim() || 'agente';
+    const nombre = body.nombre?.trim();
+    const apellido = body.apellido?.trim();
 
     if (!usuario || !password) {
       return NextResponse.json(
@@ -70,6 +78,9 @@ export async function POST(request: NextRequest) {
         usuario,
         password,
         rol,
+        nombre: nombre || null,
+        apellido: apellido || null,
+        isActive: true,
       },
     });
 

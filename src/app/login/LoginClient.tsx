@@ -49,9 +49,9 @@ export default function SiteLoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Acceso al manual</CardTitle>
+          <CardTitle>Callcenter MultiReg</CardTitle>
           <CardDescription>
-            Ingresa tu usuario y contrasena para continuar
+            Manual de Procedimientos
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -82,7 +82,7 @@ export default function SiteLoginPage() {
             </div>
 
             {error && (
-              <div className="rounded-md border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-300">
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive dark:text-red-200">
                 {error}
               </div>
             )}

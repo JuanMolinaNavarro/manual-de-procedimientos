@@ -33,5 +33,27 @@ services:
     ports:
       - "3000:3000"
 
+  app-dev:
+    build: .
+    container_name: manualcall-app-dev
+    profiles: ["dev"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      SITE_USER: ${SITE_USER}
+      SITE_PASSWORD: ${SITE_PASSWORD}
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/manualcall
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev -- -H 0.0.0.0 -p 3000
+
 volumes:
   pgdata:

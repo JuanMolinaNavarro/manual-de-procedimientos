@@ -4,14 +4,11 @@
 
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import Bonificaciones from '@/components/Bonificaciones';
 import CopyButton from '@/components/CopyButton';
-
-const SESSION_KEY = 'agente_nombre';
 
 const obligatorios = [
   'Plan actual del abonado',
@@ -37,24 +34,23 @@ const reglasOperativas = [
 ];
 
 export default function RetencionInicioPage() {
-  const [nombre, setNombre] = useState('');
+  const [nombreAgente, setNombreAgente] = useState('[Agente]');
 
   useEffect(() => {
-    const stored = sessionStorage.getItem(SESSION_KEY);
-    if (stored) {
-      setNombre(stored);
-    }
+    const loadNombre = async () => {
+      try {
+        const response = await fetch('/api/me');
+        if (!response.ok) return;
+        const data = await response.json();
+        const display = data.nombre || data.usuario || '[Agente]';
+        setNombreAgente(display);
+      } catch {
+        // Silencioso: fallback a [Agente]
+      }
+    };
+
+    loadNombre();
   }, []);
-
-  const handleNombreChange = (value: string) => {
-    setNombre(value);
-    sessionStorage.setItem(SESSION_KEY, value);
-  };
-
-  const nombreAgente = useMemo(() => {
-    const trimmed = nombre.trim();
-    return trimmed ? trimmed : '[Agente]';
-  }, [nombre]);
 
   const saludo = `Hola, mi nombre es ${nombreAgente}, gracias por comunicarte. 😊 Lamento que estés pasando por esta situación, voy a acompañarte para resolverlo de la mejor manera posible. 🤝`;
   const antesDeAvanzar =
@@ -97,20 +93,7 @@ export default function RetencionInicioPage() {
           </h3>
         </div>
 
-        <div className="space-y-2 rounded-2xl border border-border bg-card p-5">
-          <label htmlFor="agente-nombre" className="text-sm font-semibold text-foreground">
-            Introduci tu nombre! 👇😊
-          </label>
-          <Input
-            id="agente-nombre"
-            placeholder="Ej: Camila"
-            value={nombre}
-            onChange={(event) => handleNombreChange(event.target.value)}
-          />
-          <p className="text-xs text-muted-foreground">
-            Se guarda solo en esta pestaña para agilizar tus respuestas.
-          </p>
-        </div>
+        
 
         <div className="prose dark:prose-invert max-w-none">
           <h2>Objetivo del bloque</h2>

@@ -1,4 +1,5 @@
-import { cookies } from 'next/headers';
+﻿import { cookies } from 'next/headers';
+import { prisma } from '@/lib/prisma';
 import AdminBackButton from '@/components/AdminBackButton';
 import AdminLogoutButton from '@/components/AdminLogoutButton';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -9,8 +10,21 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const cookieStore = await cookies();
-  const session = cookieStore.get('site_session');
-  const isAuthed = Boolean(session);
+  const sessionValue = cookieStore.get('site_session')?.value;
+  const usuario = sessionValue ? sessionValue.split('|')[0] : null;
+
+  const usuarioRecord = usuario
+    ? await prisma.usuario.findUnique({
+        where: { usuario },
+        select: { nombre: true, apellido: true, usuario: true },
+      })
+    : null;
+
+  const nombreCompleto = usuarioRecord
+    ? [usuarioRecord.nombre, usuarioRecord.apellido].filter(Boolean).join(' ').trim() || usuarioRecord.usuario
+    : null;
+
+  const isAuthed = Boolean(sessionValue);
 
   return (
     <div className="min-h-screen bg-background">
@@ -18,7 +32,7 @@ export default async function AdminLayout({
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center space-x-4">
             <h1 className="text-xl font-semibold text-foreground">
-              Panel de administración
+              Panel de administracion
             </h1>
             <nav className="hidden md:flex space-x-4">
               <a
@@ -36,6 +50,9 @@ export default async function AdminLayout({
             </nav>
           </div>
           <div className="flex items-center gap-2">
+            {nombreCompleto && (
+              <span className="hidden text-sm text-muted-foreground md:inline">{nombreCompleto}</span>
+            )}
             <ThemeToggle />
             <AdminBackButton />
             {isAuthed && <AdminLogoutButton />}

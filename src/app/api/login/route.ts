@@ -1,8 +1,8 @@
-/**
+﻿/**
  * API Route: /api/login
  *
- * POST - Valida usuario/contraseña contra la DB (sin encriptación).
- * DELETE - Cierra sesión y elimina la cookie.
+ * POST - Valida usuario/contrasena contra la DB (sin encriptacion).
+ * DELETE - Cierra sesion y elimina la cookie.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     if (!usuario || !password) {
       return NextResponse.json(
-        { error: 'Usuario y contraseña son requeridos' },
+        { error: 'Usuario y contrasena son requeridos' },
         { status: 400 }
       );
     }
@@ -50,7 +50,11 @@ export async function POST(request: NextRequest) {
     });
 
     if (!record || record.password !== password) {
-      return NextResponse.json({ error: 'Credenciales inválidas' }, { status: 401 });
+      return NextResponse.json({ error: 'Credenciales invalidas' }, { status: 401 });
+    }
+
+    if (record.isActive !== true) {
+      return NextResponse.json({ error: 'Usuario inactivo' }, { status: 403 });
     }
 
     const response = NextResponse.json({ ok: true });
