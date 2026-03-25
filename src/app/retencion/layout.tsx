@@ -86,6 +86,12 @@ export default async function RetencionLayout({
                 </Link>
                 <Link
                   className="block rounded-md px-3 py-2 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  href="/retencion/primeros-pasos"
+                >
+                  Primeros pasos
+                </Link>
+                <Link
+                  className="block rounded-md px-3 py-2 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                   href="/retencion/continuacion"
                 >
                   Continuacion
