@@ -23,6 +23,39 @@ model Bonificacion {
   @@map("bonificaciones")
 }
 
+model MwproxyCatalog {
+  id          Int       @id @default(autoincrement())
+  mwproxy_id  Int       @unique
+  name        String
+  year        Int?
+  available   Boolean   @default(false)
+  imdb_id     String?
+  imdb_rating Float?
+  imdb_votes  Int?
+  enriched_at DateTime?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  @@map("mwproxy_catalog")
+}
+
+model OnDemand {
+  id          Int      @id @default(autoincrement())
+  imdbID      String   @unique
+  title       String
+  year        String
+  poster      String?
+  background  String?
+  logo        String?
+  imdb_rating Float?
+  imdb_votes  Int?
+  isActive    Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("on_demand")
+}
+
 model Usuario {
   id         Int      @id @default(autoincrement())
   usuario    String   @unique

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx prisma *)",
+      "Bash(docker exec *)",
+      "Bash(docker cp *)",
+      "Bash(docker compose *)",
+      "Bash(npm install *)",
+      "WebFetch(domain:fanart.tv)",
+      "WebFetch(domain:webservice.fanart.tv)"
+    ]
+  }
+}
