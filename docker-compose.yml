@@ -25,11 +25,15 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       SITE_USER: ${SITE_USER}
       SITE_PASSWORD: ${SITE_PASSWORD}
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/manualcall
+      OMDB_API_KEY: ${OMDB_API_KEY}
+      FANART_API_KEY: ${FANART_API_KEY}
+      MWPROXY_BASE_URL: ${MWPROXY_BASE_URL}
+      MWPROXY_TOKEN: ${MWPROXY_TOKEN}
     ports:
       - "3000:3000"
 
@@ -47,6 +51,10 @@ services:
       SITE_USER: ${SITE_USER}
       SITE_PASSWORD: ${SITE_PASSWORD}
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/manualcall
+      OMDB_API_KEY: ${OMDB_API_KEY}
+      FANART_API_KEY: ${FANART_API_KEY}
+      MWPROXY_BASE_URL: ${MWPROXY_BASE_URL}
+      MWPROXY_TOKEN: ${MWPROXY_TOKEN}
     ports:
       - "3000:3000"
     volumes:

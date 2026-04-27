@@ -47,6 +47,18 @@ export default async function AdminLayout({
               >
                 Usuarios
               </a>
+              <a
+                href="/admin/peliculas"
+                className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                Películas
+              </a>
+              <a
+                href="/admin/peliculas/catalogo"
+                className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                Catálogo
+              </a>
             </nav>
           </div>
           <div className="flex items-center gap-2">
