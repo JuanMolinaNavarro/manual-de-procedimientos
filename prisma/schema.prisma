@@ -69,3 +69,49 @@ model Usuario {
 
   @@map("usuarios")
 }
+
+model SportsEvent {
+  id               Int      @id @default(autoincrement())
+  idEvent          String   @unique
+  strEvent         String
+  strHomeTeam      String?
+  strAwayTeam      String?
+  strHomeTeamBadge String?
+  strAwayTeamBadge String?
+  strThumb         String?
+  strLeague        String
+  strLeagueBadge   String?
+  intHomeScore     String?
+  intAwayScore     String?
+  label            String
+  labelColor       String
+  timeLocal        String?
+  dateFormatted    String
+  synced_at        DateTime @default(now())
+
+  @@map("sports_events")
+}
+
+model SportsFeatured {
+  id               Int      @id @default(autoincrement())
+  idEvent          String   @unique
+  strEvent         String
+  strHomeTeam      String?
+  strAwayTeam      String?
+  strHomeTeamBadge String?
+  strAwayTeamBadge String?
+  strThumb         String?
+  strLeague        String
+  strLeagueBadge   String?
+  intHomeScore     String?
+  intAwayScore     String?
+  label            String
+  labelColor       String
+  timeLocal        String?
+  dateFormatted    String
+  type             String
+  borderColor      String
+  synced_at        DateTime @default(now())
+
+  @@map("sports_featured")
+}
