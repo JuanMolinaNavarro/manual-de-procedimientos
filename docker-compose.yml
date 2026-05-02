@@ -34,6 +34,7 @@ services:
       FANART_API_KEY: ${FANART_API_KEY}
       MWPROXY_BASE_URL: ${MWPROXY_BASE_URL}
       MWPROXY_TOKEN: ${MWPROXY_TOKEN}
+      LEADS_API_KEY: ${LEADS_API_KEY}
     ports:
       - "3000:3000"
 
@@ -55,6 +56,7 @@ services:
       FANART_API_KEY: ${FANART_API_KEY}
       MWPROXY_BASE_URL: ${MWPROXY_BASE_URL}
       MWPROXY_TOKEN: ${MWPROXY_TOKEN}
+      LEADS_API_KEY: ${LEADS_API_KEY}
     ports:
       - "3000:3000"
     volumes:
