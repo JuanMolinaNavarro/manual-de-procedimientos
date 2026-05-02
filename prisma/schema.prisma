@@ -115,3 +115,18 @@ model SportsFeatured {
 
   @@map("sports_featured")
 }
+
+model Lead {
+  id         Int      @id @default(autoincrement())
+  nombre     String
+  apellido   String
+  telefono   String
+  email      String?
+  direccion  String
+  plan       String
+  tv_pack    Boolean  @default(false)
+  origen     String
+  created_at DateTime @default(now())
+
+  @@map("leads")
+}
