@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { getPlanConfig, upsertPlanConfig, type PlanConfigData } from '@/lib/planes';
 import { isEmpresa } from '@/lib/empresas';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Api-Key',
+  'Access-Control-Allow-Headers': 'Content-Type',
 };
+
+async function isAdmin(): Promise<boolean> {
+  const cookieStore = await cookies();
+  const session = cookieStore.get('site_session');
+  if (!session?.value) return false;
+  const parts = session.value.split('|');
+  return parts.length > 1 && parts[1] === 'admin';
+}
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 200, headers: CORS_HEADERS });
@@ -35,8 +44,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const apiKey = request.headers.get('X-Api-Key');
-  if (!apiKey || apiKey !== process.env.PLANS_API_KEY) {
+  if (!await isAdmin()) {
     return NextResponse.json(
       { error: 'No autorizado' },
       { status: 401, headers: CORS_HEADERS }
