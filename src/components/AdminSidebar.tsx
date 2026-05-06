@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X, Gift, Users, Film, Library, Trophy, Inbox } from 'lucide-react';
+import { Menu, X, Gift, Users, Film, Library, Trophy, Inbox, Wifi } from 'lucide-react';
 
 const navLinks = [
   { href: '/admin/bonificaciones', label: 'Bonificaciones', icon: Gift },
@@ -12,6 +12,7 @@ const navLinks = [
   { href: '/admin/peliculas/catalogo', label: 'Catálogo', icon: Library },
   { href: '/admin/deportes', label: 'Deportes', icon: Trophy },
   { href: '/admin/leads', label: 'Leads', icon: Inbox },
+  { href: '/admin/planes', label: 'Planes', icon: Wifi },
 ];
 
 export default function AdminSidebar({ nombreCompleto }: { nombreCompleto?: string | null }) {

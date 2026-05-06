@@ -23,6 +23,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/api/on-demand') ||
     pathname.startsWith('/api/sports') ||
     pathname.startsWith('/api/leads') ||
+    pathname.startsWith('/api/plans') ||
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico' ||
     pathname === '/robots.txt' ||
