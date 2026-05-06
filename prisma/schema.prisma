@@ -130,3 +130,14 @@ model Lead {
 
   @@map("leads")
 }
+
+model PlanConfig {
+  id             Int      @id @default(autoincrement())
+  empresa        String   @unique
+  plans          Json
+  tv_addon_price Int
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  @@map("plan_configs")
+}
