@@ -64,6 +64,7 @@ model Usuario {
   apellido   String?
   rol        String   @default("agente")
   isActive   Boolean  @default(true)
+  modulos    String[] @default([])
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
@@ -117,16 +118,18 @@ model SportsFeatured {
 }
 
 model Lead {
-  id         Int      @id @default(autoincrement())
-  nombre     String
-  apellido   String
-  telefono   String
-  email      String?
-  direccion  String
-  plan       String
-  tv_pack    Boolean  @default(false)
-  origen     String
-  created_at DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  nombre      String?
+  apellido    String?
+  telefono    String
+  email       String?
+  direccion   String?
+  plan        String?
+  tv_pack     Boolean? @default(false)
+  origen      String
+  contactado  Boolean? @default(false)
+  resultado   String?
+  created_at  DateTime @default(now())
 
   @@map("leads")
 }

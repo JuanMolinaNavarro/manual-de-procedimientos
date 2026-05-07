@@ -1,7 +1,3 @@
-/**
- * Pagina para editar un usuario existente.
- */
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -11,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { ADMIN_MODULOS } from '@/lib/modulos';
 
 interface Usuario {
   id: number;
@@ -20,6 +17,7 @@ interface Usuario {
   apellido: string | null;
   rol: string;
   isActive: boolean;
+  modulos: string[];
 }
 
 export default function EditarUsuarioPage() {
@@ -31,9 +29,15 @@ export default function EditarUsuarioPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState<Usuario | null>(null);
+  const [currentUsuario, setCurrentUsuario] = useState<string | null>(null);
+
+  // Tracks which module slugs are checked in the UI.
+  // Empty means all allowed (no restrictions).
+  const [selectedModulos, setSelectedModulos] = useState<Set<string>>(new Set());
+  const [modulosRestricted, setModulosRestricted] = useState(false);
 
   useEffect(() => {
-    const loadUsuario = async () => {
+    const load = async () => {
       try {
         if (Number.isNaN(usuarioId)) {
           setError('ID invalido');
@@ -41,13 +45,29 @@ export default function EditarUsuarioPage() {
           return;
         }
 
-        const response = await fetch(`/api/admin/usuarios/${usuarioId}`);
-        if (!response.ok) {
-          throw new Error('Error al cargar el usuario');
+        const [usuarioRes, meRes] = await Promise.all([
+          fetch(`/api/admin/usuarios/${usuarioId}`),
+          fetch('/api/me'),
+        ]);
+
+        if (!usuarioRes.ok) throw new Error('Error al cargar el usuario');
+
+        const data = (await usuarioRes.json()) as Usuario;
+        setFormData(data);
+
+        // Initialise module state from saved modulos
+        if (data.modulos && data.modulos.length > 0) {
+          setModulosRestricted(true);
+          setSelectedModulos(new Set(data.modulos));
+        } else {
+          setModulosRestricted(false);
+          setSelectedModulos(new Set(ADMIN_MODULOS.map((m) => m.slug)));
         }
 
-        const data = (await response.json()) as Usuario;
-        setFormData(data);
+        if (meRes.ok) {
+          const me = (await meRes.json()) as { usuario: string };
+          setCurrentUsuario(me.usuario);
+        }
       } catch (err) {
         console.error(err);
         setError('No se pudo cargar el usuario');
@@ -56,11 +76,20 @@ export default function EditarUsuarioPage() {
       }
     };
 
-    loadUsuario();
+    load();
   }, [usuarioId]);
 
   const handleChange = (field: keyof Usuario, value: string | boolean) => {
     setFormData((prev) => (prev ? { ...prev, [field]: value } : prev));
+  };
+
+  const toggleModulo = (slug: string, checked: boolean) => {
+    setSelectedModulos((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(slug);
+      else next.delete(slug);
+      return next;
+    });
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -69,6 +98,14 @@ export default function EditarUsuarioPage() {
 
     setError('');
     setSaving(true);
+
+    // Compute modulos to save: empty array = all allowed
+    let modulosToSave: string[] = [];
+    if (formData.rol === 'admin' && modulosRestricted) {
+      const all = ADMIN_MODULOS.map((m) => m.slug);
+      const allSelected = all.every((s) => selectedModulos.has(s));
+      modulosToSave = allSelected ? [] : Array.from(selectedModulos);
+    }
 
     try {
       const response = await fetch(`/api/admin/usuarios/${usuarioId}`, {
@@ -81,6 +118,7 @@ export default function EditarUsuarioPage() {
           apellido: formData.apellido || null,
           rol: formData.rol,
           isActive: formData.isActive,
+          modulos: modulosToSave,
         }),
       });
 
@@ -95,6 +133,8 @@ export default function EditarUsuarioPage() {
       setSaving(false);
     }
   };
+
+  const isSelf = formData?.usuario === currentUsuario;
 
   if (loading) {
     return (
@@ -171,6 +211,59 @@ export default function EditarUsuarioPage() {
                 <option value="admin">Admin</option>
               </select>
             </div>
+
+            {/* Module access — only for admin users */}
+            {formData.rol === 'admin' && (
+              <div className="rounded-lg border border-border px-4 py-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Acceso a modulos</p>
+                    <p className="text-sm text-muted-foreground">
+                      Restriccion de secciones del panel de administracion
+                    </p>
+                  </div>
+                  <Switch
+                    checked={modulosRestricted}
+                    onCheckedChange={(value) => {
+                      setModulosRestricted(value);
+                      if (value && selectedModulos.size === 0) {
+                        setSelectedModulos(new Set(ADMIN_MODULOS.map((m) => m.slug)));
+                      }
+                    }}
+                  />
+                </div>
+
+                {modulosRestricted && (
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    {ADMIN_MODULOS.map((modulo) => {
+                      const isUsuarios = modulo.slug === 'usuarios';
+                      const disabled = isUsuarios && isSelf;
+                      return (
+                        <div key={modulo.slug} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id={`modulo-${modulo.slug}`}
+                            checked={selectedModulos.has(modulo.slug)}
+                            disabled={disabled}
+                            onChange={(e) => toggleModulo(modulo.slug, e.target.checked)}
+                            className="h-4 w-4 rounded border-input accent-primary"
+                          />
+                          <Label
+                            htmlFor={`modulo-${modulo.slug}`}
+                            className={disabled ? 'text-muted-foreground cursor-default' : 'cursor-pointer'}
+                          >
+                            {modulo.label}
+                            {disabled && (
+                              <span className="ml-1 text-xs text-muted-foreground">(tu cuenta)</span>
+                            )}
+                          </Label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
               <div>

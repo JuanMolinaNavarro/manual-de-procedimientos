@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 export default function SiteLoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const from = searchParams.get('from') || '/retencion/inicio';
+  const from = searchParams.get('from');
 
   const [usuario, setUsuario] = useState('');
   const [password, setPassword] = useState('');
@@ -33,12 +33,14 @@ export default function SiteLoginPage() {
         body: JSON.stringify({ usuario, password }),
       });
 
+      const data = await response.json();
       if (!response.ok) {
-        const data = await response.json();
         throw new Error(data.error || 'No se pudo iniciar sesion');
       }
 
-      router.push(from);
+      const isAdmin = data.rol === 'admin';
+      const destination = from ?? (isAdmin ? '/admin' : '/retencion/inicio');
+      router.push(destination);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
       setLoading(false);
