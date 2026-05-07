@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X, Gift, Users, Film, Library, Trophy, Inbox, Wifi, type LucideIcon } from 'lucide-react';
+import { Menu, X, Home, Gift, Users, Film, Library, Trophy, Inbox, Wifi, type LucideIcon } from 'lucide-react';
 import type { AdminModulo } from '@/lib/modulos';
 
 const ICONS: Record<string, LucideIcon> = {
@@ -61,6 +61,19 @@ export default function AdminSidebar({ nombreCompleto, navLinks }: AdminSidebarP
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+          {/* Fixed home link */}
+          <Link
+            href="/admin"
+            onClick={() => setIsOpen(false)}
+            className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+              pathname === '/admin'
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+            }`}
+          >
+            <Home className="h-4 w-4 shrink-0" />
+            Inicio
+          </Link>
           {navLinks.map(({ slug, href, label }) => {
             const isActive = pathname === href || pathname.startsWith(href + '/');
             const Icon = ICONS[slug];
