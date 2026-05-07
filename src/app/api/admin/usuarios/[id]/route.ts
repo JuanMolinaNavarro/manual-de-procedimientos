@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { ADMIN_MODULO_SLUGS } from '@/lib/modulos';
 
 function getRoleFromSession(value: string | undefined) {
   if (!value) return null;
@@ -76,6 +77,7 @@ export async function PUT(
       nombre?: string;
       apellido?: string;
       isActive?: boolean;
+      modulos?: string[];
     };
 
     const data = {
@@ -85,10 +87,18 @@ export async function PUT(
       nombre: body.nombre?.trim() || null,
       apellido: body.apellido?.trim() || null,
       isActive: typeof body.isActive === 'boolean' ? body.isActive : undefined,
+      modulos: Array.isArray(body.modulos) ? body.modulos : undefined,
     };
 
     if (data.rol && data.rol !== 'admin' && data.rol !== 'agente') {
       return NextResponse.json({ error: 'Rol invalido' }, { status: 400 });
+    }
+
+    if (data.modulos) {
+      const invalid = data.modulos.filter((s) => !ADMIN_MODULO_SLUGS.includes(s as never));
+      if (invalid.length > 0) {
+        return NextResponse.json({ error: `Modulos invalidos: ${invalid.join(', ')}` }, { status: 400 });
+      }
     }
 
     const updated = await prisma.usuario.update({
@@ -100,6 +110,7 @@ export async function PUT(
         nombre: data.nombre ?? undefined,
         apellido: data.apellido ?? undefined,
         isActive: data.isActive ?? undefined,
+        modulos: data.modulos ?? undefined,
       },
     });
 

@@ -3,19 +3,25 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X, Gift, Users, Film, Library, Trophy, Inbox, Wifi } from 'lucide-react';
+import { Menu, X, Gift, Users, Film, Library, Trophy, Inbox, Wifi, type LucideIcon } from 'lucide-react';
+import type { AdminModulo } from '@/lib/modulos';
 
-const navLinks = [
-  { href: '/admin/bonificaciones', label: 'Bonificaciones', icon: Gift },
-  { href: '/admin/usuarios', label: 'Usuarios', icon: Users },
-  { href: '/admin/peliculas', label: 'Películas', icon: Film },
-  { href: '/admin/peliculas/catalogo', label: 'Catálogo', icon: Library },
-  { href: '/admin/deportes', label: 'Deportes', icon: Trophy },
-  { href: '/admin/leads', label: 'Leads', icon: Inbox },
-  { href: '/admin/planes', label: 'Planes', icon: Wifi },
-];
+const ICONS: Record<string, LucideIcon> = {
+  bonificaciones: Gift,
+  usuarios: Users,
+  peliculas: Film,
+  catalogo: Library,
+  deportes: Trophy,
+  leads: Inbox,
+  planes: Wifi,
+};
 
-export default function AdminSidebar({ nombreCompleto }: { nombreCompleto?: string | null }) {
+interface AdminSidebarProps {
+  nombreCompleto?: string | null;
+  navLinks: readonly AdminModulo[];
+}
+
+export default function AdminSidebar({ nombreCompleto, navLinks }: AdminSidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
 
@@ -55,8 +61,9 @@ export default function AdminSidebar({ nombreCompleto }: { nombreCompleto?: stri
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-          {navLinks.map(({ href, label, icon: Icon }) => {
+          {navLinks.map(({ slug, href, label }) => {
             const isActive = pathname === href || pathname.startsWith(href + '/');
+            const Icon = ICONS[slug];
             return (
               <Link
                 key={href}
@@ -68,7 +75,7 @@ export default function AdminSidebar({ nombreCompleto }: { nombreCompleto?: stri
                     : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                 }`}
               >
-                <Icon className="h-4 w-4 shrink-0" />
+                {Icon && <Icon className="h-4 w-4 shrink-0" />}
                 {label}
               </Link>
             );

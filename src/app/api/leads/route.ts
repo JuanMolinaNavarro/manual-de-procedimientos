@@ -19,11 +19,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json() as CreateLeadData;
-    const { nombre, apellido, telefono, direccion, plan, origen } = body;
+    const { telefono, origen } = body;
 
-    if (!nombre || !apellido || !telefono || !direccion || !plan || !origen) {
+    if (!telefono || !origen) {
       return NextResponse.json(
-        { error: 'Los campos nombre, apellido, telefono, direccion, plan y origen son requeridos' },
+        { error: 'Los campos telefono y origen son requeridos' },
         { status: 400, headers: CORS_HEADERS }
       );
     }

@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Usuario inactivo' }, { status: 403 });
     }
 
-    const response = NextResponse.json({ ok: true });
+    const response = NextResponse.json({ ok: true, rol: record.rol });
     const sessionValue = `${record.usuario}|${record.rol}`;
     const protocol = request.headers.get('x-forwarded-proto') ?? request.nextUrl.protocol;
     response.cookies.set(COOKIE_NAME, sessionValue, {
