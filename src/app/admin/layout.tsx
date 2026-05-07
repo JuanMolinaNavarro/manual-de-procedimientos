@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { getModulosForUser } from '@/lib/modulos';
-import AdminBackButton from '@/components/AdminBackButton';
 import AdminLogoutButton from '@/components/AdminLogoutButton';
 import ThemeToggle from '@/components/ThemeToggle';
 import AdminSidebar from '@/components/AdminSidebar';
@@ -44,16 +43,15 @@ export default async function AdminLayout({
       <AdminModuleGuard modulos={modulos} fallbackHref={fallbackHref} />
 
       <header className="border-b border-border bg-card">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <AdminSidebar nombreCompleto={nombreCompleto} navLinks={allowedNavLinks} />
             <h1 className="text-xl font-semibold text-foreground">
-              Panel de administracion
+              CRM Comercial
             </h1>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <AdminBackButton />
             {isAuthed && <AdminLogoutButton />}
           </div>
         </div>

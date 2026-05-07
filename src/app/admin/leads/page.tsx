@@ -138,7 +138,7 @@ export default function LeadsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortKey, setSortKey] = useState<SortKey>("fecha");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [mostrarContactados, setMostrarContactados] = useState(false);
+  const [mostrarContactados, setMostrarContactados] = useState(true);
 
   const fetchLeads = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
