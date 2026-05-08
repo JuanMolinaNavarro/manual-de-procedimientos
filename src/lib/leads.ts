@@ -25,6 +25,7 @@ export interface CreateLeadData {
   plan?: string | null;
   tv_pack?: boolean | null;
   origen: string;
+  asignado?: string | null;
 }
 
 export async function getAllLeads(): Promise<Lead[]> {
@@ -49,6 +50,7 @@ export async function createLead(data: CreateLeadData): Promise<Lead> {
       plan: data.plan ?? null,
       tv_pack: data.tv_pack ?? false,
       origen: data.origen,
+      asignado: data.asignado ?? null,
     },
   });
 }
