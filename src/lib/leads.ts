@@ -34,7 +34,7 @@ export async function getAllLeads(): Promise<Lead[]> {
 
 export async function updateLead(
   id: number,
-  data: { contactado?: boolean; resultado?: string | null; asignado?: string | null },
+  data: { contactado?: boolean; resultado?: string | null; asignado?: string | null; nombre?: string | null; apellido?: string | null },
 ): Promise<Lead> {
   return prisma.lead.update({ where: { id }, data });
 }

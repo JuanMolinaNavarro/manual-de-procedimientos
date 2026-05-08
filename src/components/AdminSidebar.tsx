@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X, Home, Gift, Users, Film, Library, Trophy, Inbox, Wifi, type LucideIcon } from 'lucide-react';
+import { Menu, X, Home, Gift, Users, Film, Library, Trophy, Inbox, Wifi, Antenna, type LucideIcon } from 'lucide-react';
 import type { AdminModulo } from '@/lib/modulos';
 
 const ICONS: Record<string, LucideIcon> = {
@@ -14,6 +14,7 @@ const ICONS: Record<string, LucideIcon> = {
   deportes: Trophy,
   leads: Inbox,
   planes: Wifi,
+  'senales-ip': Antenna,
 };
 
 interface AdminSidebarProps {

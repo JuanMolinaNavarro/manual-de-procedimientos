@@ -145,3 +145,109 @@ model PlanConfig {
 
   @@map("plan_configs")
 }
+
+model ContratoComprador {
+  id                         Int               @id @default(autoincrement())
+  nombre_empresa             String
+  ejecutivo_a_cargo          String?
+  mail_comercial             String?
+  telefono_comercial         String?
+  mail_tecnico               String?
+  telefono_tecnico           String?
+  vigencia_desde             String?
+  vigencia_hasta             String?
+  precio_tipo                String?
+  precio_valor               String?
+  subs_minimo_garantizado    String?
+  reportar_subs              Boolean           @default(false)
+  plazas_reportadas          String?
+  condiciones_pago_contrato  String?
+  condiciones_pago_acordadas String?
+  tnb_aplicada               String?
+  tecnologias_autorizadas    String[]          @default([])
+  logo_nombre_archivo        String?
+  activa                     Boolean           @default(true)
+  created_by                 String?
+  updated_by                 String?
+  created_at                 DateTime          @default(now())
+  updated_at                 DateTime          @updatedAt
+
+  saltos_importe             SaltoImporte[]
+  archivos                   ArchivoContrato[]
+
+  @@map("contratos_comprador")
+}
+
+model ContratoVendedor {
+  id                               Int               @id @default(autoincrement())
+  nombre_empresa                   String
+  documentacion_empresa            String?
+  ejecutivo_cargo                  String?
+  mail_comercial_cliente           String?
+  telefono_comercial_cliente       String?
+  mail_tecnico_cliente             String?
+  telefono_tecnico_cliente         String?
+  vigencia_desde                   String?
+  vigencia_hasta                   String?
+  precio_tipo                      String?
+  precio_valor                     String?
+  grilla                           String?
+  subs_minimo_garantizado          String?
+  subs_reportados_senales          String?
+  plazas_incluidas_contrato        String?
+  plazas_reportadas_senales        String?
+  condiciones_pago                 String?
+  tnb_aplicada                     String?
+  forma_recepcion_entrega          String?
+  equipos_por_senal                Json?
+  condiciones_entrega_equipamiento String?
+  logo_nombre_archivo              String?
+  activa                           Boolean           @default(true)
+  created_by                       String?
+  updated_by                       String?
+  created_at                       DateTime          @default(now())
+  updated_at                       DateTime          @updatedAt
+
+  saltos_importe                   SaltoImporte[]
+  archivos                         ArchivoContrato[]
+
+  @@map("contratos_vendedor")
+}
+
+model SaltoImporte {
+  id                    Int                @id @default(autoincrement())
+  contrato_comprador_id Int?
+  contrato_vendedor_id  Int?
+  descripcion           String
+  fecha_efectiva        String
+  dias_aviso_previo     Int                @default(30)
+  nuevo_precio          String?
+  notificado_at         DateTime?
+  activa                Boolean            @default(true)
+  created_by            String?
+  updated_by            String?
+  created_at            DateTime           @default(now())
+  updated_at            DateTime           @updatedAt
+
+  contrato_comprador    ContratoComprador? @relation(fields: [contrato_comprador_id], references: [id])
+  contrato_vendedor     ContratoVendedor?  @relation(fields: [contrato_vendedor_id], references: [id])
+
+  @@map("saltos_importe")
+}
+
+model ArchivoContrato {
+  id                    Int                @id @default(autoincrement())
+  contrato_comprador_id Int?
+  contrato_vendedor_id  Int?
+  nombre_original       String
+  nombre_archivo        String
+  tipo_mime             String?
+  tamano                Int?
+  created_by            String?
+  created_at            DateTime           @default(now())
+
+  contrato_comprador    ContratoComprador? @relation(fields: [contrato_comprador_id], references: [id], onDelete: Cascade)
+  contrato_vendedor     ContratoVendedor?  @relation(fields: [contrato_vendedor_id], references: [id], onDelete: Cascade)
+
+  @@map("archivos_contrato")
+}

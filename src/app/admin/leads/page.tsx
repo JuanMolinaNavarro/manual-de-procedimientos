@@ -46,7 +46,7 @@ type SortKey =
   | "contactado"
   | "resultado";
 type SortDir = "asc" | "desc";
-type Resultado = "vendido" | "rechazado" | "repetido" | null;
+type Resultado = "vendido" | "rechazado" | "repetido" | "ya_es_cliente" | "otro" | null;
 
 const PAGE_SIZE = 15;
 const TZ = "America/Argentina/Buenos_Aires";
@@ -69,12 +69,16 @@ const RESULTADO_OPTIONS: {
   { value: "vendido", label: "Vendido", className: "text-green-500" },
   { value: "rechazado", label: "Rechazado", className: "text-red-500" },
   { value: "repetido", label: "Repetido", className: "text-blue-500" },
+  { value: "ya_es_cliente", label: "Ya es Cliente", className: "text-purple-900" },
+  { value: "otro", label: "Otro", className: "text-pink-400" },
 ];
 
 function resultadoColor(resultado: string | null): string {
   if (resultado === "vendido") return "text-green-500";
   if (resultado === "rechazado") return "text-red-500";
   if (resultado === "repetido") return "text-blue-500";
+  if (resultado === "ya_es_cliente") return "text-purple-900";
+  if (resultado === "otro") return "text-pink-400";
   return "text-yellow-500";
 }
 
@@ -144,6 +148,8 @@ export default function LeadsPage() {
   const [mostrarContactados, setMostrarContactados] = useState(true);
   const [editingAsignadoId, setEditingAsignadoId] = useState<number | null>(null);
   const [editingAsignadoValue, setEditingAsignadoValue] = useState("");
+  const [editingNombreId, setEditingNombreId] = useState<number | null>(null);
+  const [editingNombreValue, setEditingNombreValue] = useState("");
 
   const fetchLeads = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -174,7 +180,7 @@ export default function LeadsPage() {
   const patchLead = useCallback(
     async (
       id: number,
-      update: { contactado?: boolean; resultado?: string | null; asignado?: string | null },
+      update: { contactado?: boolean; resultado?: string | null; asignado?: string | null; nombre?: string | null; apellido?: string | null },
     ) => {
       // Optimistic update
       setLeads((prev) =>
@@ -370,7 +376,63 @@ export default function LeadsPage() {
                   {paginatedLeads.map((lead) => (
                     <TableRow key={lead.id}>
                       <TableCell className="font-medium whitespace-nowrap">
-                        {[lead.nombre, lead.apellido].filter(Boolean).join(" ") || "-"}
+                        {editingNombreId === lead.id ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              autoFocus
+                              type="text"
+                              value={editingNombreValue}
+                              onChange={(e) => setEditingNombreValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  const [first, ...rest] = editingNombreValue.trim().split(" ");
+                                  patchLead(lead.id, {
+                                    nombre: first || null,
+                                    apellido: rest.join(" ") || null,
+                                  });
+                                  setEditingNombreId(null);
+                                } else if (e.key === "Escape") {
+                                  setEditingNombreId(null);
+                                }
+                              }}
+                              className="w-40 rounded border border-border bg-transparent px-2 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                            />
+                            <button
+                              onClick={() => {
+                                const [first, ...rest] = editingNombreValue.trim().split(" ");
+                                patchLead(lead.id, {
+                                  nombre: first || null,
+                                  apellido: rest.join(" ") || null,
+                                });
+                                setEditingNombreId(null);
+                              }}
+                              className="text-green-500 hover:text-green-400"
+                            >
+                              <Check className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => setEditingNombreId(null)}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 group">
+                            <span>{[lead.nombre, lead.apellido].filter(Boolean).join(" ") || "-"}</span>
+                            <button
+                              onClick={() => {
+                                setEditingNombreId(lead.id);
+                                setEditingNombreValue(
+                                  [lead.nombre, lead.apellido].filter(Boolean).join(" ")
+                                );
+                              }}
+                              className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {lead.telefono}
