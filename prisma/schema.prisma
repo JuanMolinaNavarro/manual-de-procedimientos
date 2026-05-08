@@ -129,6 +129,7 @@ model Lead {
   origen      String
   contactado  Boolean? @default(false)
   resultado   String?
+  asignado    String?
   created_at  DateTime @default(now())
 
   @@map("leads")

@@ -39,7 +39,9 @@ export default function SiteLoginPage() {
       }
 
       const isAdmin = data.rol === 'admin';
-      const destination = from ?? (isAdmin ? '/admin' : '/retencion/inicio');
+      const destination = isAdmin
+        ? (from?.startsWith('/admin') ? from : '/admin')
+        : (from ?? '/retencion/inicio');
       router.push(destination);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');

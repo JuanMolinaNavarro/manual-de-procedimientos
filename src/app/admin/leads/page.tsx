@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { Check, Pencil, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -30,6 +30,7 @@ interface Lead {
   origen: string;
   contactado: boolean | null;
   resultado: string | null;
+  asignado: string | null;
   created_at: string;
 }
 
@@ -45,7 +46,7 @@ type SortKey =
   | "contactado"
   | "resultado";
 type SortDir = "asc" | "desc";
-type Resultado = "vendido" | "rechazado" | null;
+type Resultado = "vendido" | "rechazado" | "repetido" | null;
 
 const PAGE_SIZE = 15;
 const TZ = "America/Argentina/Buenos_Aires";
@@ -67,11 +68,13 @@ const RESULTADO_OPTIONS: {
   { value: null, label: "No contactado", className: "text-yellow-500" },
   { value: "vendido", label: "Vendido", className: "text-green-500" },
   { value: "rechazado", label: "Rechazado", className: "text-red-500" },
+  { value: "repetido", label: "Repetido", className: "text-blue-500" },
 ];
 
 function resultadoColor(resultado: string | null): string {
   if (resultado === "vendido") return "text-green-500";
   if (resultado === "rechazado") return "text-red-500";
+  if (resultado === "repetido") return "text-blue-500";
   return "text-yellow-500";
 }
 
@@ -139,6 +142,8 @@ export default function LeadsPage() {
   const [sortKey, setSortKey] = useState<SortKey>("fecha");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [mostrarContactados, setMostrarContactados] = useState(true);
+  const [editingAsignadoId, setEditingAsignadoId] = useState<number | null>(null);
+  const [editingAsignadoValue, setEditingAsignadoValue] = useState("");
 
   const fetchLeads = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -169,7 +174,7 @@ export default function LeadsPage() {
   const patchLead = useCallback(
     async (
       id: number,
-      update: { contactado?: boolean; resultado?: string | null },
+      update: { contactado?: boolean; resultado?: string | null; asignado?: string | null },
     ) => {
       // Optimistic update
       setLeads((prev) =>
@@ -358,6 +363,7 @@ export default function LeadsPage() {
                     {th("fecha", "Fecha")}
                     {th("contactado", "Contactado", "text-center")}
                     {th("resultado", "Resultado", "min-w-[160px]")}
+                    <TableHead className="min-w-[160px]">Asignado</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -405,7 +411,7 @@ export default function LeadsPage() {
                               resultado: string | null;
                               contactado?: boolean;
                             } = { resultado: val };
-                            if (val === "vendido" || val === "rechazado")
+                            if (val === "vendido" || val === "rechazado" || val === "repetido")
                               update.contactado = true;
                             patchLead(lead.id, update);
                           }}
@@ -423,6 +429,57 @@ export default function LeadsPage() {
                             ),
                           )}
                         </select>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {editingAsignadoId === lead.id ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              autoFocus
+                              type="text"
+                              value={editingAsignadoValue}
+                              onChange={(e) => setEditingAsignadoValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  patchLead(lead.id, { asignado: editingAsignadoValue.trim() || null });
+                                  setEditingAsignadoId(null);
+                                } else if (e.key === "Escape") {
+                                  setEditingAsignadoId(null);
+                                }
+                              }}
+                              className="w-28 rounded border border-border bg-transparent px-2 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                            />
+                            <button
+                              onClick={() => {
+                                patchLead(lead.id, { asignado: editingAsignadoValue.trim() || null });
+                                setEditingAsignadoId(null);
+                              }}
+                              className="text-green-500 hover:text-green-400"
+                            >
+                              <Check className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => setEditingAsignadoId(null)}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 group">
+                            <span className="text-sm text-muted-foreground">
+                              {lead.asignado ?? "—"}
+                            </span>
+                            <button
+                              onClick={() => {
+                                setEditingAsignadoId(lead.id);
+                                setEditingAsignadoValue(lead.asignado ?? "");
+                              }}
+                              className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
