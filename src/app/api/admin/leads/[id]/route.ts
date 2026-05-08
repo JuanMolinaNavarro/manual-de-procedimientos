@@ -25,11 +25,13 @@ export async function PATCH(
   }
 
   const body = await req.json() as Record<string, unknown>;
-  const update: { contactado?: boolean; resultado?: string | null; asignado?: string | null } = {};
+  const update: { contactado?: boolean; resultado?: string | null; asignado?: string | null; nombre?: string | null; apellido?: string | null } = {};
 
   if (typeof body.contactado === 'boolean') update.contactado = body.contactado;
   if ('resultado' in body) update.resultado = (body.resultado as string | null) ?? null;
   if ('asignado' in body) update.asignado = (body.asignado as string | null) || null;
+  if ('nombre' in body) update.nombre = (body.nombre as string | null) || null;
+  if ('apellido' in body) update.apellido = (body.apellido as string | null) || null;
 
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: 'Sin campos para actualizar' }, { status: 400 });

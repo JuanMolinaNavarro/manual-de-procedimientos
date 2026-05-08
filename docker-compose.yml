@@ -37,6 +37,8 @@ services:
       LEADS_API_KEY: ${LEADS_API_KEY}
     ports:
       - "3000:3000"
+    volumes:
+      - uploads_data:/app/uploads
 
   app-dev:
     build: .
@@ -67,3 +69,4 @@ services:
 
 volumes:
   pgdata:
+  uploads_data:

@@ -10,6 +10,7 @@ import {
   Trophy,
   TrendingUp,
   CreditCard,
+  Antenna,
 } from 'lucide-react';
 
 const MODULE_META: Record<
@@ -43,6 +44,10 @@ const MODULE_META: Record<
   planes: {
     icon: <CreditCard className="h-8 w-8" />,
     description: 'Configurar precios y planes disponibles por empresa.',
+  },
+  'senales-ip': {
+    icon: <Antenna className="h-8 w-8" />,
+    description: 'Gestionar contratos de compradores y vendedores de señales IP.',
   },
 };
 
