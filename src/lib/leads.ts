@@ -12,6 +12,7 @@ export interface Lead {
   origen: string;
   contactado: boolean | null;
   resultado: string | null;
+  asignado: string | null;
   created_at: Date;
 }
 
@@ -32,7 +33,7 @@ export async function getAllLeads(): Promise<Lead[]> {
 
 export async function updateLead(
   id: number,
-  data: { contactado?: boolean; resultado?: string | null },
+  data: { contactado?: boolean; resultado?: string | null; asignado?: string | null },
 ): Promise<Lead> {
   return prisma.lead.update({ where: { id }, data });
 }
