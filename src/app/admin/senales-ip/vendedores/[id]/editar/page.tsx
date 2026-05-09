@@ -169,7 +169,7 @@ export default function EditarContratoVendedorPage() {
   if (fetching) return <div className="flex h-64 items-center justify-center text-muted-foreground">Cargando...</div>;
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-3xl space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="outline" onClick={() => router.push(`/admin/senales-ip/vendedores/${id}`)}>← Volver</Button>
         <div>
@@ -183,12 +183,12 @@ export default function EditarContratoVendedorPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
           <CardHeader><CardTitle>Datos de la empresa cliente</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-2 md:col-span-2">
+          <CardContent className="flex flex-col gap-4">
+            <div className="space-y-2">
               <Label htmlFor="nombre_empresa">Nombre de empresa *</Label>
               <Input id="nombre_empresa" value={formData.nombre_empresa} onChange={(e) => set('nombre_empresa', e.target.value)} required />
             </div>
-            <div className="space-y-2 md:col-span-2">
+            <div className="space-y-2">
               <Label htmlFor="documentacion_empresa">Documentación (licencia, CUIT, etc.)</Label>
               <Textarea id="documentacion_empresa" rows={2} value={formData.documentacion_empresa} onChange={(e) => set('documentacion_empresa', e.target.value)} />
             </div>
@@ -215,7 +215,7 @@ export default function EditarContratoVendedorPage() {
 
         <Card>
           <CardHeader><CardTitle>Condiciones comerciales</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <CardContent className="flex flex-col gap-4">
             <div className="space-y-2">
               <Label htmlFor="vigencia_desde">Vigencia desde</Label>
               <Input id="vigencia_desde" type="date" value={formData.vigencia_desde} onChange={(e) => set('vigencia_desde', e.target.value)} />
@@ -241,7 +241,7 @@ export default function EditarContratoVendedorPage() {
               <Label htmlFor="precio_valor">Precio / valor</Label>
               <Input id="precio_valor" value={formData.precio_valor} onChange={(e) => set('precio_valor', e.target.value)} />
             </div>
-            <div className="space-y-2 md:col-span-2">
+            <div className="space-y-2">
               <Label htmlFor="grilla">Grilla</Label>
               <Textarea id="grilla" rows={2} value={formData.grilla} onChange={(e) => set('grilla', e.target.value)} />
             </div>
@@ -261,7 +261,7 @@ export default function EditarContratoVendedorPage() {
               <Label htmlFor="plazas_reportadas_senales">Plazas reportadas a las señales</Label>
               <Input id="plazas_reportadas_senales" value={formData.plazas_reportadas_senales} onChange={(e) => set('plazas_reportadas_senales', e.target.value)} />
             </div>
-            <div className="space-y-2 md:col-span-2">
+            <div className="space-y-2">
               <Label htmlFor="condiciones_pago">Condiciones de pago</Label>
               <Textarea id="condiciones_pago" rows={3} value={formData.condiciones_pago} onChange={(e) => set('condiciones_pago', e.target.value)} />
             </div>
@@ -273,7 +273,7 @@ export default function EditarContratoVendedorPage() {
               <Label htmlFor="forma_recepcion_entrega">Forma de recepción/entrega de señales</Label>
               <Input id="forma_recepcion_entrega" value={formData.forma_recepcion_entrega} onChange={(e) => set('forma_recepcion_entrega', e.target.value)} />
             </div>
-            <div className="space-y-2 md:col-span-2">
+            <div className="space-y-2">
               <Label htmlFor="condiciones_entrega_equipamiento">Condiciones de entrega de equipamiento</Label>
               <Textarea id="condiciones_entrega_equipamiento" rows={2} value={formData.condiciones_entrega_equipamiento} onChange={(e) => set('condiciones_entrega_equipamiento', e.target.value)} />
             </div>
@@ -283,7 +283,7 @@ export default function EditarContratoVendedorPage() {
         <Card>
           <CardHeader><CardTitle>Equipos por señal habilitados</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
               <Input placeholder="Señal (ej: ESPN)" value={equipoInput.signal} onChange={(e) => setEquipoInput((p) => ({ ...p, signal: e.target.value }))} />
               <div className="flex gap-2">
                 <Input
@@ -320,15 +320,9 @@ export default function EditarContratoVendedorPage() {
           </CardContent>
         </Card>
 
-        <div className="flex gap-2">
-          <Button type="submit" disabled={loading}>{loading ? 'Guardando...' : 'Guardar cambios'}</Button>
-          <Button type="button" variant="outline" onClick={() => router.push(`/admin/senales-ip/vendedores/${id}`)}>Cancelar</Button>
-        </div>
-      </form>
-
-      <Card>
+        <Card>
         <CardHeader><CardTitle>Logo de la empresa</CardTitle></CardHeader>
-        <CardContent className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+        <CardContent className="flex flex-col items-start gap-4">
           <div className="flex h-28 w-44 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/30">
             {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -368,6 +362,12 @@ export default function EditarContratoVendedorPage() {
           </div>
         </CardContent>
       </Card>
+
+        <div className="flex gap-2">
+          <Button type="submit" disabled={loading}>{loading ? 'Guardando...' : 'Guardar cambios'}</Button>
+          <Button type="button" variant="outline" onClick={() => router.push(`/admin/senales-ip/vendedores/${id}`)}>Cancelar</Button>
+        </div>
+      </form>
     </div>
   );
 }

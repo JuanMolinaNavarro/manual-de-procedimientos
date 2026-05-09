@@ -113,7 +113,7 @@ export default function NuevoContratoCompradorPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-3xl space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="outline" onClick={() => router.push('/admin/senales-ip/compradores')}>← Volver</Button>
         <div>
@@ -129,8 +129,8 @@ export default function NuevoContratoCompradorPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
           <CardHeader><CardTitle>Datos de la empresa</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-2 md:col-span-2">
+          <CardContent className="flex flex-col gap-4">
+            <div className="space-y-2">
               <Label htmlFor="nombre_empresa">Nombre de empresa *</Label>
               <Input id="nombre_empresa" value={formData.nombre_empresa} onChange={(e) => set('nombre_empresa', e.target.value)} required />
             </div>
@@ -153,7 +153,7 @@ export default function NuevoContratoCompradorPage() {
 
         <Card>
           <CardHeader><CardTitle>Condiciones comerciales</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <CardContent className="flex flex-col gap-4">
             <div className="space-y-2">
               <Label htmlFor="vigencia_desde">Vigencia desde</Label>
               <Input id="vigencia_desde" type="date" value={formData.vigencia_desde} onChange={(e) => set('vigencia_desde', e.target.value)} />
@@ -199,15 +199,15 @@ export default function NuevoContratoCompradorPage() {
               <Label htmlFor="tnb_aplicada">TNB aplicada</Label>
               <Input id="tnb_aplicada" value={formData.tnb_aplicada} onChange={(e) => set('tnb_aplicada', e.target.value)} />
             </div>
-            <div className="space-y-2 md:col-span-2">
+            <div className="space-y-2">
               <Label htmlFor="condiciones_pago_contrato">Condiciones de pago (contrato firmado)</Label>
               <Textarea id="condiciones_pago_contrato" rows={3} value={formData.condiciones_pago_contrato} onChange={(e) => set('condiciones_pago_contrato', e.target.value)} />
             </div>
-            <div className="space-y-2 md:col-span-2">
+            <div className="space-y-2">
               <Label htmlFor="condiciones_pago_acordadas">Condiciones de pago (acordadas comercialmente)</Label>
               <Textarea id="condiciones_pago_acordadas" rows={3} value={formData.condiciones_pago_acordadas} onChange={(e) => set('condiciones_pago_acordadas', e.target.value)} />
             </div>
-            <div className="space-y-2 md:col-span-2">
+            <div className="space-y-2">
               <Label>Tecnologías autorizadas</Label>
               <div className="flex gap-2">
                 <Input

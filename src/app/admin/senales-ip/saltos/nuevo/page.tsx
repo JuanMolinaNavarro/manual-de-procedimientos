@@ -75,7 +75,7 @@ export default function NuevoSaltoPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-3xl space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="outline" onClick={() => router.push('/admin/senales-ip/saltos')}>← Volver</Button>
         <div>
@@ -89,7 +89,7 @@ export default function NuevoSaltoPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
           <CardHeader><CardTitle>Contrato asociado</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <CardContent className="flex flex-col gap-4">
             <div className="space-y-2">
               <Label htmlFor="contrato_comprador_id">Contrato Comprador</Label>
               <select
@@ -123,8 +123,8 @@ export default function NuevoSaltoPage() {
 
         <Card>
           <CardHeader><CardTitle>Detalle del salto</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-2 md:col-span-2">
+          <CardContent className="flex flex-col gap-4">
+            <div className="space-y-2">
               <Label htmlFor="descripcion">Descripción *</Label>
               <Input
                 id="descripcion"

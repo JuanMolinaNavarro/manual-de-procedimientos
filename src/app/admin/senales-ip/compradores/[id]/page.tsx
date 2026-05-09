@@ -91,7 +91,7 @@ export default function DetalleContratoCompradorPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-4xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Button variant="outline" onClick={() => router.push('/admin/senales-ip/compradores')}>← Volver</Button>
@@ -103,7 +103,7 @@ export default function DetalleContratoCompradorPage() {
         <Button onClick={() => router.push(`/admin/senales-ip/compradores/${id}/editar`)}>Editar</Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="space-y-6">
         <Card>
           <CardHeader><CardTitle>Datos de contacto</CardTitle></CardHeader>
           <CardContent>
