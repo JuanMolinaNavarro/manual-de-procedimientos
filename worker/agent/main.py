@@ -75,6 +75,10 @@ def process_pdf(pdf_path: Path) -> dict:
 
         result["_provider_id"] = provider["id"]
         result["_nombre_finnegans"] = provider["nombre_finnegans"]
+        # Nombre del proveedor RESUELTO (knowledge base), confiable aunque el
+        # LLM no haya extraído `emisor` en este PDF. El proveedor se detecta por
+        # CUIT, así que este nombre siempre está disponible cuando hay match.
+        result["_proveedor_nombre"] = provider.get("razon_social")
         result["_estado"] = "listo"
         record_example(provider["id"], pdf_path.name, factura.tipo_flujo)
 

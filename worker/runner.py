@@ -144,7 +144,10 @@ def process_cycle() -> int:
                 str(carga["nro_interno"]) if carga.get("nro_interno") else None
             ),
             "carga_error": None if carga.get("exito") else carga.get("mensaje"),
-            "proveedor": datos.get("emisor"),
+            # Preferir el proveedor RESUELTO por la knowledge base (por CUIT);
+            # cae al texto libre del LLM solo si no hubo match (no debería pasar
+            # cuando el flow corrió, porque eso exige _estado='listo').
+            "proveedor": datos.get("_proveedor_nombre") or datos.get("emisor"),
             "numero_factura": datos.get("numero_factura"),
             "fecha_emision": datos.get("fecha_emision"),
             "monto_total": str(monto) if monto is not None else None,
