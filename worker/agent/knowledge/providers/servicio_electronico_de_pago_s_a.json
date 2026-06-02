@@ -1,0 +1,51 @@
+{
+  "id": "servicio_electronico_de_pago_s_a",
+  "razon_social": "SERVICIO ELECTRONICO DE PAGO S.A.",
+  "nombre_finnegans": "SERVICIO ELECTRONICO DE PAGO S.A.",
+  "cuit": "30-65986378-9",
+  "nombre_variantes": [
+    "SERVICIO ELECTRONICO DE PAGO S.A.",
+    "SERVICIO ELECTRONICO DE PAGO SA",
+    "SERVICIO ELECTRONICO DE PAGO S A",
+    "SEPSA",
+    "PagoFácil",
+    "Pago Facil"
+  ],
+  "tipos_factura": [
+    "recaudacion_sepsa"
+  ],
+  "notas": "Proveedor de recaudación (débito automático) PagoFácil / SEPSA. Las percepciones IIBB aparecen en la tabla 'Otros Tributos' con formato 'IIBB Percepción [Provincia] [alícuota]%  [importe]'. Puede haber más de una provincia (ej. PROVIDERS: Tucumán + Santa Fe).",
+  "ejemplos_procesados": [
+    {
+      "archivo": "SEPSA PROVIDERS.pdf",
+      "tipo": "recaudacion"
+    },
+    {
+      "archivo": "SEPSA TARTAGAL.pdf",
+      "tipo": "recaudacion"
+    },
+    {
+      "archivo": "SEPSA TCC.pdf",
+      "tipo": "recaudacion"
+    },
+    {
+      "archivo": "SEPSA VALLE MEDIOS.pdf",
+      "tipo": "recaudacion"
+    },
+    {
+      "archivo": "SEPSA CCC.pdf",
+      "tipo": "recaudacion"
+    },
+    {
+      "archivo": "SEPSA CCC.pdf",
+      "tipo": "recaudacion_sepsa"
+    },
+    {
+      "archivo": "SEPSA PROVIDERS.pdf",
+      "tipo": "recaudacion_sepsa"
+    }
+  ],
+  "estado": "activo",
+  "agregado": "2026-05-23",
+  "ultima_actualizacion": "2026-05-28"
+}

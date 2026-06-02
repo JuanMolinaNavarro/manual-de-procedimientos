@@ -7,6 +7,7 @@ export const ADMIN_MODULOS = [
   { slug: 'leads',          label: 'Ventas',         href: '/admin/leads' },
   { slug: 'planes',         label: 'Planes',         href: '/admin/planes' },
   { slug: 'senales-ip',    label: 'Señales IP',     href: '/admin/senales-ip' },
+  { slug: 'facturas',      label: 'Facturas',        href: '/admin/facturas' },
 ] as const;
 
 export type AdminModulo = typeof ADMIN_MODULOS[number];

@@ -1,0 +1,70 @@
+{
+  "_comentario": "CUITs de proveedores externos (emisores de facturas de compra) van en 'providers'. CUITs de empresas propias (clientes en esas facturas) van en 'companies'. El lookup de proveedor siempre usa cuit_emisor del resultado de extracción.",
+  "providers": {
+    "by_cuit": {
+      "3065865024": "edet",
+      "30-65865024-2": "edet",
+      "30612650524": "edet",
+      "30645250682": "edet",
+      "30-65586042-2": "edesur_s_a",
+      "30-64399063-2": "gire",
+      "30-65986378-9": "servicio_electronico_de_pago_s_a",
+      "SIN_CUIT": "desconocido"
+    },
+    "by_name": {
+      "EMPRESA DE DISTRIBUCION ELECTRICA DE TUCUMAN S.A.": "edet",
+      "EMPRESA DE DISTRIBUCION ELECTRICA DE TUCUMAN SA": "edet",
+      "Empresa de Distribución Eléctrica de Tucumán S.A.": "edet",
+      "EDET SA": "edet",
+      "EDET": "edet",
+      "EDESUR S.A.": "edesur_s_a",
+      "gire": "gire",
+      "GIRE": "gire",
+      "GIRE S.A.": "gire",
+      "SERVICIO ELECTRONICO DE PAGO S.A.": "servicio_electronico_de_pago_s_a",
+      "SERVICIO ELECTRONICO DE PAGO SA": "servicio_electronico_de_pago_s_a",
+      "DESCONOCIDO": "desconocido"
+    }
+  },
+  "companies": {
+    "by_cuit": {
+      "30612790813": "ccc_sa",
+      "30697140561": "tafi_cable_color",
+      "30712110097": "tucuman_comunicaciones",
+      "30714140252": "providers_s_a",
+      "30717888525": "inter_sas",
+      "33710074599": "salta_cable_color_s_a",
+      "30715310542": "tartagal_comunicaciones_sa",
+      "30716135892": "valle_medios_sas"
+    },
+    "by_name": {
+      "CCC SA": "ccc_sa",
+      "CCC": "ccc_sa",
+      "CCC S.A.": "ccc_sa",
+      "COMPANIA DE CIRCUITOS CERRADOS SA": "ccc_sa",
+      "COMPANIA DE CIRCUITOS CERRADOS S A": "ccc_sa",
+      "COMPANIA DE CIRCUITOS CERRADO SA": "ccc_sa",
+      "TAFI CABLE COLOR S A": "tafi_cable_color",
+      "TAFI CABLE COLOR SA": "tafi_cable_color",
+      "TAFI CABLE COLOR S.A.": "tafi_cable_color",
+      "TCC": "tafi_cable_color",
+      "TUCUMAN COMUNICACIONES S A": "tucuman_comunicaciones",
+      "TUCUMAN COMUNICACIONES SA": "tucuman_comunicaciones",
+      "PROVIDERS S A": "providers_s_a",
+      "PROVIDERS SA": "providers_s_a",
+      "PROVIDERS S.A.": "providers_s_a",
+      "INTER SAS": "inter_sas",
+      "INTER S.A.S": "inter_sas",
+      "INTER S A S": "inter_sas",
+      "SALTA CABLE COLOR S.A.": "salta_cable_color_s_a",
+      "SALTA CABLE COLOR SA": "salta_cable_color_s_a",
+      "SALTA CABLE COLOR S A": "salta_cable_color_s_a",
+      "TARTAGAL COMUNICACIONES SA": "tartagal_comunicaciones_sa",
+      "TARTAGAL COMUNICACIONES S.A.": "tartagal_comunicaciones_sa",
+      "TARTAGAL COMUNICACIONES S A": "tartagal_comunicaciones_sa",
+      "VALLE MEDIOS SAS": "valle_medios_sas",
+      "VALLE MEDIOS S.A.S": "valle_medios_sas",
+      "VALLE MEDIOS S A S": "valle_medios_sas"
+    }
+  }
+}

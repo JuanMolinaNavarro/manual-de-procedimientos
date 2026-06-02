@@ -1,0 +1,14 @@
+﻿{
+    "id":  "providers_s_a",
+    "razon_social":  "PROVIDERS S A",
+    "nombre_finnegans":  "PROVIDERS S.A.",
+    "cuit":  "30714140252",
+    "nombre_variantes":  [
+                             "PROVIDERS S A",
+                             "PROVIDERS SA",
+                             "PROVIDERS S.A."
+                         ],
+    "notas":  "Empresa propia. Facturas de GIRE y/o SEPSA.",
+    "agregado":  "2026-05-23",
+    "ultima_actualizacion":  "2026-05-23"
+}

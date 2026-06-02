@@ -1,0 +1,14 @@
+﻿{
+    "id":  "inter_sas",
+    "razon_social":  "INTER SAS",
+    "nombre_finnegans":  "INTER SAS",
+    "cuit":  "30717888525",
+    "nombre_variantes":  [
+                             "INTER SAS",
+                             "INTER S.A.S",
+                             "INTER S A S"
+                         ],
+    "notas":  "Empresa propia. Facturas de GIRE y/o SEPSA.",
+    "agregado":  "2026-05-23",
+    "ultima_actualizacion":  "2026-05-23"
+}

@@ -46,3 +46,9 @@ next-env.d.ts
 
 #AI
 CLAUDE.md
+.claude/worktrees/
+
+# python worker
+__pycache__/
+*.pyc
+worker/screenshots/

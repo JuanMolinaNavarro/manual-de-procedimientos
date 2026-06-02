@@ -1,0 +1,17 @@
+{
+  "id": "ccc_sa",
+  "razon_social": "CCC SA",
+  "nombre_finnegans": "PENDIENTE_VERIFICAR",
+  "cuit": "30612790813",
+  "nombre_variantes": [
+    "CCC SA"
+  ],
+  "tipos_factura": [
+    "arrendamiento_soportes"
+  ],
+  "notas": "Creado automáticamente al procesar 246910-ccc-sa-alquiler-soportes.pdf. Requiere verificación.",
+  "ejemplos_procesados": [],
+  "estado": "borrador",
+  "agregado": "2026-05-13",
+  "ultima_actualizacion": "2026-05-13"
+}

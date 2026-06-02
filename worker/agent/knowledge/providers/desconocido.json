@@ -1,0 +1,17 @@
+{
+  "id": "desconocido",
+  "razon_social": "DESCONOCIDO",
+  "nombre_finnegans": "PENDIENTE_VERIFICAR",
+  "cuit": "SIN_CUIT",
+  "nombre_variantes": [
+    "DESCONOCIDO"
+  ],
+  "tipos_factura": [
+    "recaudacion_sepsa"
+  ],
+  "notas": "Creado automÃ¡ticamente al procesar SEPSA CCC.pdf. Requiere verificaciÃ³n.",
+  "ejemplos_procesados": [],
+  "estado": "borrador",
+  "agregado": "2026-05-28",
+  "ultima_actualizacion": "2026-05-28"
+}

@@ -35,6 +35,8 @@ services:
       MWPROXY_BASE_URL: ${MWPROXY_BASE_URL}
       MWPROXY_TOKEN: ${MWPROXY_TOKEN}
       LEADS_API_KEY: ${LEADS_API_KEY}
+      WORKER_SECRET: ${WORKER_SECRET}
+      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
     ports:
       - "3000:3000"
     volumes:
@@ -59,6 +61,8 @@ services:
       MWPROXY_BASE_URL: ${MWPROXY_BASE_URL}
       MWPROXY_TOKEN: ${MWPROXY_TOKEN}
       LEADS_API_KEY: ${LEADS_API_KEY}
+      WORKER_SECRET: ${WORKER_SECRET}
+      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
     ports:
       - "3000:3000"
     volumes:
@@ -66,6 +70,28 @@ services:
       - /app/node_modules
       - /app/.next
     command: npm run dev -- -H 0.0.0.0 -p 3000
+
+  worker:
+    build: ./worker
+    container_name: manualcall-worker
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_started
+    environment:
+      NEXT_BASE: http://app:3000
+      WORKER_SECRET: ${WORKER_SECRET}
+      WORKER_EMPRESA: ${WORKER_EMPRESA:-}
+      UPLOADS_DIR: /app/uploads/facturas
+      POLL_INTERVAL: ${WORKER_POLL_INTERVAL:-15}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+      FINNEGANS_USER: ${FINNEGANS_USER}
+      FINNEGANS_PASS: ${FINNEGANS_PASS}
+      FINNEGANS_WORKSPACE: ${FINNEGANS_WORKSPACE:-MULTIMEDIOS}
+      HEADLESS: "true"
+    volumes:
+      - uploads_data:/app/uploads
 
 volumes:
   pgdata:

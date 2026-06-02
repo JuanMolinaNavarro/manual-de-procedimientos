@@ -1,0 +1,46 @@
+{
+  "id": "edet",
+  "razon_social": "EMPRESA DE DISTRIBUCION ELECTRICA DE TUCUMAN S.A.",
+  "nombre_finnegans": "PENDIENTE_VERIFICAR",
+  "cuit": "30-65865024-2",
+  "nombre_variantes": [
+    "EMPRESA DE DISTRIBUCION ELECTRICA DE TUCUMAN S.A.",
+    "EMPRESA DE DISTRIBUCION ELECTRICA DE TUCUMAN SA",
+    "EDET SA",
+    "EDET"
+  ],
+  "tipos_factura": [
+    "arrendamiento_soportes",
+    "energia_electrica"
+  ],
+  "notas": "Emite dos tipos de factura distintos: (1) Arrendamiento de soportes BT/MT para video cable — Factura A con CAE, incluye Percepción RG 3337 e IIBB 3.5%. (2) Energía eléctrica — comprobante CESP sin CAE, incluye detalle de consumo kWh y Percepción RG 3337 e IIBB 3.5%.",
+  "ejemplos_procesados": [
+    {
+      "archivo": "248402-edet-arrendamiento-tucuman-comunicaciones.pdf",
+      "tipo": "arrendamiento_soportes"
+    },
+    {
+      "archivo": "246915-edet-energia-ccc-sa.pdf",
+      "tipo": "energia_electrica"
+    },
+    {
+      "archivo": "247239-edet-energia-tafi-cable.pdf",
+      "tipo": "energia_electrica"
+    },
+    {
+      "archivo": "0097-72565816.pdf",
+      "tipo": "energia_electrica"
+    },
+    {
+      "archivo": "0034-00003161.pdf",
+      "tipo": "arrendamiento_soportes"
+    },
+    {
+      "archivo": "0034-00003169.pdf",
+      "tipo": "arrendamiento_soportes"
+    }
+  ],
+  "estado": "activo",
+  "agregado": "2026-05-13",
+  "ultima_actualizacion": "2026-05-22"
+}

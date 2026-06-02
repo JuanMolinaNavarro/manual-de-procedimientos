@@ -1,0 +1,49 @@
+{
+  "id": "gire",
+  "razon_social": "GIRE S.A.",
+  "nombre_finnegans": "GIRE S.A.",
+  "cuit": "30-64399063-2",
+  "nombre_variantes": [
+    "GIRE S.A.",
+    "GIRE SA",
+    "GIRE S A",
+    "gire"
+  ],
+  "tipos_factura": [
+    "recaudacion"
+  ],
+  "notas": "Proveedor de recaudación (débito automático). Las percepciones IIBB aparecen por jurisdicción en el bloque 'Operaciones realizadas en [Jurisdicción]'.",
+  "ejemplos_procesados": [
+    {
+      "archivo": "GIRE INTER SAS.pdf",
+      "tipo": "recaudacion"
+    },
+    {
+      "archivo": "GIRE PROVIDERS.pdf",
+      "tipo": "recaudacion"
+    },
+    {
+      "archivo": "GIRE SALTA.pdf",
+      "tipo": "recaudacion"
+    },
+    {
+      "archivo": "GIRE TARTAGAL.pdf",
+      "tipo": "recaudacion"
+    },
+    {
+      "archivo": "GIRE TCC.pdf",
+      "tipo": "recaudacion"
+    },
+    {
+      "archivo": "GIRE VALLE MEDIOS.pdf",
+      "tipo": "recaudacion"
+    },
+    {
+      "archivo": "GIRE CCC.pdf",
+      "tipo": "recaudacion"
+    }
+  ],
+  "estado": "activo",
+  "agregado": "2026-05-23",
+  "ultima_actualizacion": "2026-05-27"
+}

@@ -1,0 +1,14 @@
+﻿{
+    "id":  "valle_medios_sas",
+    "razon_social":  "VALLE MEDIOS SAS",
+    "nombre_finnegans":  "VALLE MEDIOS S.A.S",
+    "cuit":  "30716135892",
+    "nombre_variantes":  [
+                             "VALLE MEDIOS SAS",
+                             "VALLE MEDIOS S.A.S",
+                             "VALLE MEDIOS S A S"
+                         ],
+    "notas":  "Empresa propia. Facturas de GIRE y/o SEPSA.",
+    "agregado":  "2026-05-23",
+    "ultima_actualizacion":  "2026-05-23"
+}

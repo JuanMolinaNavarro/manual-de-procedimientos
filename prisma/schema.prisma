@@ -251,3 +251,34 @@ model ArchivoContrato {
 
   @@map("archivos_contrato")
 }
+
+model Factura {
+  id                Int       @id @default(autoincrement())
+  nombre_original   String
+  nombre_archivo    String
+  tipo_mime         String?
+  tamano            Int?
+  proveedor         String?
+  numero_factura    String?
+  fecha_emision     String?
+  fecha_vencimiento String?
+  monto_total       String?
+  monto_iva         String?
+  tipo_servicio     String?
+  periodo           String?
+  error_mensaje     String?
+  created_by        String?
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+
+  // --- carga FinnegansGO (worker Python) ---
+  tipo_flujo               String?   // arrendamiento_soportes | energia_electrica | recaudacion | recaudacion_sepsa
+  empresa_destino          String?   // auto-detectada por el worker, o explícita
+  estado_carga             String    @default("pendiente") // pendiente|cargando|cargada|duplicada|error|revision
+  finnegans_numero_interno String?
+  carga_error              String?
+  carga_intentos           Int       @default(0)
+  carga_at                 DateTime?
+
+  @@map("facturas")
+}

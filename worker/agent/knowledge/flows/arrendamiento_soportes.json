@@ -1,0 +1,42 @@
+{
+  "id": "arrendamiento_soportes",
+  "descripcion": "Alquiler/arrendamiento de soportes BT/MT para video cable",
+  "proveedores": ["edet"],
+  "workflow_finnegans": "Compras - Servicios & Conceptos - Sin Asistente",
+  "senales_clasificacion": [
+    "arrendamiento de soportes",
+    "alquiler de soportes",
+    "video cable",
+    "soportes para video",
+    "Arrend.",
+    "BT",
+    "MT"
+  ],
+  "schema_extraccion": "FacturaSoportes",
+  "mapeo_finnegans": {
+    "header": {
+      "Fecha De Comprobante": "fecha_emision",
+      "Fecha Base Vto.": "fecha_vencimiento",
+      "Proveedor": "__lookup_nombre_finnegans__",
+      "Nro. Comprobante": "numero_factura",
+      "Descripcion": "concepto",
+      "Moneda": "__fixed:Pesos__"
+    },
+    "items": [
+      { "descripcion": "BT - Baja Tensión", "importe": "importe_bt" },
+      { "descripcion": "MT - Media Tensión", "importe": "importe_mt" }
+    ],
+    "info_fiscal": {
+      "CAI / CAE": "cae",
+      "Fecha Vencimiento CAI/CAE": "fecha_vencimiento_cae"
+    },
+    "retenciones_percepciones": [
+      { "tipo": "Percepción", "retencion": "RG 3337", "importe": "percepcion_rg3337" },
+      { "tipo": "Percepción", "retencion": "IIBB 3.5%", "importe": "percepcion_ib_3_5_pct" }
+    ],
+    "total_control": "monto_total"
+  },
+  "notas": "El IVA 27% se auto-calcula en el tab Conceptos a partir del subtotal_gravado. Usar el botón '+' amarillo para agregar líneas en los tabs Items y Retenciones/Percepciones. Las facturas de energía EDET no tienen CAE.",
+  "agregado": "2026-05-13",
+  "ultima_actualizacion": "2026-05-13"
+}

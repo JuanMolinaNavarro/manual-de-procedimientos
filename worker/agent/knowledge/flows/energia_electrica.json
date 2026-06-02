@@ -1,0 +1,46 @@
+{
+  "id": "energia_electrica",
+  "descripcion": "Factura de consumo de energía eléctrica (kWh, tarifa T1G)",
+  "proveedores": ["edet"],
+  "workflow_finnegans": "Compras - Servicios & Conceptos - Sin Asistente",
+  "senales_clasificacion": [
+    "kWh",
+    "Activa - kWh",
+    "Reactiva - kVArh",
+    "Cargo Uso de Red",
+    "Cargo Energía",
+    "Cargo Energ",
+    "Consumo",
+    "Energía Activa",
+    "T1G",
+    "Fecha Lectura",
+    "Cos Phi"
+  ],
+  "schema_extraccion": "FacturaEnergiaElectrica",
+  "mapeo_finnegans": {
+    "header": {
+      "Fecha De Comprobante": "fecha_emision",
+      "Fecha Base Vto.": "fecha_vencimiento",
+      "Proveedor": "__lookup_nombre_finnegans__",
+      "Nro. Comprobante": "numero_factura",
+      "Descripcion": "periodo",
+      "Moneda": "__fixed:Pesos__"
+    },
+    "items": [
+      { "descripcion": "Abastecimiento y Transporte", "importe": "subtotal_abastecimiento" },
+      { "descripcion": "Valor Agregado Distribución", "importe": "subtotal_valor_agregado" }
+    ],
+    "info_fiscal": {
+      "CAI / CAE": null,
+      "Fecha Vencimiento CAI/CAE": null
+    },
+    "retenciones_percepciones": [
+      { "tipo": "Percepción", "retencion": "RG 3337", "importe": "percepcion_rg3337" },
+      { "tipo": "Percepción", "retencion": "IIBB 3.5%", "importe": "percepcion_ib_3_5_pct" }
+    ],
+    "total_control": "monto_total"
+  },
+  "notas": "Las facturas de energía EDET usan sistema CESP, no tienen CAE. El IVA 27% se auto-calcula. El campo numero_servicio identifica el punto de suministro (usar como referencia interna). Usar el botón '+' amarillo para agregar líneas.",
+  "agregado": "2026-05-13",
+  "ultima_actualizacion": "2026-05-13"
+}

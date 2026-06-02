@@ -1,0 +1,17 @@
+{
+  "id": "edesur_s_a",
+  "razon_social": "EDESUR S.A.",
+  "nombre_finnegans": "PENDIENTE_VERIFICAR",
+  "cuit": "30-65586042-2",
+  "nombre_variantes": [
+    "EDESUR S.A."
+  ],
+  "tipos_factura": [
+    "arrendamiento_soportes"
+  ],
+  "notas": "Creado automáticamente al procesar 0034-00003169.pdf. Requiere verificación.",
+  "ejemplos_procesados": [],
+  "estado": "borrador",
+  "agregado": "2026-05-22",
+  "ultima_actualizacion": "2026-05-22"
+}

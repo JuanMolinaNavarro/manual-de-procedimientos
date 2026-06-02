@@ -1,0 +1,26 @@
+{
+  "id": "empresa_de_distribución_eléctrica_de_tuc",
+  "razon_social": "Empresa de Distribución Eléctrica de Tucumán S.A.",
+  "nombre_finnegans": "EDET S.A.",
+  "cuit": "30612650524",
+  "nombre_variantes": [
+    "Empresa de Distribución Eléctrica de Tucumán S.A."
+  ],
+  "tipos_factura": [
+    "arrendamiento_soportes"
+  ],
+  "notas": "Creado automáticamente al procesar 246910-ccc-sa-alquiler-soportes.pdf. Requiere verificación.",
+  "ejemplos_procesados": [
+    {
+      "archivo": "BSTransaccion-254326-a-00052-0000085120260505024014.pdf",
+      "tipo": "arrendamiento_soportes"
+    },
+    {
+      "archivo": "246910-ccc-sa-alquiler-soportes.pdf",
+      "tipo": "arrendamiento_soportes"
+    }
+  ],
+  "estado": "borrador",
+  "agregado": "2026-05-18",
+  "ultima_actualizacion": "2026-05-18"
+}

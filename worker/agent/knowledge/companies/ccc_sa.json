@@ -1,0 +1,18 @@
+{
+    "id":  "ccc_sa",
+    "razon_social":  "CCC SA",
+    "nombre_finnegans":  "COMPANIA DE CIRCUITOS CERRADO SA",
+    "nombre_finnegans_destinatario":  "COMPANIA DE CIRCUITOS CERRADOS S A",
+    "cuit":  "30612790813",
+    "nombre_variantes":  [
+                             "CCC SA",
+                             "CCC",
+                             "CCC S.A.",
+                             "COMPANIA DE CIRCUITOS CERRADOS SA",
+                             "COMPANIA DE CIRCUITOS CERRADOS S A",
+                             "COMPANIA DE CIRCUITOS CERRADO SA"
+                         ],
+    "notas":  "Empresa propia. Facturas de GIRE y/o SEPSA. ATENCION: el nombre difiere segun contexto en FinnegansGO: modal 'Seleccionar Empresa' (header) = 'COMPANIA DE CIRCUITOS CERRADO SA' (singular, sin espacios en SA); campo Destinatario (wdg_OrganizacionOrigen) = 'COMPANIA DE CIRCUITOS CERRADOS S A' (plural, S A con espacios). El primero va en nombre_finnegans; el segundo en empresas_finnegans.json.",
+    "agregado":  "2026-05-23",
+    "ultima_actualizacion":  "2026-05-28"
+}

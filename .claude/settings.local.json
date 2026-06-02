@@ -9,7 +9,8 @@
       "WebFetch(domain:fanart.tv)",
       "WebFetch(domain:webservice.fanart.tv)",
       "Bash(git checkout *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "mcp__Claude_in_Chrome__computer"
     ]
   }
 }
