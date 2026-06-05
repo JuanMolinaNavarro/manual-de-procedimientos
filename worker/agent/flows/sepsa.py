@@ -30,8 +30,11 @@ from agent.flows.base import (
 from agent.flows.gire import (
     EXPECTED_PRODUCTO_RECAUDACION,
     SEARCH_CENTRO_COSTOS_RECAUDACION,
+    SEARCH_RET_IVA,
     SEARCH_TIPO_PERCEP_IIBB,
+    SEARCH_TIPO_PERCEP_IVA,
     _agregar_item_recaudacion,
+    _aplicar_ajuste_decimal,
     _has_value,
     _tipo_iibb_expected,
 )
@@ -300,6 +303,19 @@ async def cargar_sepsa(
         else:
             _log("percepciones_iibb vacía — no se cargan retenciones IIBB (ej. TARTAGAL).")
 
+        # Percepción de IVA RG3337 (3%) — línea propia, igual que en EDET/GIRE.
+        perc_iva = float(datos.get("percepcion_rg3337") or 0)
+        if perc_iva > 0:
+            await s.grid_add_row()
+            await s.set_selector("wdg_TipoRetencion", SEARCH_TIPO_PERCEP_IVA)
+            await s.set_selector("wdg_Retencion", SEARCH_RET_IVA)
+            await s.set_text_keyboard("wdg_ImporteRetencion", _fmt_importe(perc_iva))
+            if fecha_venc:
+                await s.set_fecha("wdg_FechaRetencion", fecha_venc)
+            await s.modal_aceptar()
+        else:
+            _log("percepcion_rg3337 = 0 → no se carga Percepción de IVA.")
+
         # ── Total de control ──────────────────────────────────────────────────
         monto_total = datos.get("monto_total")
         if monto_total is not None:
@@ -309,6 +325,8 @@ async def cargar_sepsa(
             if not _has_value(total_control_set):
                 _log("wdg_ImporteControl quedó vacío; se reintenta set.")
                 await s.set_text("wdg_ImporteControl", _fmt_importe(mt))
+            # Cuadrar el redondeo de IVA con un item 'AJUSTE DECIMAL'.
+            await _aplicar_ajuste_decimal(s, mt)
         else:
             _log("AVISO: monto_total no disponible — no se carga total de control.")
 
@@ -316,11 +334,12 @@ async def cargar_sepsa(
 
         # ── Guardar y adjuntar PDF ────────────────────────────────────────────
         estado_guardado = "sin guardar"
+        nro_interno = None
         if pdf_path:
             guardado_ok = False
             adjuntado_ok = False
             try:
-                await s.save_draft()
+                nro_interno = await s.save_draft()
                 guardado_ok = True
             except DuplicateComprobanteError as dup_exc:
                 _log(f"Comprobante ya existe en Finnegans: {dup_exc}. No se crea duplicado.")
@@ -368,7 +387,7 @@ async def cargar_sepsa(
         return {
             "exito": True,
             "mensaje": f"Factura SEPSA {numero_factura}: {estado_guardado}.",
-            "nro_interno": None,
+            "nro_interno": nro_interno,
         }
 
     try:

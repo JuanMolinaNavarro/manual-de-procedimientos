@@ -50,6 +50,15 @@ class ControlTotalMismatchError(Exception):
     """Finnegans bloqueó el guardado: el importe total no coincide con el de control."""
 
 
+class SaveFailedError(Exception):
+    """El guardado no se confirmó: el documento sigue como 'Nuevo' (Finnegans no
+    persistió la factura). NO se debe intentar adjuntar el PDF en este caso."""
+
+
+class AttachFailedError(Exception):
+    """El PDF no quedó listado en el panel de adjuntos tras intentar adjuntarlo."""
+
+
 def _log(msg: str) -> None:
     print(f"   [finnegans] {msg}", file=sys.stderr)
 
@@ -1180,11 +1189,48 @@ class FinnegansSession:
     # Guardar (borrador) y Adjuntar PDF
     # ------------------------------------------------------------------
 
-    async def save_draft(self):
+    async def _leer_estado_documento(self) -> dict:
+        """Lee el estado del documento para confirmar si el guardado persistió.
+
+        Según la documentación validada (DOCUMENTACION_ADJUNTAR_PDF_FINNEGANS.md,
+        sección "Validacion de guardado exitoso"), un guardado exitoso transiciona
+        el título de:
+            Nuevo - Factura de Compra
+        a:
+            Factura de Compra - <numero>   (ej. "Factura de Compra - 52257")
+        y deja disponible el botón Adjuntar (#_onFileAttach).
+
+        Devuelve {nro, es_nuevo, attach_disponible}:
+          - nro: nº interno asignado por Finnegans (str) o None si no se detectó.
+          - es_nuevo: True si el documento sigue como "Nuevo - Factura de Compra".
+          - attach_disponible: True si #_onFileAttach existe en el DOM.
+        """
+        try:
+            return await self.frame.evaluate(
+                """() => {
+                    const body = (document.body && document.body.textContent) || '';
+                    // Número interno: "Factura de Compra - 52257" (guion normal o largo).
+                    const m = body.match(/Factura de Compra\\s*[-\\u2013]\\s*(\\d{2,})/);
+                    // Aún "Nuevo - Factura de Compra" → guardado no confirmado.
+                    const esNuevo = /Nuevo\\s*[-\\u2013]\\s*Factura de Compra/i.test(body);
+                    const attach = !!document.querySelector('#_onFileAttach');
+                    return { nro: m ? m[1] : null, es_nuevo: esNuevo, attach_disponible: attach };
+                }"""
+            )
+        except Exception as exc:  # noqa: BLE001
+            _log(f"_leer_estado_documento: no se pudo leer el estado ({exc})")
+            return {"nro": None, "es_nuevo": False, "attach_disponible": False}
+
+    async def save_draft(self) -> Optional[str]:
         """Click en 'Guardar' de la toolbar (deja la factura como borrador,
         editable). NO confunde con 'Finalizar', que bloquea el documento.
 
         Hace falta haber guardado al menos una vez antes de poder adjuntar.
+
+        Devuelve el número interno asignado por Finnegans (str) si lo pudo leer,
+        o None. Lanza SaveFailedError si NO se pudo confirmar el guardado (el
+        documento sigue como "Nuevo"); en ese caso el caller NO debe adjuntar el
+        PDF (regla crítica de DOCUMENTACION_ADJUNTAR_PDF_FINNEGANS.md).
         """
         # Uso .filter()[0] en vez de .find() porque .find() a veces devuelve
         # un wrapper que rompe al llamar .click() ("a.click is not a function").
@@ -1329,7 +1375,44 @@ class FinnegansSession:
             await self.page.wait_for_load_state("networkidle", timeout=15_000)
         except Exception:
             pass
+
+        # ── Verificación de guardado exitoso ──────────────────────────────
+        # No basta con "no apareció un dialog de error": Finnegans puede no
+        # persistir el documento silenciosamente. Confirmamos la transición
+        # "Nuevo - Factura de Compra" → "Factura de Compra - <numero>" (y/o que
+        # el botón Adjuntar esté disponible) antes de dar el guardado por bueno.
+        # Polling corto porque el re-render del título puede tardar un instante.
+        estado = {"nro": None, "es_nuevo": True, "attach_disponible": False}
+        for _ in range(8):
+            estado = await self._leer_estado_documento()
+            if estado.get("nro") or (
+                not estado.get("es_nuevo") and estado.get("attach_disponible")
+            ):
+                break
+            await self.frame.wait_for_timeout(1000)
+
         await self.screenshot("post_save")
+
+        nro_interno = estado.get("nro")
+        if nro_interno:
+            _log(f"save_draft: guardado confirmado → Factura de Compra - {nro_interno}")
+            return str(nro_interno)
+        if not estado.get("es_nuevo") and estado.get("attach_disponible"):
+            _log(
+                "save_draft: guardado confirmado (documento ya no es 'Nuevo' y "
+                "Adjuntar disponible), pero no se pudo leer el nº interno."
+            )
+            return None
+
+        # Sigue como "Nuevo" → el guardado no persistió. No adjuntar.
+        _log(
+            f"save_draft: NO se confirmó el guardado (estado={estado!r}). "
+            "El documento sigue como 'Nuevo'; no se intentará adjuntar el PDF."
+        )
+        raise SaveFailedError(
+            "El guardado no se confirmó: el documento sigue como "
+            "'Nuevo - Factura de Compra' (Finnegans no asignó número interno)."
+        )
 
     async def attach_pdf(self, pdf_path):
         """Adjunta un PDF a la factura guardada.
@@ -1347,6 +1430,7 @@ class FinnegansSession:
         pdf_path = _Path(pdf_path).absolute()
         if not pdf_path.exists():
             raise FileNotFoundError(f"PDF no existe: {pdf_path}")
+        nombre_pdf = pdf_path.name
 
         # 1. Abrir el panel de adjuntos
         attach_btn = self.frame.locator("#_onFileAttach")
@@ -1354,11 +1438,39 @@ class FinnegansSession:
         await attach_btn.click(timeout=STEP_TIMEOUT)
         await self.frame.wait_for_timeout(1500)
 
-        # 2. Click "Nuevo Adjunto" para abrir el popup de carga
-        nuevo_btn = self.frame.locator("a.new").first
-        await nuevo_btn.wait_for(state="visible", timeout=STEP_TIMEOUT)
-        await nuevo_btn.click(timeout=STEP_TIMEOUT)
-        await self.frame.wait_for_timeout(1500)
+        # 2. Abrir el popup de carga (#overDiv) vía "Nuevo Adjunto" (a.new).
+        #    Manejo especial (doc, sección 3 "Manejo especial si a.new da timeout"):
+        #    si #overDiv ya está visible con el input #fileVerdad_0, NO se debe
+        #    reintentar el click de a.new — el popup ya está abierto y ese click
+        #    da timeout porque #overDiv intercepta los pointer events. Se continúa
+        #    directo a setear el archivo.
+        async def _popup_listo() -> bool:
+            try:
+                over_visible = await self.frame.locator("#overDiv").is_visible()
+            except Exception:
+                over_visible = False
+            if not over_visible:
+                return False
+            try:
+                return await self.frame.locator(
+                    "#fileVerdad_0, input[name='FILE_WDGFileUpload']"
+                ).first.count() > 0
+            except Exception:
+                return False
+
+        if not await _popup_listo():
+            try:
+                nuevo_btn = self.frame.locator("a.new").first
+                await nuevo_btn.wait_for(state="visible", timeout=STEP_TIMEOUT)
+                await nuevo_btn.click(timeout=STEP_TIMEOUT)
+            except Exception as exc:
+                # Si #overDiv ya está abierto, el click de a.new puede dar timeout
+                # por intercepción de pointer events: no es fatal mientras el input
+                # de archivo exista. Solo abortamos si el popup tampoco está listo.
+                _log(f"attach_pdf: click a.new falló ({exc}); verificando si #overDiv ya está abierto")
+                if not await _popup_listo():
+                    raise
+            await self.frame.wait_for_timeout(1500)
 
         # 3. Cargar el archivo en el input oculto (sin file chooser nativo)
         file_input = self.frame.locator("#fileVerdad_0, input[name='FILE_WDGFileUpload']").first
@@ -1380,7 +1492,38 @@ class FinnegansSession:
         except Exception:
             pass
         await self.frame.wait_for_timeout(2000)
-        _log(f"attach_pdf: {pdf_path.name} adjuntado OK")
+
+        # 5. Validación de adjunto exitoso (doc, "Validacion de adjunto exitoso"):
+        #    el nombre del PDF debe figurar en el panel de adjuntos (div.adjunto)
+        #    o en el body, y #overDiv ya no debe estar visible. Polling corto
+        #    porque el panel refresca de forma asíncrona tras el upload.
+        listado = False
+        for _ in range(6):
+            try:
+                listado = await self.frame.evaluate(
+                    """(nombre) => {
+                        const norm = s => (s || '').toLowerCase();
+                        const target = norm(nombre);
+                        const enPanel = [...document.querySelectorAll('div.adjunto')]
+                            .some(d => norm(d.textContent).includes(target));
+                        const enBody = norm(document.body && document.body.textContent)
+                            .includes(target);
+                        return enPanel || enBody;
+                    }""",
+                    nombre_pdf,
+                )
+            except Exception:
+                listado = False
+            if listado:
+                break
+            await self.frame.wait_for_timeout(1000)
+
+        if not listado:
+            raise AttachFailedError(
+                f"El PDF {nombre_pdf!r} no aparece en el panel de adjuntos tras "
+                f"el upload (posible fallo silencioso de FILEUPLOADAcceptPopup)."
+            )
+        _log(f"attach_pdf: {nombre_pdf} adjuntado y verificado en el panel OK")
 
     # ------------------------------------------------------------------
     # Screenshots

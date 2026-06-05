@@ -15,14 +15,33 @@ import sys
 from pathlib import Path
 
 from .extractor import extract, pdf_to_b64_pngs, pdf_to_text
+from .reconciliation import (
+    completar_percepcion_iva_3pct,
+    hint_reconciliacion,
+    reconciliar_importes,
+)
 from .knowledge_base import (
     build_context_for_prompt,
     lookup_company,
-    lookup_provider,
+    provider_for_flow,
     record_example,
     register_new_company,
-    register_new_provider,
+    resolve_empresa_finnegans,
 )
+
+
+def _merge_no_destructivo(base: dict, nuevo: dict) -> dict:
+    """Devuelve `nuevo` conservando de `base` los campos que `nuevo` dejo vacios.
+
+    Si la nueva extraccion devolvio un campo None o "" pero la anterior tenia un
+    valor real, se conserva el de la anterior. Evita perder datos de ruteo
+    (cliente, cuit_cliente, numero_servicio) entre extracciones. NO toca listas ni
+    0/0.0 (valores legitimos, p.ej. percepciones_iibb=[] o un importe 0)."""
+    for k, v in base.items():
+        nv = nuevo.get(k)
+        if (nv is None or nv == "") and v not in (None, ""):
+            nuevo[k] = v
+    return nuevo
 
 
 def process_pdf(pdf_path: Path) -> dict:
@@ -44,11 +63,12 @@ def process_pdf(pdf_path: Path) -> dict:
     factura = extract(images, text=text)
     result = factura.model_dump()
 
-    # 2. Lookup del PROVEEDOR usando cuit_emisor
-    provider = lookup_provider(
-        cuit=result.get("cuit_emisor"),
-        nombre=result.get("emisor"),
-    )
+    # 2. PROVEEDOR a partir del FLUJO elegido (no al reves).
+    #    Cada flujo lo emite un proveedor fijo (SEPSA/GIRE/EDET), asi que el
+    #    flujo clasificado por el extractor ES la fuente de verdad del proveedor.
+    #    Esto evita depender de que el LLM haya leido bien el CUIT del emisor.
+    tipo_flujo = factura.tipo_flujo
+    provider = provider_for_flow(tipo_flujo)
 
     # 3. Lookup de la EMPRESA PROPIA usando cuit_cliente (validaciÃ³n)
     company = lookup_company(
@@ -58,54 +78,92 @@ def process_pdf(pdf_path: Path) -> dict:
 
     # 4. Log de lo que encontramos
     if provider:
-        print(f"   Proveedor:      {provider['razon_social']} (CUIT {provider['cuit']})", file=sys.stderr)
+        print(
+            f"   Proveedor (por flujo '{tipo_flujo}'): {provider['razon_social']} "
+            f"(CUIT {provider['cuit']})",
+            file=sys.stderr,
+        )
     else:
-        print(f"   Proveedor:      '{result.get('emisor')}' CUIT {result.get('cuit_emisor')} â€” NO encontrado", file=sys.stderr)
+        print(f"   Proveedor:      flujo '{tipo_flujo}' sin proveedor mapeado", file=sys.stderr)
 
     if company:
         print(f"   Empresa propia: {company['razon_social']} (CUIT {company['cuit']})", file=sys.stderr)
     else:
         print(f"   Empresa propia: '{result.get('cliente')}' CUIT {result.get('cuit_cliente')} â€” NO encontrada", file=sys.stderr)
 
-    # 5. Si el proveedor ya es conocido: re-extraer con contexto enriquecido
+    # 5. Re-extraer con el contexto del proveedor (mejora la precision de campos).
+    context = None
     if provider:
         context = build_context_for_prompt(provider)
+        base = result  # primera extraccion (clasificacion + datos ya leidos)
         factura = extract(images, text=text, provider_context=context)
-        result = factura.model_dump()
+        result = _merge_no_destructivo(base, factura.model_dump())
 
-        result["_provider_id"] = provider["id"]
-        result["_nombre_finnegans"] = provider["nombre_finnegans"]
-        # Nombre del proveedor RESUELTO (knowledge base), confiable aunque el
-        # LLM no haya extraído `emisor` en este PDF. El proveedor se detecta por
-        # CUIT, así que este nombre siempre está disponible cuando hay match.
-        result["_proveedor_nombre"] = provider.get("razon_social")
-        result["_estado"] = "listo"
+    # 6. Marcar el proveedor A PARTIR DEL FLUJO. Si por algun motivo el flujo no
+    #    mapeo (no deberia con los flujos soportados), se cae al nombre crudo del
+    #    LLM pero igual se marca 'listo' para no bloquear la carga.
+    result["_provider_id"] = provider["id"] if provider else None
+    result["_nombre_finnegans"] = provider.get("nombre_finnegans") if provider else None
+    result["_proveedor_nombre"] = (
+        provider.get("razon_social") if provider else result.get("emisor")
+    )
+    result["_estado"] = "listo"
+    if provider:
         record_example(provider["id"], pdf_path.name, factura.tipo_flujo)
 
-    else:
-        # Proveedor desconocido: registrar como borrador
-        emisor = (result.get("emisor") or "DESCONOCIDO").strip()
-        cuit_emisor = (result.get("cuit_emisor") or "SIN_CUIT").strip()
-
-        nuevo_id = register_new_provider(
-            razon_social=emisor,
-            cuit=cuit_emisor,
-            tipos_factura=[factura.tipo_flujo],
-            notas=f"Creado automÃ¡ticamente al procesar {pdf_path.name}. Requiere verificaciÃ³n.",
-        )
-
-        result["_provider_id"] = nuevo_id
-        result["_nombre_finnegans"] = "PENDIENTE_VERIFICAR"
-        result["_estado"] = "revision_requerida"
-
+    # 7. Reconciliacion deterministica de importes (NO bloquea: solo dispara un
+    #    reintento de extraccion con hint dirigido). Finnegans sigue siendo el
+    #    arbitro final del descuadre via su control de total.
+    recon = reconciliar_importes(result, tipo_flujo)
+    if recon and recon["necesita_retry"]:
         print(
-            f"\n   âš ï¸  PROVEEDOR NUEVO: '{emisor}' registrado como borrador (id: {nuevo_id}).\n"
-            f"   Completar 'nombre_finnegans' en:\n"
-            f"   agent/knowledge/providers/{nuevo_id}.json",
+            f"   Descuadre detectado: suma={recon['esperado']:.2f} vs "
+            f"total={recon['monto_total']:.2f} (dif {recon['diff']:+.2f}). "
+            f"Reintentando extraccion con hint…",
             file=sys.stderr,
         )
+        for etiqueta, aporte in recon.get("desglose", []):
+            print(f"      {etiqueta:<26} = {aporte:>14,.2f}", file=sys.stderr)
+        print(f"      {'TOTAL declarado':<26} = {recon['monto_total']:>14,.2f}", file=sys.stderr)
+        base = result
+        factura = extract(
+            images, text=text, provider_context=context, hint=hint_reconciliacion(recon)
+        )
+        result = _merge_no_destructivo(base, factura.model_dump())
+        # Reponer metadatos (no vienen del schema del extractor).
+        for k in ("_provider_id", "_nombre_finnegans", "_proveedor_nombre", "_estado"):
+            result[k] = base.get(k)
+        recon = reconciliar_importes(result, tipo_flujo)
+        if recon and recon["necesita_retry"]:
+            print(
+                f"   AVISO: tras el reintento sigue sin cuadrar "
+                f"(dif {recon['diff']:+.2f}). Se intentara cargar igual; "
+                f"Finnegans validara el control de total.",
+                file=sys.stderr,
+            )
+        else:
+            print("   Reintento OK: los importes ahora cuadran.", file=sys.stderr)
 
-    # 6. Si la empresa propia no es conocida: registrarla como nueva
+    # Backstop determinístico (recaudación): si tras el reintento falta exactamente
+    # ~3% del subtotal, es la confusión CABA-IIBB == RG3337 (mismo importe). Se
+    # completa el lado ausente sin depender del LLM.
+    if recon and recon.get("necesita_retry") and completar_percepcion_iva_3pct(result, recon):
+        print(
+            "   Backstop 3%: se completó la percepción de 3% faltante "
+            "(CABA IIBB / RG3337).",
+            file=sys.stderr,
+        )
+        recon = reconciliar_importes(result, tipo_flujo)
+    result["_reconciliacion"] = recon
+
+    # Empresa propia DESTINO (la que el flow resolverá por NUM_SERVICIO / cliente
+    # / CUIT). Es distinta del proveedor; se reporta para mostrarla en el panel.
+    try:
+        result["_empresa_destino"] = resolve_empresa_finnegans(result)
+    except Exception:
+        result["_empresa_destino"] = None
+
+    # 7. Si la empresa propia no es conocida: registrarla como nueva
     if not company and result.get("cliente") and result.get("cuit_cliente"):
         nuevo_company_id = register_new_company(
             razon_social=result["cliente"],
@@ -142,6 +200,39 @@ async def _cargar(result: dict, empresa: str, pdf_path: Path | None = None) -> d
         return {"exito": False, "mensaje": f"Tipo de flujo desconocido: {tipo}", "nro_interno": None}
 
 
+async def cargar_una(datos: dict, empresa: str | None, pdf_path: Path | None, session) -> dict:
+    """Despacha UNA factura ya extraída al flow correcto, reusando `session`.
+
+    Pensado para procesamiento en cola: el caller abre/loguea la session una vez
+    y llama a esta función por cada factura (extraer → cargar → reportar), en vez
+    de cargar todo el lote junto. Devuelve el dict resultado del flow.
+    """
+    from .flows.energia import cargar_energia_electrica
+    from .flows.gire import cargar_gire
+    from .flows.sepsa import cargar_sepsa
+    from .flows.soportes import cargar_arrendamiento_soportes
+
+    tipo = datos.get("tipo_flujo")
+    provider_id = (datos.get("_provider_id") or "").strip().lower()
+    if tipo == "recaudacion_sepsa" or provider_id == "servicio_electronico_de_pago_s_a":
+        return await cargar_sepsa(datos, pdf_path=pdf_path, empresa=empresa, session=session)
+    if provider_id == "gire" or tipo == "recaudacion":
+        return await cargar_gire(datos, pdf_path=pdf_path, empresa=empresa, session=session)
+    if tipo == "arrendamiento_soportes":
+        return await cargar_arrendamiento_soportes(
+            datos, pdf_path=pdf_path, empresa=empresa, session=session
+        )
+    if tipo == "energia_electrica":
+        return await cargar_energia_electrica(
+            datos, pdf_path=pdf_path, empresa=empresa, session=session
+        )
+    return {
+        "exito": False,
+        "mensaje": f"Tipo de flujo no soportado: {tipo}",
+        "nro_interno": None,
+    }
+
+
 async def _cargar_batch(items: list[tuple[Path, dict]], empresa: str | None) -> list[tuple[Path, dict]]:
     """Modo batch: abre el browser y hace login UNA SOLA VEZ. Cada factura
     selecciona su empresa destino (auto-detectada o `empresa` si es explÃ­cita)
@@ -156,10 +247,6 @@ async def _cargar_batch(items: list[tuple[Path, dict]], empresa: str | None) -> 
         lista de (pdf_path, resultado_de_carga).
     """
     from .flows.base import FinnegansSession
-    from .flows.energia import cargar_energia_electrica
-    from .flows.gire import cargar_gire
-    from .flows.sepsa import cargar_sepsa
-    from .flows.soportes import cargar_arrendamiento_soportes
 
     out: list[tuple[Path, dict]] = []
     print(f"\n=== MODO BATCH: {len(items)} facturas â€” un solo navegador ===", file=sys.stderr)
@@ -174,29 +261,9 @@ async def _cargar_batch(items: list[tuple[Path, dict]], empresa: str | None) -> 
     async with FinnegansSession(empresa=empresa or "Prueba", keep_open=False) as s:
         for i, (pdf_path, datos) in enumerate(items, 1):
             tipo = datos.get("tipo_flujo")
-            provider_id = (datos.get("_provider_id") or "").strip().lower()
             print(f"\n--- [{i}/{len(items)}] {pdf_path.name} ({tipo}) ---", file=sys.stderr)
             try:
-                if tipo == "recaudacion_sepsa" or provider_id == "servicio_electronico_de_pago_s_a":
-                    carga = await cargar_sepsa(datos, pdf_path=pdf_path, empresa=empresa, session=s)
-                elif provider_id == "gire" or tipo == "recaudacion":
-                    carga = await cargar_gire(
-                        datos, pdf_path=pdf_path, empresa=empresa, session=s
-                    )
-                elif tipo == "arrendamiento_soportes":
-                    carga = await cargar_arrendamiento_soportes(
-                        datos, pdf_path=pdf_path, empresa=empresa, session=s
-                    )
-                elif tipo == "energia_electrica":
-                    carga = await cargar_energia_electrica(
-                        datos, pdf_path=pdf_path, empresa=empresa, session=s
-                    )
-                else:
-                    carga = {
-                        "exito": False,
-                        "mensaje": f"Tipo de flujo no soportado en batch: {tipo}",
-                        "nro_interno": None,
-                    }
+                carga = await cargar_una(datos, empresa, pdf_path, s)
             except Exception as e:
                 carga = {"exito": False, "mensaje": f"Error inesperado: {e}", "nro_interno": None}
             _print_carga_result(pdf_path.name, carga)

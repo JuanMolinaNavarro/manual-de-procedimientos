@@ -493,11 +493,12 @@ async def cargar_arrendamiento_soportes(
 
         # ====================== GUARDAR (borrador) + ADJUNTAR ======================
         estado_guardado = "sin guardar"
+        nro_interno = None
         if pdf_path:
             guardado_ok = False
             adjuntado_ok = False
             try:
-                await s.save_draft()
+                nro_interno = await s.save_draft()
                 guardado_ok = True
             except DuplicateComprobanteError as dup_exc:
                 _log(f"Comprobante ya existe en Finnegans: {dup_exc}. No se crea duplicado.")
@@ -547,7 +548,7 @@ async def cargar_arrendamiento_soportes(
         return {
             "exito": True,
             "mensaje": f"Factura {numero_factura}: {estado_guardado}.",
-            "nro_interno": None,
+            "nro_interno": nro_interno,
         }
 
     # ----------------------------------------------------------------------

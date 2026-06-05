@@ -39,30 +39,36 @@ export async function POST(request: NextRequest) {
     }
     const username = await getUsername();
     const formData = await request.formData();
-    const file = formData.get('file') as File | null;
-    if (!file) {
+    const files = formData
+      .getAll('file')
+      .filter((f): f is File => f instanceof File);
+    if (files.length === 0) {
       return NextResponse.json({ error: 'No se recibió archivo' }, { status: 400 });
     }
-    if (file.type !== 'application/pdf') {
+    if (files.some((f) => f.type !== 'application/pdf')) {
       return NextResponse.json({ error: 'Solo se aceptan archivos PDF' }, { status: 400 });
     }
 
-    const storedName = `${randomUUID()}.pdf`;
-    const buffer = Buffer.from(await file.arrayBuffer());
     mkdirSync(UPLOAD_DIR, { recursive: true });
-    writeFileSync(join(UPLOAD_DIR, storedName), buffer);
 
-    // estado_carga='pendiente' (default): el worker Python la toma por polling,
-    // la extrae y la carga en FinnegansGO.
-    const factura = await createFactura({
-      nombre_original: file.name,
-      nombre_archivo: storedName,
-      tipo_mime: file.type,
-      tamano: file.size,
-      created_by: username,
-    });
+    // estado_carga='pendiente' (default): el worker Python las toma por polling,
+    // las extrae y las carga en FinnegansGO.
+    const creadas = [];
+    for (const file of files) {
+      const storedName = `${randomUUID()}.pdf`;
+      const buffer = Buffer.from(await file.arrayBuffer());
+      writeFileSync(join(UPLOAD_DIR, storedName), buffer);
+      const factura = await createFactura({
+        nombre_original: file.name,
+        nombre_archivo: storedName,
+        tipo_mime: file.type,
+        tamano: file.size,
+        created_by: username,
+      });
+      creadas.push(factura);
+    }
 
-    return NextResponse.json(factura, { status: 201 });
+    return NextResponse.json(creadas, { status: 201 });
   } catch (error) {
     console.error('Error en POST /api/admin/facturas:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });

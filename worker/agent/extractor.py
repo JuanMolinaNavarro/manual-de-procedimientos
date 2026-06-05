@@ -114,7 +114,11 @@ CAMPOS CRÍTICOS — siempre tenés que extraerlos cuando son visibles:
   cuando el IVA es 27%. Si hay incongruencia, releelo del PDF.
 
 - **`percepcion_rg3337`** y **`percepcion_ib_3_5_pct`**: percepciones de IVA y
-  de Ingresos Brutos. Etiquetas: "Percepción RG 3337", "Percepción RG3337",
+  de Ingresos Brutos. `percepcion_rg3337` ES la **Percepción de IVA RG 3337**,
+  cuya alícuota es **3%** (≈ `subtotal_gravado * 0.03`); aparece como "Percepción
+  IVA RG 3337", "Percep. IVA 3%", "IVA Percepción 3%", "Percepción 3%" o similar.
+  `percepcion_ib_3_5_pct` es la percepción de Ingresos Brutos (3,5%).
+  Etiquetas: "Percepción RG 3337", "Percepción RG3337",
   "Percep. RG 3337" / "Percep. Ing. Brutos 3,5%", "Percepción IIBB 3.5%", etc.
   ⚠️ MISMO cuidado dígito por dígito que con `subtotal_gravado` — son números
   de 5-7 dígitos donde los OCRs suelen confundir dígitos contiguos (`077` vs `007`,
@@ -175,12 +179,30 @@ hecha) o en haber olvidado `subtotal_no_gravado`.
 REGLAS ESPECIFICAS — Facturas GIRE (registrar_factura_recaudacion):
 
 - `subtotal_gravado`: campo "SUBTOTAL" del comprobante GIRE.
-- `percepcion_ib_3_5_pct`: SUMA de todas las percepciones IIBB.
-  En GIRE aparecen en bloques "Operaciones realizadas en [Jurisdiccion]  [base]  [percepcion]".
-  Suma el 2do importe de CADA bloque.
-- `percepcion_rg3337`: percepcion de IVA (RG 3337) si figura, sino 0.0.
+- `percepciones_iibb` (CRITICO — lista, una fila por jurisdiccion):
+  En GIRE las percepciones IIBB aparecen en bloques
+  "Operaciones realizadas en [Jurisdiccion]  [base]  [percepcion]".
+  Crea UNA fila por CADA bloque: {provincia, alicuota_pct, importe}, donde
+  `importe` es el SEGUNDO numero del bloque (la PERCEPCION, no la base).
+  Ejemplo con 2 jurisdicciones (ej. CABA + Tucuman):
+    "Operaciones realizadas en Ciudad de Buenos Aires  12345,67  482,59"
+        -> {provincia:"Ciudad Autonoma de Buenos Aires", alicuota_pct:..., importe:482.59}
+    "Operaciones realizadas en Tucuman  98765,43  884,13"
+        -> {provincia:"Tucuman", alicuota_pct:..., importe:884.13}
+  ⚠️ OBLIGATORIO listar TODAS las jurisdicciones, no omitas ninguna. NO resumas
+  en un total: `percepciones_iibb` es la UNICA fuente del IIBB (no hay otro campo
+  de total). Si hay una sola jurisdiccion, una sola fila. `alicuota_pct` puede ir
+  en null si no figura impresa.
+- `percepcion_rg3337`: percepcion de IVA (RG 3337) si figura, sino 0.0. Suele ser
+  ~3% del subtotal_gravado y es FACIL de olvidar: si la coherencia no cierra,
+  revisala.
+  ⚠️ NO la confundas con una percepcion IIBB ni la metas en `percepciones_iibb`.
+  ⚠️⚠️ CRITICO: la Percepcion de II.BB. CABA (Padron) tambien suele ser 3%, asi
+  que MUCHAS VECES la CABA IIBB y el RG3337 tienen el MISMO importe. Son DOS
+  percepciones DISTINTAS: cargá AMBAS (una en percepciones_iibb como CABA, otra en
+  percepcion_rg3337). NUNCA las fusiones ni omitas una porque su importe coincida.
 - `concepto`: descripcion del servicio.
-- Coherencia: subtotal_gravado + IVA_21% + percepcion_rg3337 + percepcion_ib_3_5_pct ≈ monto_total
+- Coherencia: subtotal_gravado + IVA_21% + percepcion_rg3337 + sum(percepciones_iibb) ≈ monto_total
 
 REGLAS ESPECIFICAS — Facturas SEPSA / PagoFacil (registrar_factura_sepsa):
 
@@ -202,21 +224,29 @@ Estructura de totales del PDF SEPSA:
   Total Tributos → total_tributos   (suma de la tabla; NO es una fila de percepcion)
   Total          → monto_total      (= SUBTOTAL + I.V.A. 21% + Total Tributos)
 
-CAMPO CRITICO — percepciones_iibb (lista):
-  Lee CADA FILA de la tabla "Otros Tributos" individualmente.
-  Cada fila tiene el formato: "IIBB Percepcion [Provincia] [alicuota]%  [importe]"
-  Ejemplo con 2 filas:
-    "IIBB Percepcion Santa Fe 2.5%     431,03"  → {provincia:"Santa Fe", alicuota_pct:2.5, importe:431.03}
-    "IIBB Percepcion Tucuman 1.638%    282,40"  → {provincia:"Tucuman",  alicuota_pct:1.638, importe:282.40}
-  Si la tabla esta vacia (como en TARTAGAL): percepciones_iibb = [] y total_tributos = 0.0.
+CAMPOS CRITICOS — percepciones_iibb (lista) y percepcion_rg3337:
+  La tabla "Otros Tributos" puede tener filas de DOS tipos: percepciones de IIBB
+  (Ingresos Brutos, por provincia) y la Percepción de IVA RG3337 (3%). Tratalas
+  por separado, igual que en EDET:
+  - `percepciones_iibb`: UNA fila por jurisdicción de IIBB. Formato:
+    "IIBB Percepcion [Provincia] [alicuota]%  [importe]". Ejemplo (2 filas):
+      "IIBB Percepcion Santa Fe 2.5%     431,03"  → {provincia:"Santa Fe", alicuota_pct:2.5, importe:431.03}
+      "IIBB Percepcion Tucuman 1.638%    282,40"  → {provincia:"Tucuman",  alicuota_pct:1.638, importe:282.40}
+    Listá TODAS las jurisdicciones. Si no hay IIBB: [].
+  - `percepcion_rg3337`: la fila de Percepción de IVA RG3337 (alícuota 3% ≈
+    subtotal_gravado * 0.03). Etiquetas: "Percepción IVA RG 3337", "IVA Percepción 3%",
+    "Percepción 3%". Va en ESTE campo, NO en percepciones_iibb. 0.0 si no figura.
+    ⚠️⚠️ La Percepción de II.BB. CABA (Padrón) también suele ser 3%, así que CABA
+    IIBB y RG3337 frecuentemente tienen el MISMO importe. Son DOS percepciones
+    distintas: cargá AMBAS, nunca las fusiones porque su importe coincida.
 
-  ⚠️ "Total Tributos" es el PIE de la tabla (suma de los importes) — NO crear
-     una fila de percepcion para el. Solo va en el campo total_tributos.
+  ⚠️ "Total Tributos" es el PIE de la tabla (suma de TODAS las filas: IIBB +
+     RG3337) — NO crear una fila para el. Solo va en el campo total_tributos.
   ⚠️ Las lineas "Operaciones en [Lugar]..." del cuerpo de la factura son
-     DESCRIPTIVAS (breakdown de operaciones) — NO son percepciones IIBB.
+     DESCRIPTIVAS (breakdown de operaciones) — NO son percepciones.
 
 Verificacion de coherencia SEPSA:
-  sum(p.importe for p in percepciones_iibb) == total_tributos
+  sum(p.importe for p in percepciones_iibb) + percepcion_rg3337 == total_tributos
   subtotal_gravado + iva_21 + total_tributos == monto_total
   Si no cuadra, releer la tabla "Otros Tributos" fila por fila.
 
@@ -400,6 +430,7 @@ def extract(
     pdf_or_images: PdfSource,
     text: str | None = None,
     provider_context: str | None = None,
+    hint: str | None = None,
 ) -> FacturaUnion:
     """Llama a GPT-4o con visión + texto y retorna el schema Pydantic.
 
@@ -434,7 +465,7 @@ def extract(
         model=OPENAI_MODEL,
         messages=[
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": _build_user_content(images, text=text)},
+            {"role": "user", "content": _build_user_content(images, text=text, hint=hint)},
         ],
         tools=_TOOLS,
         tool_choice="required",

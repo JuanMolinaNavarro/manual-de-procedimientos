@@ -38,9 +38,13 @@
     {
       "archivo": "0034-00003169.pdf",
       "tipo": "arrendamiento_soportes"
+    },
+    {
+      "archivo": "0097-72813195.pdf",
+      "tipo": "energia_electrica"
     }
   ],
   "estado": "activo",
   "agregado": "2026-05-13",
-  "ultima_actualizacion": "2026-05-22"
+  "ultima_actualizacion": "2026-06-02"
 }

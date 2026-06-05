@@ -269,6 +269,31 @@ def _normalize_cuit(cuit: str) -> str:
 # Lookups — Proveedores externos
 # ---------------------------------------------------------------------------
 
+# Cada tipo de flujo lo emite un proveedor FIJO y conocido. El proveedor se
+# determina a partir del flujo clasificado (no al revés): si el extractor
+# clasificó la factura como SEPSA/GIRE/energía/soportes, el proveedor queda
+# determinado sin depender de que el LLM haya leído bien el CUIT del emisor.
+_FLOW_PROVIDER_ID: dict[str, str] = {
+    "recaudacion_sepsa": "servicio_electronico_de_pago_s_a",
+    "recaudacion": "gire",
+    "energia_electrica": "edet",
+    "arrendamiento_soportes": "edet",
+}
+
+
+def provider_for_flow(tipo_flujo: str | None) -> dict | None:
+    """Devuelve el proveedor CANÓNICO asociado a un tipo de flujo.
+
+    Es la forma preferida de identificar al proveedor: el flujo elegido por el
+    extractor es la fuente de verdad. Devuelve None si el flujo no tiene un
+    proveedor mapeado (no debería pasar con los flujos soportados)."""
+    provider_id = _FLOW_PROVIDER_ID.get(tipo_flujo or "")
+    if not provider_id:
+        return None
+    path = PROVIDERS_DIR / f"{provider_id}.json"
+    return _load(path) if path.exists() else None
+
+
 def lookup_provider(cuit: str | None = None, nombre: str | None = None) -> dict | None:
     """
     Busca un proveedor externo por cuit_emisor (preferido) o nombre.

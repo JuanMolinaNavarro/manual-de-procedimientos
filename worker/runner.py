@@ -75,85 +75,94 @@ def _estado_carga_from_result(carga: dict) -> str:
 
 
 def process_cycle() -> int:
-    """Procesa un ciclo completo. Devuelve cuántas facturas se tomaron."""
+    """Procesa un ciclo completo. Devuelve cuántas facturas se tomaron.
+
+    Procesamiento EN COLA: abre un único navegador + login para todo el ciclo,
+    y por cada factura hace extracción → carga → callback de inmediato (en vez
+    de extraer todo el lote y recién después cargarlo). Así el estado de cada
+    factura se actualiza apenas termina, sin esperar a que termine el lote.
+    """
     items = fetch_pendientes()
     if not items:
         return 0
 
-    log(f"{len(items)} factura(s) pendiente(s) de carga")
-
-    ready: list[tuple[Path, dict]] = []
-    id_by_path: dict[Path, int] = {}
-
-    for item in items:
-        factura_id = item["factura_id"]
-        nombre = item.get("nombre_archivo")
-        pdf_path = UPLOADS_DIR / nombre if nombre else None
-
-        post_callback({"factura_id": factura_id, "estado_carga": "cargando"})
-
-        if not pdf_path or not pdf_path.exists():
-            post_callback({
-                "factura_id": factura_id,
-                "estado_carga": "error",
-                "carga_error": f"PDF no encontrado en {pdf_path}",
-            })
-            continue
-
-        try:
-            datos = process_pdf(pdf_path)
-        except Exception as e:  # noqa: BLE001
-            post_callback({
-                "factura_id": factura_id,
-                "estado_carga": "error",
-                "carga_error": f"Error de extracción: {e}",
-            })
-            continue
-
-        tipo_flujo = datos.get("tipo_flujo")
-        if datos.get("_estado") != "listo":
-            # Proveedor desconocido → requiere revisión manual en la knowledge base.
-            post_callback({
-                "factura_id": factura_id,
-                "estado_carga": "revision",
-                "tipo_flujo": tipo_flujo,
-                "carga_error": "Proveedor no reconocido; requiere verificación manual.",
-            })
-            continue
-
-        ready.append((pdf_path, datos))
-        id_by_path[pdf_path] = factura_id
-
-    if not ready:
-        return len(items)
-
-    log(f"cargando {len(ready)} factura(s) en FinnegansGO (un solo navegador)")
-    resultados = asyncio.run(_cargar_batch(ready, WORKER_EMPRESA))
-
-    for pdf_path, carga in resultados:
-        factura_id = id_by_path[pdf_path]
-        datos = next(d for p, d in ready if p == pdf_path)
-        estado = _estado_carga_from_result(carga)
-        monto = datos.get("monto_total")
-        post_callback({
-            "factura_id": factura_id,
-            "estado_carga": estado,
-            "tipo_flujo": datos.get("tipo_flujo"),
-            "empresa_destino": WORKER_EMPRESA or datos.get("_nombre_finnegans"),
-            "finnegans_numero_interno": (
-                str(carga["nro_interno"]) if carga.get("nro_interno") else None
-            ),
-            "carga_error": None if carga.get("exito") else carga.get("mensaje"),
-            # Preferir el proveedor RESUELTO por la knowledge base (por CUIT);
-            # cae al texto libre del LLM solo si no hubo match (no debería pasar
-            # cuando el flow corrió, porque eso exige _estado='listo').
-            "proveedor": datos.get("_proveedor_nombre") or datos.get("emisor"),
-            "numero_factura": datos.get("numero_factura"),
-            "fecha_emision": datos.get("fecha_emision"),
-            "monto_total": str(monto) if monto is not None else None,
-        })
-
+    log(f"{len(items)} factura(s) pendiente(s) — procesando en cola (un solo navegador)")
+    asyncio.run(_procesar_cola(items))
     return len(items)
+
+
+async def _procesar_cola(items: list[dict]) -> None:
+    """Abre una sesión de FinnegansSession y procesa las facturas una por una."""
+    from agent.flows.base import FinnegansSession
+    from agent.main import cargar_una
+
+    total = len(items)
+    # `WORKER_EMPRESA or "Prueba"` es solo el default del constructor; cada flow
+    # resuelve/override la empresa destino al inicio de su carga.
+    async with FinnegansSession(empresa=WORKER_EMPRESA or "Prueba", keep_open=False) as s:
+        for i, item in enumerate(items, 1):
+            factura_id = item["factura_id"]
+            nombre = item.get("nombre_archivo")
+            pdf_path = UPLOADS_DIR / nombre if nombre else None
+
+            post_callback({"factura_id": factura_id, "estado_carga": "cargando"})
+
+            if not pdf_path or not pdf_path.exists():
+                post_callback({
+                    "factura_id": factura_id,
+                    "estado_carga": "error",
+                    "carga_error": f"PDF no encontrado en {pdf_path}",
+                })
+                continue
+
+            # 1) Extracción (LLM). Bloquea el event loop pero no hay nada más que
+            #    correr en paralelo en este worker.
+            log(f"[{i}/{total}] {nombre}: extrayendo…")
+            try:
+                datos = process_pdf(pdf_path)
+            except Exception as e:  # noqa: BLE001
+                post_callback({
+                    "factura_id": factura_id,
+                    "estado_carga": "error",
+                    "carga_error": f"Error de extracción: {e}",
+                })
+                continue
+
+            tipo_flujo = datos.get("tipo_flujo")
+            if datos.get("_estado") != "listo":
+                post_callback({
+                    "factura_id": factura_id,
+                    "estado_carga": "revision",
+                    "tipo_flujo": tipo_flujo,
+                    "carga_error": "Requiere verificación manual.",
+                })
+                continue
+
+            # 2) Carga en FinnegansGO reusando la sesión ya logueada.
+            log(f"[{i}/{total}] {nombre} ({tipo_flujo}): cargando en FinnegansGO…")
+            try:
+                carga = await cargar_una(datos, WORKER_EMPRESA, pdf_path, s)
+            except Exception as e:  # noqa: BLE001
+                carga = {"exito": False, "mensaje": f"Error inesperado: {e}", "nro_interno": None}
+
+            # 3) Callback inmediato con el resultado de ESTA factura.
+            estado = _estado_carga_from_result(carga)
+            monto = datos.get("monto_total")
+            post_callback({
+                "factura_id": factura_id,
+                "estado_carga": estado,
+                "tipo_flujo": datos.get("tipo_flujo"),
+                "empresa_destino": WORKER_EMPRESA or datos.get("_empresa_destino"),
+                "finnegans_numero_interno": (
+                    str(carga["nro_interno"]) if carga.get("nro_interno") else None
+                ),
+                "carga_error": None if carga.get("exito") else carga.get("mensaje"),
+                "proveedor": datos.get("_proveedor_nombre") or datos.get("emisor"),
+                "numero_factura": datos.get("numero_factura"),
+                "fecha_emision": datos.get("fecha_emision"),
+                "monto_total": str(monto) if monto is not None else None,
+            })
+            log(f"[{i}/{total}] {nombre}: {estado} — {carga.get('mensaje')}")
 
 
 def main() -> None:

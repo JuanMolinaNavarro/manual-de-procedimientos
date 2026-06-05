@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Trash2, FileText, Upload, RefreshCw } from 'lucide-react';
+import { Trash2, FileText, Upload, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -21,13 +21,15 @@ const TIPO_FLUJO_LABELS: Record<string, string> = {
   recaudacion_sepsa: 'Recaudación SEPSA',
 };
 
+const PAGE_SIZE = 10;
+
 function EstadoBadge({ estado }: { estado: FacturaEstadoCarga }) {
   const map: Record<FacturaEstadoCarga, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
     pendiente: { label: 'Pendiente',  variant: 'secondary' },
     cargando:  { label: 'Cargando…',  variant: 'outline'   },
     cargada:   { label: 'Cargada',    variant: 'default'   },
     duplicada: { label: 'Ya existía', variant: 'secondary' },
-    revision:  { label: 'Revisión',   variant: 'outline'   },
+    revision:  { label: 'Error',      variant: 'destructive' },
     error:     { label: 'Error',      variant: 'destructive' },
   };
   const { label, variant } = map[estado] ?? map.error;
@@ -39,8 +41,16 @@ export default function FacturasPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [page, setPage] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Paginación (client-side). currentPage queda clampeado por si la lista se achica.
+  const totalPages = Math.max(1, Math.ceil(facturas.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = facturas.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const desde = facturas.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const hasta = Math.min(currentPage * PAGE_SIZE, facturas.length);
 
   const fetchFacturas = useCallback(async () => {
     try {
@@ -89,11 +99,11 @@ export default function FacturasPage() {
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
     e.target.value = '';
 
-    if (file.type !== 'application/pdf') {
+    if (files.some((f) => f.type !== 'application/pdf')) {
       setError('Solo se aceptan archivos PDF.');
       return;
     }
@@ -101,7 +111,7 @@ export default function FacturasPage() {
     setUploading(true);
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      files.forEach((f) => formData.append('file', f));
       const res = await fetch('/api/admin/facturas', { method: 'POST', body: formData });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -149,6 +159,7 @@ export default function FacturasPage() {
             ref={fileInputRef}
             type="file"
             accept="application/pdf"
+            multiple
             className="hidden"
             onChange={handleFileChange}
           />
@@ -188,12 +199,14 @@ export default function FacturasPage() {
         </div>
       ) : (
         <div className="rounded-lg border border-border">
+          <div className="max-h-[60vh] overflow-auto">
           <Table>
-            <TableHeader>
+            <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-background">
               <TableRow>
                 <TableHead className="w-12">#</TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Proveedor</TableHead>
+                <TableHead>Empresa</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Monto Total</TableHead>
                 <TableHead>Fecha Emisión</TableHead>
@@ -203,13 +216,14 @@ export default function FacturasPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {facturas.map((f) => (
+              {pageItems.map((f) => (
                 <TableRow key={f.id}>
                   <TableCell className="text-muted-foreground">{f.id}</TableCell>
                   <TableCell className="max-w-[200px] truncate font-medium" title={f.nombre_original}>
                     {f.nombre_original}
                   </TableCell>
                   <TableCell>{f.proveedor ?? <span className="text-muted-foreground">—</span>}</TableCell>
+                  <TableCell>{f.empresa_destino ?? <span className="text-muted-foreground">—</span>}</TableCell>
                   <TableCell>
                     {f.tipo_flujo
                       ? TIPO_FLUJO_LABELS[f.tipo_flujo] ?? f.tipo_flujo
@@ -258,6 +272,37 @@ export default function FacturasPage() {
               ))}
             </TableBody>
           </Table>
+          </div>
+          <div className="flex items-center justify-between gap-4 border-t border-border px-4 py-3 text-sm text-muted-foreground">
+            <span>
+              Mostrando {desde}–{hasta} de {facturas.length}
+            </span>
+            <div className="flex items-center gap-3">
+              <span>
+                Página {currentPage} de {totalPages}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage <= 1}
+                  title="Anterior"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage >= totalPages}
+                  title="Siguiente"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

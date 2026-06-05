@@ -135,6 +135,16 @@ class FacturaEnergiaElectrica(BaseModel):
     cesp: str | None = None
 
 
+class PercepcionIIBBSEPSA(BaseModel):
+    """Una fila de percepción IIBB por jurisdicción (usada por SEPSA y GIRE)."""
+
+    provincia: str       # Nombre tal como figura en el PDF (ej. "Tucuman", "Santa Fe")
+    # Alicuota en %, ej. 5.0, 2.5, 1.638. Opcional: en GIRE a veces no figura
+    # impresa. El flow de carga no la usa (solo provincia + importe).
+    alicuota_pct: float | None = None
+    importe: float       # Importe en ARS
+
+
 class FacturaRecaudacion(BaseModel):
     """Factura de recaudación GIRE / SEPSA (PagoFácil).
 
@@ -193,11 +203,12 @@ class FacturaRecaudacion(BaseModel):
     # Percepción RG 3337 (IVA) ≈ subtotal_gravado × 3%.
     percepcion_rg3337: float | None = 0.0
 
-    # SUMA de TODAS las percepciones IIBB de la factura (puede haber más de
-    # una jurisdicción, ej. Tucumán + Santa Fe). El flow de carga lee el PDF
-    # para desglosarlas por provincia; este campo contiene el total para
-    # validación cruzada.
-    percepcion_ib_3_5_pct: float | None = 0.0
+    # Desglose de percepciones IIBB por jurisdicción. REGLA CRÍTICA: una fila por
+    # cada bloque "Operaciones realizadas en [Jurisdicción]" del PDF GIRE (ej.
+    # CABA + Tucumán). El importe de cada fila es la PERCEPCIÓN de esa
+    # jurisdicción (no la base). Si la factura es de una sola jurisdicción, traé
+    # esa única fila. Si no se puede desglosar, dejar [] (el flow usa el total).
+    percepciones_iibb: list[PercepcionIIBBSEPSA] = []
 
     # Importe final a pagar.
     monto_total: float | None = None
@@ -205,14 +216,6 @@ class FacturaRecaudacion(BaseModel):
     # Datos AFIP.
     cae: str | None = None
     fecha_vencimiento_cae: str | None = None  # YYYY-MM-DD
-
-
-class PercepcionIIBBSEPSA(BaseModel):
-    """Una fila de la tabla 'Otros Tributos' de una factura SEPSA."""
-
-    provincia: str       # Nombre tal como figura en el PDF (ej. "Tucuman", "Santa Fe")
-    alicuota_pct: float  # Alicuota en %, ej. 5.0, 2.5, 1.638
-    importe: float       # Importe en ARS
 
 
 class FacturaSEPSA(BaseModel):
@@ -269,13 +272,20 @@ class FacturaSEPSA(BaseModel):
     # Campo I.V.A. 21% del PDF. Se extrae para validacion cruzada.
     iva_21: float
 
-    # Filas individuales de la tabla "Otros Tributos".
-    # REGLA CRITICA: leer CADA FILA de la tabla por separado.
+    # Filas de IIBB de la tabla "Otros Tributos" (una por jurisdicción).
+    # REGLA CRITICA: leer CADA FILA IIBB por separado.
+    #   La fila de Percepción de IVA RG3337 (3%) NO va acá -> va en percepcion_rg3337.
     #   "Total Tributos" es el pie de la tabla (suma) — NO incluirlo como fila.
-    #   Si la tabla esta vacia (sin filas) -> lista vacia [].
+    #   Si no hay filas IIBB -> lista vacia [].
     percepciones_iibb: list[PercepcionIIBBSEPSA] = []
 
-    # Campo "Total Tributos" del PDF (= sum(p.importe for p in percepciones_iibb)).
+    # Percepción de IVA RG3337 (alícuota 3% ≈ subtotal_gravado * 0.03), si figura
+    # como fila en "Otros Tributos". Se carga como línea propia (Percepción de IVA),
+    # igual que en EDET/GIRE. 0.0 si no figura.
+    percepcion_rg3337: float | None = 0.0
+
+    # Campo "Total Tributos" del PDF = SUMA de TODAS las filas de "Otros Tributos"
+    # (IIBB de todas las jurisdicciones + Percepción de IVA RG3337).
     total_tributos: float = 0.0
 
     # Campo "Total" del PDF (= SUBTOTAL + I.V.A. 21% + Total Tributos).

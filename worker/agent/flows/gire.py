@@ -14,6 +14,8 @@ from agent.flows.base import (
 )
 from agent.extractor import pdf_to_text
 from agent.flows.soportes import (
+    AJUSTE_THRESHOLD,
+    _agregar_item_con_dimension,
     _compute_fecha_registro,
     _expected_cliente,
     _fmt_importe,
@@ -26,6 +28,11 @@ from agent.flows.soportes import (
 from agent.knowledge_base import resolve_empresa_finnegans
 
 SEARCH_PRODUCTO_RECAUDACION = "RECAUD"
+# Producto para absorber descuadres de redondeo de centavos (acepta + y -).
+# Finnegans recalcula el IVA y puede diferir del total del PDF por 1 centavo;
+# este item ajusta el total para que coincida con el control SIN cambiar el
+# monto declarado.
+SEARCH_AJUSTE_DECIMAL = "AJUSTE DECIMAL"
 SEARCH_CONDICION_PAGO = "Debito"
 EXPECTED_CONDICION_PAGO = "Débito Automático"
 EXPECTED_PRODUCTO_RECAUDACION = "Recaudación"
@@ -147,6 +154,42 @@ def _tipo_iibb_expected(search_ret: str, expected_ret: Optional[str]) -> str:
     return SEARCH_TIPO_PERCEP_IIBB  # fallback genérico
 
 
+_IIBB_PROV_MAP: list[tuple[str, str, str]] = [
+    ("tucum",        "Tucuman",                         "Percepción de II.BB. Tucuman"),
+    ("santa fe",     "Santa Fe",                        "Percepcion IIBB Santa Fe Sufridas"),
+    ("buenos aires", "Ciudad Autonoma de Buenos Aires", "Percepción de II.BB. Ciudad Autónoma de Buenos Aires"),
+    ("capital fed",  "Ciudad Autonoma de Buenos Aires", "Percepción de II.BB. Ciudad Autónoma de Buenos Aires"),
+    ("caba",         "Ciudad Autonoma de Buenos Aires", "Percepción de II.BB. Ciudad Autónoma de Buenos Aires"),
+    ("salta",        "Salta",                           "Percepción IIBB salta"),
+    ("cordoba",      "Cordoba",                         "Percepción de II.BB. Cordoba"),
+    ("corrientes",   "Corrientes",                      "Percepción de II.BB. Corrientes"),
+    ("mendoza",      "Mendoza",                         "Percepción de II.BB. Mendoza"),
+    ("misiones",     "Misiones",                        "Percepción de II.BB. Misiones"),
+    ("jujuy",        "Jujuy",                           "Percepción de II.BB. Jujuy"),
+    ("catamarca",    "Catamarca",                       "Percepción de II.BB. Catamarca"),
+    ("chaco",        "Chaco",                           "Percepción de II.BB. Chaco"),
+    ("formosa",      "Formosa",                         "Percepción de II.BB. Formosa"),
+    ("la pampa",     "La Pampa",                        "Percepción de II.BB. La Pampa"),
+    ("neuquen",      "Neuquen",                         "Percepción de II.BB. Neuquen"),
+    ("rio negro",    "Rio Negro",                       "Percepción de II.BB. Rio Negro"),
+    ("san luis",     "San Luis",                        "Percepción de II.BB. San Luis"),
+    ("santiago",     "Santiago del Estero",             "Percepción de II.BB. Santiago del Estero"),
+]
+
+
+def _map_provincia_iibb(provincia_raw: str) -> tuple[str, str]:
+    """Mapea una provincia (texto libre del LLM) a (search_ret, expected_ret) para
+    el campo wdg_Retencion. El wdg_TipoRetencion se calcula aparte con
+    _tipo_iibb_expected(). Si no se reconoce, usa el nombre tal cual."""
+    prov = (provincia_raw or "").lower().strip()
+    for key, search_ret, expected_ret in _IIBB_PROV_MAP:
+        if key in prov:
+            return search_ret, expected_ret
+    prov_title = (provincia_raw or "").strip().title()
+    _log(f"AVISO: provincia IIBB no mapeada: {prov_title!r} — se usa tal cual.")
+    return prov_title, f"Percepción de II.BB. {prov_title}"
+
+
 def _importe_item(datos: dict) -> float:
     subtotal = float(datos.get("subtotal_gravado") or 0)
     if subtotal > 0:
@@ -193,6 +236,63 @@ async def _agregar_item_recaudacion(s: FinnegansSession, importe: float):
     except Exception as exc:
         _log(f"AVISO: no se pudo setear Centro de Costos en item Recaudacion ({exc}) — se continua")
     await s.modal_aceptar()
+
+
+async def _aplicar_ajuste_decimal(
+    s: FinnegansSession,
+    monto_total: float,
+    centro_costos_search: str = SEARCH_CENTRO_COSTOS_RECAUDACION,
+) -> None:
+    """Cuadra el total contra el control agregando un item 'AJUSTE DECIMAL'.
+
+    Finnegans NO recibe el IVA: lo recalcula a partir de la base, y ese redondeo
+    puede diferir del total del PDF por centavos (ej. IVA del PDF 1940.37 vs el
+    que calcula Finnegans 1940.36 -> total 11642.18 vs control 11642.19). Eso hace
+    que Finnegans rechace el guardado por "importe de control".
+
+    Solución: leer el total que calcula Finnegans y, si difiere del control por un
+    redondeo chico (<= AJUSTE_THRESHOLD), agregar un item 'AJUSTE DECIMAL' por la
+    diferencia (acepta valores + y -). Así el total cuadra exacto SIN cambiar el
+    monto declarado. Diferencias mayores NO se ajustan (probable error real de
+    extracción): se dejan pasar para que Finnegans las rechace -> revisión.
+    """
+    mt = float(monto_total)
+    await s.frame.wait_for_timeout(1000)
+    total_calc = await s.get_total_calculado()
+    if total_calc <= 0:
+        _log("ajuste_decimal: no se pudo leer el Total calculado; se omite ajuste.")
+        return
+    diff = round(mt - total_calc, 2)
+    if abs(diff) < 0.005:
+        _log(f"ajuste_decimal: Total {total_calc:.2f} == control {mt:.2f}; sin ajuste.")
+        return
+    if abs(diff) <= AJUSTE_THRESHOLD:
+        _log(
+            f"ajuste_decimal: dif {diff:+.2f} (Total {total_calc:.2f} vs control "
+            f"{mt:.2f}) -> agregando item 'AJUSTE DECIMAL' por {diff:+.2f}"
+        )
+        await s.click_tab("Items")
+        await _agregar_item_con_dimension(
+            s,
+            producto_search=SEARCH_AJUSTE_DECIMAL,
+            cantidad=1,
+            precio=diff,
+            centro_costos_search=centro_costos_search,
+        )
+        await s.frame.wait_for_timeout(1000)
+        total_calc2 = await s.get_total_calculado()
+        _log(
+            f"ajuste_decimal: post-ajuste Total {total_calc2:.2f} "
+            f"(dif vs control {mt - total_calc2:+.2f})"
+        )
+    else:
+        _log("=" * 70)
+        _log(
+            f"ajuste_decimal: dif {diff:+.2f} (Total {total_calc:.2f} vs control "
+            f"{mt:.2f}) supera ${AJUSTE_THRESHOLD} -> NO se ajusta (probable error "
+            f"de extracción). Finnegans validará el control de total."
+        )
+        _log("=" * 70)
 
 
 def _contains_debito_automatico(value: str) -> bool:
@@ -437,9 +537,16 @@ async def cargar_gire(
     for k in (
         "_provider_id", "emisor", "numero_factura", "tipo_comprobante",
         "cliente", "fecha_emision", "fecha_vencimiento", "subtotal_gravado",
-        "percepcion_ib_3_5_pct", "percepcion_rg3337", "monto_total",
+        "percepcion_rg3337", "monto_total",
     ):
         _log(f"  {k} = {datos.get(k)!r}")
+    _iibb_dump = [
+        (p if isinstance(p, dict) else p.model_dump()) for p in (datos.get("percepciones_iibb") or [])
+    ]
+    _log(
+        "  percepciones_iibb = "
+        + (", ".join(f"{p.get('provincia')}={p.get('importe')}" for p in _iibb_dump) or "[]")
+    )
     _log(f"  provider_search = {provider_search!r}")
     _log(f"  provincia = {provincia!r}")
     _log(f"  item_recaudacion_importe = {importe_item:.2f}")
@@ -524,44 +631,49 @@ async def cargar_gire(
             fecha_venc = max(fv, fecha_registro)
         await s.click_tab("Retenciones / Percepciones")
 
-        perc_iibb = float(datos.get("percepcion_ib_3_5_pct") or 0)
-        iibb_jurisdicciones = _extract_iibb_jurisdicciones_from_pdf(pdf_path)
-        if iibb_jurisdicciones:
-            suma_iibb = sum(x[2] for x in iibb_jurisdicciones)
-            if perc_iibb > 0 and abs(suma_iibb - perc_iibb) > 0.15:
+        # Percepciones IIBB por jurisdiccion. Fuente de verdad UNICA: la lista
+        # estructurada percepciones_iibb que extrajo el LLM (una linea por
+        # jurisdiccion, ej. CABA + Tucuman). Si no vino, ultimo recurso: parseo
+        # por regex del PDF. Ya no se usa un "total unico" escalar: si la lista
+        # quedara incompleta, lo detecta la reconciliacion + reintento.
+        percepciones_raw = datos.get("percepciones_iibb") or []
+        percepciones = [
+            p if isinstance(p, dict) else p.model_dump() for p in percepciones_raw
+        ]
+        iibb_a_cargar: list[tuple[str, str, float]] = []
+        if percepciones:
+            for p in percepciones:
+                importe = float(p.get("importe") or 0)
+                if importe <= 0:
+                    continue
+                search_ret, expected_ret = _map_provincia_iibb(p.get("provincia") or "")
+                iibb_a_cargar.append((search_ret, expected_ret, importe))
+            _log(
+                "IIBB por jurisdiccion (LLM): "
+                + ", ".join(f"{e[1]}={e[2]:.2f}" for e in iibb_a_cargar)
+            )
+        else:
+            iibb_jurisdicciones = _extract_iibb_jurisdicciones_from_pdf(pdf_path)
+            if iibb_jurisdicciones:
+                iibb_a_cargar = iibb_jurisdicciones
                 _log(
-                    "AVISO: suma IIBB por jurisdicción no coincide con total extraído "
-                    f"(jur={suma_iibb:.2f} vs total={perc_iibb:.2f}). Se usa total único."
-                )
-                iibb_jurisdicciones = []
-            else:
-                _log(
-                    "IIBB por jurisdicción detectado desde PDF: "
-                    + ", ".join([f"{e[1]}={e[2]:.2f}" for e in iibb_jurisdicciones])
+                    "IIBB por jurisdiccion (regex PDF): "
+                    + ", ".join(f"{e[1]}={e[2]:.2f}" for e in iibb_jurisdicciones)
                 )
 
-        if iibb_jurisdicciones:
-            for ret_search, ret_expected, importe in iibb_jurisdicciones:
-                is_caba = "BUENOS AIRES" in (ret_expected or "").upper()
-                await _cargar_percepcion_iibb(
-                    s=s,
-                    search_ret=ret_search,
-                    expected_ret=ret_expected,
-                    importe=importe,
-                    fecha_venc=fecha_venc,
-                    use_first_ret_option=is_caba,
-                )
-        elif perc_iibb > 0:
+        for ret_search, ret_expected, importe in iibb_a_cargar:
+            is_caba = "BUENOS AIRES" in (ret_expected or "").upper()
             await _cargar_percepcion_iibb(
                 s=s,
-                search_ret=ret_iibb_search,
-                expected_ret=ret_iibb_expected,
-                importe=perc_iibb,
+                search_ret=ret_search,
+                expected_ret=ret_expected,
+                importe=importe,
                 fecha_venc=fecha_venc,
+                use_first_ret_option=is_caba,
             )
 
         perc_iva = float(datos.get("percepcion_rg3337") or 0)
-        if iibb_jurisdicciones and perc_iva > 0:
+        if iibb_a_cargar and perc_iva > 0:
             subtotal = float(datos.get("subtotal_gravado") or 0)
             if subtotal > 0:
                 iva_esperado = round(subtotal * 0.03, 2)
@@ -591,15 +703,18 @@ async def cargar_gire(
             if not _has_value(total_control_set):
                 _log("wdg_ImporteControl quedÃ³ vacÃ­o; se reintenta set.")
                 await s.set_text("wdg_ImporteControl", _fmt_importe(monto_total))
+            # Cuadrar el redondeo de IVA con un item 'AJUSTE DECIMAL'.
+            await _aplicar_ajuste_decimal(s, float(monto_total))
 
         await s.screenshot("recaudacion_antes_de_guardar")
 
         estado_guardado = "sin guardar"
+        nro_interno = None
         if pdf_path:
             guardado_ok = False
             adjuntado_ok = False
             try:
-                await s.save_draft()
+                nro_interno = await s.save_draft()
                 guardado_ok = True
             except DuplicateComprobanteError as dup_exc:
                 _log(f"Comprobante ya existe en Finnegans: {dup_exc}. No se crea duplicado.")
@@ -647,7 +762,7 @@ async def cargar_gire(
         return {
             "exito": True,
             "mensaje": f"Factura {numero_factura} (recaudaciÃ³n): {estado_guardado}.",
-            "nro_interno": None,
+            "nro_interno": nro_interno,
         }
 
     try:
