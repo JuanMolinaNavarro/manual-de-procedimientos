@@ -486,7 +486,19 @@ async def cargar_arrendamiento_soportes(
                 )
                 _log("   Supera el umbral de $1 → NO se agrega ajuste automático.")
                 _log("   Probablemente el LLM extrajo mal algún importe. REVISAR antes de guardar.")
+                _log("   Se ABORTA antes de guardar para no dejar un borrador huérfano en Finnegans.")
                 _log("=" * 70)
+                await s.screenshot("control_mismatch_preflight")
+                return {
+                    "exito": False,
+                    "estado": "revision",
+                    "mensaje": (
+                        f"Factura {numero_factura}: descuadre de importe de control "
+                        f"en Finnegans (Total {total_calc:.2f} vs control "
+                        f"{float(monto_total):.2f}, dif {diff:+.2f})."
+                    ),
+                    "nro_interno": None,
+                }
 
         await s.dump_diag("soportes")
         await s.screenshot("antes_de_guardar")

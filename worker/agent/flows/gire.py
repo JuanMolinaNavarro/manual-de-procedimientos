@@ -290,9 +290,19 @@ async def _aplicar_ajuste_decimal(
         _log(
             f"ajuste_decimal: dif {diff:+.2f} (Total {total_calc:.2f} vs control "
             f"{mt:.2f}) supera ${AJUSTE_THRESHOLD} -> NO se ajusta (probable error "
-            f"de extracción). Finnegans validará el control de total."
+            f"de extracción)."
+        )
+        _log(
+            "ajuste_decimal: se ABORTA antes de guardar para no dejar un borrador "
+            "huérfano en Finnegans (un guardado rechazado por control deja la "
+            "cabecera con el nº de comprobante y luego bloquea reintentos como "
+            "'duplicada')."
         )
         _log("=" * 70)
+        raise ControlTotalMismatchError(
+            f"Descuadre pre-guardado: Total calculado {total_calc:.2f} vs "
+            f"control {mt:.2f} (dif {diff:+.2f}, supera umbral ${AJUSTE_THRESHOLD})."
+        )
 
 
 def _contains_debito_automatico(value: str) -> bool:
@@ -703,8 +713,24 @@ async def cargar_gire(
             if not _has_value(total_control_set):
                 _log("wdg_ImporteControl quedÃ³ vacÃ­o; se reintenta set.")
                 await s.set_text("wdg_ImporteControl", _fmt_importe(monto_total))
-            # Cuadrar el redondeo de IVA con un item 'AJUSTE DECIMAL'.
-            await _aplicar_ajuste_decimal(s, float(monto_total))
+            # Cuadrar el redondeo de IVA con un item 'AJUSTE DECIMAL'. Si el
+            # descuadre supera el umbral, _aplicar_ajuste_decimal lanza
+            # ControlTotalMismatchError y abortamos ANTES de guardar, para no
+            # dejar un borrador huérfano en Finnegans.
+            try:
+                await _aplicar_ajuste_decimal(s, float(monto_total))
+            except ControlTotalMismatchError as exc:
+                await s.screenshot("control_mismatch_preflight")
+                _log(f"Descuadre detectado antes de guardar: {exc}. Marcando para revisión.")
+                return {
+                    "exito": False,
+                    "estado": "revision",
+                    "mensaje": (
+                        f"Factura {numero_factura} (recaudación): descuadre de importe "
+                        f"de control en Finnegans ({exc})."
+                    ),
+                    "nro_interno": None,
+                }
 
         await s.screenshot("recaudacion_antes_de_guardar")
 

@@ -182,17 +182,38 @@ REGLAS ESPECIFICAS — Facturas GIRE (registrar_factura_recaudacion):
 - `percepciones_iibb` (CRITICO — lista, una fila por jurisdiccion):
   En GIRE las percepciones IIBB aparecen en bloques
   "Operaciones realizadas en [Jurisdiccion]  [base]  [percepcion]".
+  Cada bloque tiene SIEMPRE DOS numeros, en este orden:
+    1) BASE imponible (el monto de las operaciones realizadas en esa jurisdiccion).
+    2) PERCEPCION de IIBB efectivamente aplicada sobre esa base.
   Crea UNA fila por CADA bloque: {provincia, alicuota_pct, importe}, donde
-  `importe` es el SEGUNDO numero del bloque (la PERCEPCION, no la base).
+  `importe` es SIEMPRE el SEGUNDO numero del bloque (la PERCEPCION, NUNCA la base).
   Ejemplo con 2 jurisdicciones (ej. CABA + Tucuman):
     "Operaciones realizadas en Ciudad de Buenos Aires  12345,67  482,59"
         -> {provincia:"Ciudad Autonoma de Buenos Aires", alicuota_pct:..., importe:482.59}
     "Operaciones realizadas en Tucuman  98765,43  884,13"
         -> {provincia:"Tucuman", alicuota_pct:..., importe:884.13}
-  ⚠️ OBLIGATORIO listar TODAS las jurisdicciones, no omitas ninguna. NO resumas
-  en un total: `percepciones_iibb` es la UNICA fuente del IIBB (no hay otro campo
-  de total). Si hay una sola jurisdiccion, una sola fila. `alicuota_pct` puede ir
-  en null si no figura impresa.
+
+  ⚠️⚠️ CASO CRITICO — PERCEPCION CERO: es MUY frecuente que el SEGUNDO numero sea
+  `0.00` aunque la base (primer numero) sea grande. En ese caso `importe` DEBE ser
+  `0.0`. NO "rescates" el valor usando la base: la base NUNCA es una percepcion.
+  Ejemplo de lo que el modelo hace MAL y hay que EVITAR:
+    "Operaciones realizadas en Salta  1.536,80  0,00"
+        ✅ CORRECTO: {provincia:"Salta", importe:0.0}
+        ❌ MAL:      {provincia:"Salta", importe:1536.80}   (eso es la BASE, no la percepcion)
+  Si TODAS las jurisdicciones tienen percepcion 0,00, entonces TODOS los `importe`
+  van en 0.0 (la factura no tiene retencion de IIBB, y esta bien que asi sea).
+
+  Anclas de coherencia para no confundir base con percepcion:
+    * La SUMA de las BASES (primeros numeros) ≈ `subtotal_gravado`. Si la suma de
+      tus `importe` de IIBB se parece al subtotal, te equivocaste: pusiste bases.
+    * El comprobante tiene una linea total "Percep. II.BB." (suele estar arriba,
+      cerca del encabezado de la grilla). La suma de tus `importe` de IIBB DEBE
+      ser igual a ese total. Si ese total es 0,00, todos los `importe` son 0.0.
+
+  ⚠️ OBLIGATORIO listar TODAS las jurisdicciones, no omitas ninguna (incluso las
+  que tienen percepcion 0,00). NO resumas en un total: `percepciones_iibb` es la
+  UNICA fuente del IIBB (no hay otro campo de total). Si hay una sola jurisdiccion,
+  una sola fila. `alicuota_pct` puede ir en null si no figura impresa.
 - `percepcion_rg3337`: percepcion de IVA (RG 3337) si figura, sino 0.0. Suele ser
   ~3% del subtotal_gravado y es FACIL de olvidar: si la coherencia no cierra,
   revisala.

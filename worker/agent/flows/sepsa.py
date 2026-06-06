@@ -325,8 +325,24 @@ async def cargar_sepsa(
             if not _has_value(total_control_set):
                 _log("wdg_ImporteControl quedó vacío; se reintenta set.")
                 await s.set_text("wdg_ImporteControl", _fmt_importe(mt))
-            # Cuadrar el redondeo de IVA con un item 'AJUSTE DECIMAL'.
-            await _aplicar_ajuste_decimal(s, mt)
+            # Cuadrar el redondeo de IVA con un item 'AJUSTE DECIMAL'. Si el
+            # descuadre supera el umbral, _aplicar_ajuste_decimal lanza
+            # ControlTotalMismatchError y abortamos ANTES de guardar, para no
+            # dejar un borrador huérfano en Finnegans.
+            try:
+                await _aplicar_ajuste_decimal(s, mt)
+            except ControlTotalMismatchError as exc:
+                await s.screenshot("control_mismatch_preflight")
+                _log(f"Descuadre detectado antes de guardar: {exc}. Marcando para revisión.")
+                return {
+                    "exito": False,
+                    "estado": "revision",
+                    "mensaje": (
+                        f"Factura SEPSA {numero_factura}: descuadre de importe "
+                        f"de control en Finnegans ({exc})."
+                    ),
+                    "nro_interno": None,
+                }
         else:
             _log("AVISO: monto_total no disponible — no se carga total de control.")
 
