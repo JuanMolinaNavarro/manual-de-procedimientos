@@ -68,6 +68,15 @@ export async function getFacturaById(id: number): Promise<Factura | null> {
   return row as unknown as Factura | null;
 }
 
+export async function getFacturasByIds(ids: number[]): Promise<Factura[]> {
+  if (ids.length === 0) return [];
+  const rows = await prisma.factura.findMany({
+    where: { id: { in: ids } },
+    orderBy: { id: 'desc' },
+  });
+  return rows as unknown as Factura[];
+}
+
 export async function createFactura(data: CreateFacturaData): Promise<Factura> {
   const row = await prisma.factura.create({
     data: {

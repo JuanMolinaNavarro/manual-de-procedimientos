@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Trash2, FileText, Upload, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Trash2, FileText, Upload, RefreshCw, ChevronLeft, ChevronRight, X, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -21,14 +22,94 @@ const TIPO_FLUJO_LABELS: Record<string, string> = {
   recaudacion_sepsa: 'Recaudación SEPSA',
 };
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 15;
+
+// A partir de cuántos caracteres el error se recorta y aparece el botón "Ver más".
+const ERROR_PREVIEW_MAX = 80;
+
+// ── Filtros ────────────────────────────────────────────────────────────────
+type DateFilter = 'hoy' | 'ayer' | '7d' | 'mes' | 'todas';
+type StatusFilter = 'todas' | 'cargada' | 'repetida' | 'error';
+
+const DATE_FILTERS: { value: DateFilter; label: string }[] = [
+  { value: 'hoy', label: 'Hoy' },
+  { value: 'ayer', label: 'Ayer' },
+  { value: '7d', label: 'Últimos 7 días' },
+  { value: 'mes', label: 'Último mes' },
+  { value: 'todas', label: 'Todas' },
+];
+
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
+  { value: 'todas', label: 'Todas' },
+  { value: 'cargada', label: 'Cargada' },
+  { value: 'repetida', label: 'Repetida' },
+  { value: 'error', label: 'Error' },
+];
+
+/** Filtra por fecha de carga (`created_at`). */
+function matchesDate(createdAt: string | Date, filter: DateFilter): boolean {
+  if (filter === 'todas') return true;
+  const created = new Date(createdAt);
+  if (Number.isNaN(created.getTime())) return true;
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  switch (filter) {
+    case 'hoy':
+      return created >= startOfToday;
+    case 'ayer': {
+      const startOfYesterday = new Date(startOfToday);
+      startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+      return created >= startOfYesterday && created < startOfToday;
+    }
+    case '7d': {
+      // Hoy + los 6 días previos (7 días calendario).
+      const sevenDaysAgo = new Date(startOfToday);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+      return created >= sevenDaysAgo;
+    }
+    case 'mes': {
+      const monthAgo = new Date(startOfToday);
+      monthAgo.setMonth(monthAgo.getMonth() - 1);
+      return created >= monthAgo;
+    }
+    default:
+      return true;
+  }
+}
+
+/** Filtra por estado. 'error' agrupa los estados `error` y `revision` (ambos se
+ *  muestran como "Error"); 'repetida' corresponde al estado `duplicada`. */
+function matchesStatus(estado: FacturaEstadoCarga, filter: StatusFilter): boolean {
+  switch (filter) {
+    case 'todas':
+      return true;
+    case 'cargada':
+      return estado === 'cargada';
+    case 'repetida':
+      return estado === 'duplicada';
+    case 'error':
+      return estado === 'error' || estado === 'revision';
+    default:
+      return true;
+  }
+}
+
+function formatMonto(monto: string | null): string | null {
+  if (!monto) return null;
+  const n = Number(monto);
+  if (Number.isNaN(n)) return monto;
+  return n.toLocaleString('es-AR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
 
 function EstadoBadge({ estado }: { estado: FacturaEstadoCarga }) {
   const map: Record<FacturaEstadoCarga, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
     pendiente: { label: 'Pendiente',  variant: 'secondary' },
     cargando:  { label: 'Cargando…',  variant: 'outline'   },
     cargada:   { label: 'Cargada',    variant: 'default'   },
-    duplicada: { label: 'Ya existía', variant: 'secondary' },
+    duplicada: { label: 'Repetida',  variant: 'secondary' },
     revision:  { label: 'Error',      variant: 'destructive' },
     error:     { label: 'Error',      variant: 'destructive' },
   };
@@ -36,21 +117,114 @@ function EstadoBadge({ estado }: { estado: FacturaEstadoCarga }) {
   return <Badge variant={variant}>{label}</Badge>;
 }
 
+/** Modal liviano para ver el texto completo de un error de carga. */
+function ErrorDialog({
+  nombre,
+  mensaje,
+  onClose,
+}: {
+  nombre: string;
+  mensaje: string;
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(mensaje);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Detalle del error"
+        className="relative z-10 flex max-h-[80vh] w-full max-w-lg flex-col rounded-lg border border-border bg-card shadow-lg"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-foreground">Detalle del error</h3>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground" title={nombre}>
+              {nombre}
+            </p>
+          </div>
+          <Button variant="ghost" size="icon-sm" onClick={onClose} title="Cerrar">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="overflow-auto px-5 py-4">
+          <p className="text-sm leading-relaxed whitespace-pre-wrap break-words text-destructive">
+            {mensaje}
+          </p>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+          <Button variant="outline" size="sm" onClick={copy}>
+            {copied ? 'Copiado' : 'Copiar'}
+          </Button>
+          <Button size="sm" onClick={onClose}>
+            Cerrar
+          </Button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export default function FacturasPage() {
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [page, setPage] = useState(1);
+  const [dateFilter, setDateFilter] = useState<DateFilter>('todas');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('todas');
+  const [errorDialog, setErrorDialog] = useState<{ nombre: string; mensaje: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Filtros (client-side) por fecha de carga y estado.
+  const filtered = useMemo(
+    () =>
+      facturas.filter(
+        (f) =>
+          matchesDate(f.created_at, dateFilter) &&
+          matchesStatus(f.estado_carga, statusFilter),
+      ),
+    [facturas, dateFilter, statusFilter],
+  );
+
+  // Al cambiar un filtro, volver a la primera página.
+  useEffect(() => {
+    setPage(1);
+  }, [dateFilter, statusFilter]);
+
   // Paginación (client-side). currentPage queda clampeado por si la lista se achica.
-  const totalPages = Math.max(1, Math.ceil(facturas.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
-  const pageItems = facturas.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const desde = facturas.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
-  const hasta = Math.min(currentPage * PAGE_SIZE, facturas.length);
+  const pageItems = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const desde = filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const hasta = Math.min(currentPage * PAGE_SIZE, filtered.length);
 
   const fetchFacturas = useCallback(async () => {
     try {
@@ -137,6 +311,37 @@ export default function FacturasPage() {
     }
   }
 
+  // Descarga un ZIP con los PDFs de las facturas actualmente filtradas.
+  async function handleDownloadFiltered() {
+    if (filtered.length === 0 || downloading) return;
+    setDownloading(true);
+    try {
+      const ids = filtered.map((f) => f.id);
+      const res = await fetch('/api/admin/facturas/descargar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? 'Error al descargar las facturas');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `facturas_${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al descargar las facturas');
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -198,84 +403,152 @@ export default function FacturasPage() {
           </Button>
         </div>
       ) : (
-        <div className="rounded-lg border border-border">
-          <div className="max-h-[60vh] overflow-auto">
+        <div className="space-y-4">
+          {/* Filtros */}
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-xs font-medium text-muted-foreground">Fecha:</span>
+              {DATE_FILTERS.map((opt) => (
+                <Button
+                  key={opt.value}
+                  variant={dateFilter === opt.value ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setDateFilter(opt.value)}
+                >
+                  {opt.label}
+                </Button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-xs font-medium text-muted-foreground">Estado:</span>
+              {STATUS_FILTERS.map((opt) => (
+                <Button
+                  key={opt.value}
+                  variant={statusFilter === opt.value ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setStatusFilter(opt.value)}
+                >
+                  {opt.label}
+                </Button>
+              ))}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-auto"
+              onClick={handleDownloadFiltered}
+              disabled={downloading || filtered.length === 0}
+              title="Descargar en ZIP las facturas filtradas"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {downloading ? 'Generando…' : `Descargar (${filtered.length})`}
+            </Button>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
+              <FileText className="mb-3 h-10 w-10 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                No hay facturas que coincidan con los filtros.
+              </p>
+            </div>
+          ) : (
+          <div className="overflow-hidden rounded-lg border border-border">
           <Table>
-            <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-background">
+            <TableHeader>
               <TableRow>
-                <TableHead className="w-12">#</TableHead>
+                <TableHead className="w-10">#</TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Proveedor</TableHead>
                 <TableHead>Empresa</TableHead>
                 <TableHead>Tipo</TableHead>
-                <TableHead>Monto Total</TableHead>
-                <TableHead>Fecha Emisión</TableHead>
+                <TableHead className="text-right">Monto</TableHead>
+                <TableHead>Emisión</TableHead>
                 <TableHead>Nº Finnegans</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead className="w-24 text-right">Acciones</TableHead>
+                <TableHead className="w-[88px] text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pageItems.map((f) => (
-                <TableRow key={f.id}>
-                  <TableCell className="text-muted-foreground">{f.id}</TableCell>
-                  <TableCell className="max-w-[200px] truncate font-medium" title={f.nombre_original}>
-                    {f.nombre_original}
-                  </TableCell>
-                  <TableCell>{f.proveedor ?? <span className="text-muted-foreground">—</span>}</TableCell>
-                  <TableCell>{f.empresa_destino ?? <span className="text-muted-foreground">—</span>}</TableCell>
-                  <TableCell>
-                    {f.tipo_flujo
-                      ? TIPO_FLUJO_LABELS[f.tipo_flujo] ?? f.tipo_flujo
-                      : <span className="text-muted-foreground">—</span>}
-                  </TableCell>
-                  <TableCell>
-                    {f.monto_total
-                      ? `$${f.monto_total}`
-                      : <span className="text-muted-foreground">—</span>}
-                  </TableCell>
-                  <TableCell>{f.fecha_emision ?? <span className="text-muted-foreground">—</span>}</TableCell>
-                  <TableCell>{f.finnegans_numero_interno ?? <span className="text-muted-foreground">—</span>}</TableCell>
-                  <TableCell>
-                    <EstadoBadge estado={f.estado_carga} />
-                    {(f.estado_carga === 'error' || f.estado_carga === 'revision') && f.carga_error && (
-                      <p className="mt-1 text-xs text-destructive">{f.carga_error}</p>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                      >
-                        <a
-                          href={`/api/admin/facturas/${f.id}/archivo`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title="Ver PDF"
+              {pageItems.map((f) => {
+                const monto = formatMonto(f.monto_total);
+                const tieneError =
+                  (f.estado_carga === 'error' || f.estado_carga === 'revision') && !!f.carga_error;
+                return (
+                  <TableRow key={f.id}>
+                    <TableCell className="text-muted-foreground">{f.id}</TableCell>
+                    <TableCell className="max-w-[150px] truncate font-medium" title={f.nombre_original}>
+                      {f.nombre_original}
+                    </TableCell>
+                    <TableCell className="max-w-[140px] truncate" title={f.proveedor ?? undefined}>
+                      {f.proveedor ?? <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell>{f.empresa_destino ?? <span className="text-muted-foreground">—</span>}</TableCell>
+                    <TableCell>
+                      {f.tipo_flujo
+                        ? TIPO_FLUJO_LABELS[f.tipo_flujo] ?? f.tipo_flujo
+                        : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {monto ? `$${monto}` : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell>{f.fecha_emision ?? <span className="text-muted-foreground">—</span>}</TableCell>
+                    <TableCell>{f.finnegans_numero_interno ?? <span className="text-muted-foreground">—</span>}</TableCell>
+                    <TableCell>
+                      <EstadoBadge estado={f.estado_carga} />
+                      {tieneError && (
+                        <div className="mt-1 max-w-[190px]">
+                          <p className="line-clamp-2 text-xs leading-snug break-words text-destructive">
+                            {f.carga_error}
+                          </p>
+                          {f.carga_error!.length > ERROR_PREVIEW_MAX && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setErrorDialog({ nombre: f.nombre_original, mensaje: f.carga_error! })
+                              }
+                              className="mt-0.5 text-xs font-medium text-destructive underline underline-offset-2 hover:no-underline"
+                            >
+                              Ver más
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          asChild
                         >
-                          <FileText className="h-4 w-4" />
-                        </a>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(f.id)}
-                        title="Eliminar"
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                          <a
+                            href={`/api/admin/facturas/${f.id}/archivo`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Ver PDF"
+                          >
+                            <FileText className="h-4 w-4" />
+                          </a>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(f.id)}
+                          title="Eliminar"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
-          </div>
           <div className="flex items-center justify-between gap-4 border-t border-border px-4 py-3 text-sm text-muted-foreground">
             <span>
-              Mostrando {desde}–{hasta} de {facturas.length}
+              Mostrando {desde}–{hasta} de {filtered.length}
             </span>
             <div className="flex items-center gap-3">
               <span>
@@ -304,6 +577,16 @@ export default function FacturasPage() {
             </div>
           </div>
         </div>
+          )}
+        </div>
+      )}
+
+      {errorDialog && (
+        <ErrorDialog
+          nombre={errorDialog.nombre}
+          mensaje={errorDialog.mensaje}
+          onClose={() => setErrorDialog(null)}
+        />
       )}
     </div>
   );
