@@ -18,6 +18,10 @@ ENV NODE_ENV=production
 RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/package.json ./package.json
+# next.config.ts lo lee `next start` en RUNTIME (no es build standalone). Sin él,
+# Next cae a los defaults — entre ellos middlewareClientMaxBodySize=10MB, lo que
+# truncaba la subida de varias facturas. Hay que incluirlo en la imagen final.
+COPY --from=builder /app/next.config.ts ./next.config.ts
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
