@@ -47,6 +47,7 @@ next-env.d.ts
 #AI
 CLAUDE.md
 .claude/worktrees/
+.playwright-mcp/
 
 # python worker
 __pycache__/
