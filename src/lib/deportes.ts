@@ -21,6 +21,7 @@ const LEAGUES: Array<{ id: string; filters: string[] | null }> = [
   { id: "4480", filters: null },
   { id: "4501", filters: ["Boca", "River Plate", "Tucuman"] },
   { id: "4724", filters: ["Boca", "River Plate", "Tucuman"] },
+  { id: "4429", filters: null },
 ];
 
 const FEATURED_TEAMS: Array<{ id: string; type: string; borderColor: string }> =
@@ -219,9 +220,9 @@ export async function syncSportsData(): Promise<void> {
     const tomorrow = getUtc3Date(1);
 
     // Build ordered URL list:
-    //   indices 0-15 → league × date (8 leagues × 2 dates)
-    //   indices 16-18 → featured teams
-    //   index 19 → F1
+    //   indices 0-17 → league × date (9 leagues × 2 dates)
+    //   indices 18-20 → featured teams
+    //   index 21 → F1
     const urls: string[] = [
       ...LEAGUES.flatMap((l) => [
         `${BASE}/eventsday.php?d=${today}&l=${l.id}`,
@@ -238,9 +239,9 @@ export async function syncSportsData(): Promise<void> {
       if (i < urls.length - 1) await sleep(1000);
     }
 
-    // --- Regular league events (indices 0-15) ---
+    // --- Regular league events (indices 0-17) ---
     const events: EventCard[] = [];
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < LEAGUES.length * 2; i++) {
       const leagueIdx = Math.floor(i / 2);
       const league = LEAGUES[leagueIdx];
 
@@ -272,7 +273,7 @@ export async function syncSportsData(): Promise<void> {
     const featured: FeaturedCard[] = [];
 
     for (let i = 0; i < FEATURED_TEAMS.length; i++) {
-      const ev = results[16 + i]?.[0];
+      const ev = results[LEAGUES.length * 2 + i]?.[0];
       if (!ev?.strTimestamp || !isWithin3Days(ev.strTimestamp)) continue;
       const localTime = ev.strTime ? utcTimeToLocal(ev.strTime) : null;
       featured.push({
@@ -282,7 +283,7 @@ export async function syncSportsData(): Promise<void> {
       });
     }
 
-    const f1ev = results[19]?.[0];
+    const f1ev = results[LEAGUES.length * 2 + FEATURED_TEAMS.length]?.[0];
     if (f1ev?.strTimestamp && isWithin3Days(f1ev.strTimestamp)) {
       const localTime = f1ev.strTime ? utcTimeToLocal(f1ev.strTime) : null;
       featured.push({

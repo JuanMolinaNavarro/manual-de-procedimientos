@@ -251,3 +251,33 @@ model ArchivoContrato {
 
   @@map("archivos_contrato")
 }
+
+model Factura {
+  id                Int       @id @default(autoincrement())
+  nombre_original   String
+  nombre_archivo    String
+  tipo_mime         String?
+  tamano            Int?
+  proveedor         String?
+  numero_factura    String?
+  fecha_emision     String?
+  fecha_vencimiento String?
+  monto_total       String?
+  monto_iva         String?
+  tipo_servicio     String?
+  periodo           String?
+  error_mensaje     String?
+  created_by        String?
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+
+  tipo_flujo               String?
+  empresa_destino          String?
+  estado_carga             String    @default("pendiente")
+  finnegans_numero_interno String?
+  carga_error              String?
+  carga_intentos           Int       @default(0)
+  carga_at                 DateTime?
+
+  @@map("facturas")
+}
