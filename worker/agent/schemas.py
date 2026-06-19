@@ -97,7 +97,7 @@ class FacturaEnergiaElectrica(BaseModel):
     # `domicilio_cobro` es la dirección donde se cobra la factura (NO el de
     # suministro). En facturas EDET aparece bajo "Domicilio de Cobro".
     # Se usa para armar la Descripción que carga en Finnegans:
-    #   wdg_Descripcion = f"{domicilio_cobro} {periodo}"
+    #   wdg_Descripcion = f"{numero_servicio} - {domicilio_cobro}"
     domicilio_cobro: str | None = None
     periodo: str | None = None
     fecha_emision: str  # YYYY-MM-DD

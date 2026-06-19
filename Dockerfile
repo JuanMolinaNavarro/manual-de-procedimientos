@@ -29,7 +29,10 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/src ./src
 
 COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Normalizar a LF + marcar ejecutable. En checkouts de Windows (core.autocrlf=true)
+# el script puede quedar con CRLF, lo que rompe el shebang dentro del contenedor
+# ("exec /entrypoint.sh: no such file or directory"). El sed lo hace inmune.
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
 
 EXPOSE 3000
 ENTRYPOINT ["/entrypoint.sh"]

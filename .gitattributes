@@ -1,0 +1,4 @@
+# Los scripts de shell DEBEN mantenerse en LF: con CRLF el shebang se rompe
+# dentro del contenedor Docker ("exec /entrypoint.sh: no such file or directory").
+# Esto fuerza LF en el checkout sin importar el core.autocrlf del usuario.
+*.sh text eol=lf

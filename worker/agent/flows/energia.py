@@ -204,22 +204,18 @@ async def cargar_energia_electrica(
                 expected=cliente_expected,
             )
 
-        # Descripción = "{Domicilio de Cobro} {Periodo}"
-        # (ej. "9 De Julio 320 04/2026"). Si falta alguno, se omite ese
-        # componente. Periodo cae al mes/año derivado de fecha_emision como
-        # último recurso.
-        periodo = datos.get("periodo") or ""
-        if not periodo:
-            try:
-                d = date.fromisoformat(str(datos["fecha_emision"])[:10])
-                periodo = f"{d.month:02d}/{d.year}"
-            except Exception:
-                periodo = ""
+        # Descripción = "{Nro. de Servicio} - {Domicilio de Cobro}"
+        # (ej. "543597 - 9 De Julio 320"). Si falta alguno de los dos, se arma
+        # sólo con el que esté presente (sin dejar el separador " - " colgando).
+        ns_desc = str(datos.get("numero_servicio") or "").strip()
         domicilio = (datos.get("domicilio_cobro") or "").strip()
-        descripcion = f"{domicilio} {periodo}".strip()
+        descripcion = " - ".join(p for p in (ns_desc, domicilio) if p)
         if descripcion:
             await s.set_text("wdg_Descripcion", descripcion)
-        _log(f"wdg_Descripcion = {descripcion!r} (domicilio_cobro={domicilio!r}, periodo={periodo!r})")
+        _log(
+            f"wdg_Descripcion = {descripcion!r} "
+            f"(numero_servicio={ns_desc!r}, domicilio_cobro={domicilio!r})"
+        )
         await s.screenshot("energia_header_completo")
 
         # ====================== ITEMS ======================

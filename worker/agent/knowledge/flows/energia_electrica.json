@@ -23,7 +23,7 @@
       "Fecha Base Vto.": "fecha_vencimiento",
       "Proveedor": "__lookup_nombre_finnegans__",
       "Nro. Comprobante": "numero_factura",
-      "Descripcion": "periodo",
+      "Descripcion": "__compose:{numero_servicio} - {domicilio_cobro}__",
       "Moneda": "__fixed:Pesos__"
     },
     "items": [

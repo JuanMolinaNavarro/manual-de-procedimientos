@@ -99,10 +99,22 @@ CAMPOS CRÍTICOS — siempre tenés que extraerlos cuando son visibles:
   usá ESA misma fecha también acá — es muy común que coincidan.
 
 - **`numero_servicio`**: el número de Servicio impreso en la factura (ej. "359411",
-  "514832"). Suele estar arriba con etiquetas "SERVICIO", "Nro Servicio",
-  "Servicio Nro", junto al período/fecha de emisión. **Es crítico para mapear
-  el Centro de Costos** — siempre extraerlo cuando esté visible (aplica tanto
-  a facturas de energía como de arrendamiento de soportes).
+  "514832", "543597"). Suele estar arriba con etiquetas "SERVICIO", "Nro Servicio",
+  "Servicio Nro", junto al período/fecha de emisión. **Es crítico**: mapea el
+  Centro de Costos y además arma la Descripción de la factura de energía
+  (`"{numero_servicio} - {domicilio_cobro}"`). Siempre extraerlo cuando esté
+  visible (aplica tanto a facturas de energía como de arrendamiento de soportes).
+
+  En facturas EDET el Nro. de Servicio (6 dígitos) figura en el bloque
+  "**DATOS SERVICIO**" bajo el rótulo "SERVICIO" (al lado de Período / Factura Nro
+  / Vencimiento) y también en el talón de pago, junto al código de barras. Hay
+  TRES trampas a evitar en EDET:
+    1. "Cod.Pago(Banelco/Link): **060**543597" trae el Nro. de Servicio con un
+       prefijo "060" — NO incluyas ese prefijo: el numero_servicio es "543597",
+       NO "060543597".
+    2. NO confundir con "C.E.S.P. N° 35532005561606" (es el nº de comprobante CESP).
+    3. NO confundir con "Factura Nro" (0097-...), "Medidor Nro" ni los dígitos del
+       código de barras.
 
 - **`subtotal_gravado`**: el subtotal neto (sin IVA, sin percepciones) sobre el
   cual se calculan los impuestos. Etiquetas: "Subtotal Gravado", "Neto Gravado",
