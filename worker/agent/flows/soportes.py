@@ -26,6 +26,7 @@ from agent.flows.base import (
     WORKFLOW_DEFAULT,
     ControlTotalMismatchError,
     DuplicateComprobanteError,
+    EmpresaSelectionError,
     FinnegansSession,
     _log,
 )
@@ -574,6 +575,17 @@ async def cargar_arrendamiento_soportes(
         # single-shot: abrir nuestra propia session
         async with FinnegansSession(empresa=empresa_finnegans, keep_open=True) as s:
             return await _work(s)
+    except EmpresaSelectionError as exc:
+        return {
+            "exito": False,
+            "estado": "revision",
+            "mensaje": (
+                f"Soportes: no se pudo seleccionar la empresa destino "
+                f"{empresa_finnegans!r} en Finnegans ({exc}). Se aborta para no "
+                "cargarla en la empresa equivocada."
+            ),
+            "nro_interno": None,
+        }
     except Exception as exc:
         return {
             "exito": False,

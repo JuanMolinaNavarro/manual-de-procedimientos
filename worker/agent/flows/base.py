@@ -22,6 +22,7 @@ import asyncio
 import re
 import sys
 import time
+import unicodedata
 from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
@@ -48,6 +49,12 @@ class DuplicateComprobanteError(Exception):
 
 class ControlTotalMismatchError(Exception):
     """Finnegans bloqueó el guardado: el importe total no coincide con el de control."""
+
+
+class EmpresaSelectionError(Exception):
+    """No se pudo confirmar el cambio de empresa en FinnegansGO. Se aborta la carga
+    para NO crear el comprobante bajo la empresa equivocada (la factura va a
+    'revision')."""
 
 
 class SaveFailedError(Exception):
@@ -227,12 +234,35 @@ class FinnegansSession:
 
     @staticmethod
     def _normalize_empresa(nombre: str) -> str:
-        """Comparacion ignorando puntos, espacios, mayusculas y sufijo 'Empresa'."""
+        """Comparacion ignorando acentos/Ñ, puntos, espacios, mayusculas y el sufijo
+        'Empresa'. Saca acentos (NFD + quita marcas combinantes, p.ej. Ñ→N) igual que
+        el norm del selector JS, para que la verificación del header no falle por
+        'COMPAÑIA' (lo que muestra Finnegans) vs 'COMPANIA' (lo que tenemos cargado)."""
         if not nombre:
             return ""
         s = re.sub(r"\b[Ee]mpresa\b\s*$", "", nombre).strip()
+        s = unicodedata.normalize("NFD", s)
+        s = "".join(c for c in s if not unicodedata.combining(c))
         s = re.sub(r"[.\s]+", "", s)
         return s.upper()
+
+    @classmethod
+    def _empresa_matches(cls, header: str, esperado: str) -> bool:
+        """¿El header del app corresponde a la empresa esperada?
+
+        Tolera el truncado del nombre en el header: FinnegansGO lo recorta con '…'
+        (y `_normalize_empresa` ya elimina puntos/espacios). Si uno es prefijo NO
+        trivial del otro, se considera match. Así la verificación deja de dar falsos
+        negativos por el nombre cortado, pero sigue distinguiendo empresas distintas.
+        """
+        h = cls._normalize_empresa(header or "")
+        e = cls._normalize_empresa(esperado or "")
+        if not h or not e:
+            return False
+        if h == e:
+            return True
+        corto, largo = (h, e) if len(h) <= len(e) else (e, h)
+        return len(corto) >= 6 and largo.startswith(corto)
 
     async def get_header_empresa(self) -> Optional[str]:
         """Lee el nombre de la empresa activa en el header via .current-empresa-name.
@@ -260,6 +290,31 @@ class FinnegansSession:
             return re.sub(r"\s*Empresa\s*$", "", raw).strip()
         except Exception:
             return None
+
+    async def _wait_app_ready(self, timeout_ms: int = 20_000) -> None:
+        """Espera a que el shell de FinnegansGO termine de cargar ANTES de tocar el
+        selector de empresa (pedido explícito). La señal de 'montado' es el header
+        de empresa con texto; evita la carrera donde el header/modal todavía no
+        existen y el cambio de empresa se 'pierde' silenciosamente."""
+        try:
+            await self.page.wait_for_function(
+                """() => {
+                    const el = document.querySelector('.current-empresa-name')
+                        || document.querySelector('.current-empresa');
+                    return el && (el.textContent || '').trim().length > 0;
+                }""",
+                timeout=timeout_ms,
+            )
+        except Exception:
+            await self.page.wait_for_timeout(2000)
+        # Mejor-esfuerzo de red en reposo, pero ACOTADO: muchos SPA nunca llegan a
+        # 'networkidle' (polling/websockets), así que no bloqueamos por eso.
+        try:
+            await self.page.wait_for_load_state("networkidle", timeout=3_000)
+        except Exception:
+            pass
+        # Respiro extra para que el header termine de poblarse.
+        await self.page.wait_for_timeout(1000)
 
     async def select_empresa(self, nombre: Optional[str] = None):
         """Selecciona empresa en FinnegansGO.
@@ -303,13 +358,52 @@ class FinnegansSession:
         nombre = nombre or self.empresa
         page = self.page
 
-        # 0) Skip si la empresa actual ya coincide
+        # Pedido explícito: darle tiempo a Finnegans a montar TODO antes de tocar el
+        # selector de empresa. Si el shell no terminó de cargar, el header/modal no
+        # están listos y el cambio se "pierde" silenciosamente.
+        await self._wait_app_ready()
+
+        # 0) Skip si la empresa actual ya coincide (tolerante al truncado del header).
         current = await self.get_header_empresa()
-        if current and self._normalize_empresa(current) == self._normalize_empresa(nombre):
+        if current and self._empresa_matches(current, nombre):
             _log(f"empresa ya activa: {current!r} -> skip (target {nombre!r})")
             return
 
-        _log(f"cambiando empresa: {current!r} -> {nombre!r}")
+        # El modal de Finnegans es frágil: si el header NO confirma el cambio, no se
+        # carga a ciegas — se reintenta y, si sigue sin confirmar, se ABORTA (la
+        # factura va a 'revision') para no crearla bajo la empresa equivocada.
+        MAX_INTENTOS = 3
+        header = current
+        for intento in range(1, MAX_INTENTOS + 1):
+            _log(f"cambiando empresa (intento {intento}/{MAX_INTENTOS}): {header!r} -> {nombre!r}")
+            await self._do_select_empresa_once(nombre)
+
+            # Verificar que el header REALMENTE quedó en la empresa pedida.
+            await page.wait_for_timeout(1500)
+            header = await self.get_header_empresa()
+            if header and self._empresa_matches(header, nombre):
+                _log(f"empresa cambiada OK: {header!r}")
+                return
+            _log(f"AVISO intento {intento}: header={header!r} != esperaba={nombre!r}; reintento")
+            await page.wait_for_timeout(1500)
+
+        try:
+            await self.screenshot("empresa_select_fail")
+        except Exception:
+            pass
+        raise EmpresaSelectionError(
+            f"No se pudo confirmar el cambio a la empresa {nombre!r} (header quedó en "
+            f"{header!r}) tras {MAX_INTENTOS} intentos; se aborta para no cargar en la "
+            f"empresa equivocada."
+        )
+
+    async def _do_select_empresa_once(self, nombre: str) -> bool:
+        """Un intento de seleccionar `nombre` en el modal 'Seleccionar Empresa'.
+
+        Devuelve True si clickeó un card. La confirmación real (que el header haya
+        cambiado) la hace `select_empresa` — acá NO se verifica.
+        """
+        page = self.page
 
         # 1) Abrir modal via .current-empresa (boton del header) o fallback texto
         try:
@@ -323,8 +417,8 @@ class FinnegansSession:
         await page.wait_for_timeout(1500)
 
         if not await self._modal_empresa_visible():
-            _log("no se pudo abrir el modal 'Seleccionar Empresa' - se sigue con empresa actual")
-            return
+            _log("no se pudo abrir el modal 'Seleccionar Empresa'")
+            return False
 
         # 2) scrollIntoView + click .p-checkbox-box
         #    NOTA: NO se usa el filtro/buscador (ver punto 1 del docstring).
@@ -431,12 +525,8 @@ class FinnegansSession:
             except Exception:
                 pass
 
-        # 5) Verificar empresa activa en el header
-        header = await self.get_header_empresa()
-        if header and self._normalize_empresa(header) == self._normalize_empresa(nombre):
-            _log(f"empresa cambiada OK: {header!r}")
-        else:
-            _log(f"AVISO: header={header!r}, esperaba={nombre!r} (puede ser OK si la empresa tiene sucursales)")
+        # La confirmación (que el header haya cambiado) la hace `select_empresa`.
+        return clicked
 
     # ------------------------------------------------------------------
     # NavegaciÃ³n a Facturas de Compra + resoluciÃ³n del iframe

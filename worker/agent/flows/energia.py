@@ -36,6 +36,7 @@ from agent.flows.base import (
     WORKFLOW_DEFAULT,
     ControlTotalMismatchError,
     DuplicateComprobanteError,
+    EmpresaSelectionError,
     FinnegansSession,
     _log,
 )
@@ -406,6 +407,17 @@ async def cargar_energia_electrica(
             return await _work(session)
         async with FinnegansSession(empresa=empresa_finnegans, keep_open=True) as s:
             return await _work(s)
+    except EmpresaSelectionError as exc:
+        return {
+            "exito": False,
+            "estado": "revision",
+            "mensaje": (
+                f"Factura {numero_factura} (energía): no se pudo seleccionar la "
+                f"empresa destino {empresa_finnegans!r} en Finnegans ({exc}). "
+                "Se aborta para no cargarla en la empresa equivocada."
+            ),
+            "nro_interno": None,
+        }
     except Exception as exc:
         return {
             "exito": False,

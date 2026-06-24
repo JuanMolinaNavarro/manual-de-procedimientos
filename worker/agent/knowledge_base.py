@@ -224,7 +224,11 @@ def resolve_empresa_finnegans(datos: dict, log=None) -> str | None:
     if company:
         nombre = company.get("nombre_finnegans") or company.get("razon_social")
         if nombre and nombre != "PENDIENTE_VERIFICAR":
-            empresa = lookup_nombre_finnegans(nombre) or nombre
+            # `nombre_finnegans` YA es el nombre EXACTO del modal "Seleccionar
+            # Empresa"; NO pasarlo por el alias, que lo reescribe a la forma de
+            # Destinatario (p.ej. CCC: 'CIRCUITOS CERRADO SA' -> 'CERRADOS S A',
+            # que el modal del header NO encuentra). El alias es para Destinatario.
+            empresa = nombre
             log(
                 f"empresa via knowledge-companies: cuit={cuit_cliente!r}, "
                 f"cliente={cliente!r} -> company={nombre!r} -> {empresa!r}"
