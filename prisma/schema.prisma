@@ -281,3 +281,83 @@ model Factura {
 
   @@map("facturas")
 }
+
+// ─── Organigrama corporativo ────────────────────────────────────────────────
+// Modelo híbrido: campos clave como columnas escalares (consultables/integrables)
+// y el "CV" rico como columnas Json. Reemplaza las 4 claves de localStorage del
+// HTML original por una única fuente de verdad compartida en Postgres.
+
+model OrgEmpleado {
+  id           Int     @id @default(autoincrement())
+  nombre       String
+  rol          String
+  area         String // == OrgArea.nombre
+  manager_id   Int?
+  email        String?
+  telefono     String? // interno ("phone")
+  movil        String? // ("mobile")
+  foto_archivo String? // filename en uploads/organigrama/fotos
+  estado       String  @default("active") // active | inactive
+  sede         String?
+  horario      String?
+  modalidad    String?
+  guardias     String?
+  actualizado  String?
+  summary      String?
+  antiguedad   String?
+  formacion    String?
+  seniority    String?
+  especialidad String?
+
+  // CV (Json) — espejo de las arrays del HTML
+  experiencia        Json? // [{role,company,period,gray?}]
+  resp_primarias     Json? // string[]
+  resp_secundarias   Json? // string[]
+  inputs             Json? // string[]
+  outputs            Json? // string[]
+  hard_skills        Json? // [{name,level,label}]
+  soft_skills        Json? // [{name,rating}]
+  skills             Json? // string[]
+  projects           Json? // string[]
+  proyectos_actuales Json? // []
+
+  // estado del lienzo (posición libre arrastrada; null = anclado a su área)
+  free_x Float?
+  free_y Float?
+
+  manager      OrgEmpleado?  @relation("OrgJerarquia", fields: [manager_id], references: [id], onDelete: SetNull)
+  subordinados OrgEmpleado[] @relation("OrgJerarquia")
+
+  created_by String?
+  updated_by String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("org_empleados")
+}
+
+model OrgArea {
+  id         Int      @id @default(autoincrement())
+  nombre     String   @unique
+  color      String   @default("#86868b")
+  is_top     Boolean  @default(false)
+  pos_x      Float? // override de posición manual del área
+  pos_y      Float?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("org_areas")
+}
+
+model OrgLinea {
+  id         Int      @id @default(autoincrement())
+  from_id    Int
+  to_id      Int
+  tipo       String   @default("special") // special | report-override
+  estilo     String   @default("solid") // solid | dashed | dotted
+  color      String   @default("#86868b")
+  etiqueta   String?
+  created_at DateTime @default(now())
+
+  @@map("org_lineas")
+}
