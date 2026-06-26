@@ -11,6 +11,7 @@ export interface EmpleadoNodeData {
   empleado: OrgEmpleado;
   dimmed?: boolean;
   areaColor?: string;
+  esJefe?: boolean;
   [key: string]: unknown;
 }
 
@@ -30,7 +31,7 @@ export function iniciales(nombre: string): string {
 }
 
 function EmpleadoNodeComp({ data, selected }: NodeProps) {
-  const { empleado: emp, dimmed, areaColor } = data as EmpleadoNodeData;
+  const { empleado: emp, dimmed, areaColor, esJefe } = data as EmpleadoNodeData;
   const url = fotoUrl(emp);
   const inactivo = emp.estado === 'inactive';
 
@@ -44,11 +45,20 @@ function EmpleadoNodeComp({ data, selected }: NodeProps) {
       }}
       className={[
         'group relative flex flex-col rounded-2xl border bg-card p-3 shadow-sm transition-all',
-        selected ? 'border-primary ring-2 ring-primary/30' : 'border-border',
+        selected
+          ? 'border-primary ring-2 ring-primary/30'
+          : esJefe
+            ? 'border-amber-300 ring-2 ring-amber-400/60'
+            : 'border-border',
         dimmed ? 'opacity-25' : 'opacity-100',
         inactivo ? 'grayscale' : '',
       ].join(' ')}
     >
+      {esJefe && (
+        <div className="absolute -top-2 left-3 z-10 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-semibold text-amber-950 shadow">
+          Jefe de área
+        </div>
+      )}
       <Handle type="target" position={Position.Top} className="!h-2 !w-2 !bg-muted-foreground" />
 
       <div className="flex items-start gap-3">

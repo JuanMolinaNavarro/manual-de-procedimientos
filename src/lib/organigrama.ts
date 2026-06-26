@@ -105,6 +105,8 @@ export interface OrgArea {
   nombre: string;
   color: string;
   is_top: boolean;
+  jefe_id: number | null;
+  parent_id: number | null;
   pos_x: number | null;
   pos_y: number | null;
   created_at: Date;
@@ -115,6 +117,8 @@ export interface CreateOrgAreaData {
   nombre: string;
   color?: string;
   is_top?: boolean;
+  jefe_id?: number | null;
+  parent_id?: number | null;
   pos_x?: number | null;
   pos_y?: number | null;
 }
@@ -286,6 +290,7 @@ export async function deleteEmpleado(id: number): Promise<boolean> {
   await prisma.$transaction([
     prisma.orgLinea.deleteMany({ where: { OR: [{ from_id: id }, { to_id: id }] } }),
     prisma.orgEmpleado.updateMany({ where: { manager_id: id }, data: { manager_id: null } }),
+    prisma.orgArea.updateMany({ where: { jefe_id: id }, data: { jefe_id: null } }),
     prisma.orgEmpleado.delete({ where: { id } }),
   ]);
   return true;
@@ -332,6 +337,8 @@ export async function createArea(data: CreateOrgAreaData): Promise<OrgArea> {
       nombre: data.nombre,
       color: data.color ?? '#86868b',
       is_top: data.is_top ?? false,
+      jefe_id: data.jefe_id ?? null,
+      parent_id: data.parent_id ?? null,
       pos_x: data.pos_x ?? null,
       pos_y: data.pos_y ?? null,
     },
@@ -352,6 +359,8 @@ export async function updateArea(id: number, data: UpdateOrgAreaData): Promise<O
       nombre: data.nombre ?? undefined,
       color: data.color ?? undefined,
       is_top: data.is_top ?? undefined,
+      jefe_id: data.jefe_id === undefined ? undefined : data.jefe_id,
+      parent_id: data.parent_id === undefined ? undefined : data.parent_id,
       pos_x: data.pos_x,
       pos_y: data.pos_y,
     },
@@ -376,7 +385,11 @@ export async function updateArea(id: number, data: UpdateOrgAreaData): Promise<O
 export async function deleteArea(id: number): Promise<boolean> {
   const existing = await prisma.orgArea.findUnique({ where: { id } });
   if (!existing) return false;
-  await prisma.orgArea.delete({ where: { id } });
+  await prisma.$transaction([
+    // Las sub-áreas que dependían de ésta quedan como raíz (sin padre).
+    prisma.orgArea.updateMany({ where: { parent_id: id }, data: { parent_id: null } }),
+    prisma.orgArea.delete({ where: { id } }),
+  ]);
   return true;
 }
 

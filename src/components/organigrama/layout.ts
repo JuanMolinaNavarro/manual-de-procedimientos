@@ -1,20 +1,25 @@
 /**
- * Layout del organigrama: árbol jerárquico top-down (estructura clásica de organigrama).
+ * Layout del organigrama por ÁREAS con dependencias (sub-áreas) y jefe de área:
  *
- * Usa dagre (rankdir 'TB') sobre la relación de reporte (`manager_id`): el jefe queda
- * arriba y sus reportes debajo, centrados, con separación automática y sin solapamiento.
- * Las áreas se dibujan como zonas de color DETRÁS de sus miembros (bounding box), no
- * condicionan el posicionamiento — el que manda es la jerarquía.
+ *  - La jerarquía entre áreas es EXPLÍCITA: `OrgArea.parent_id` ("Depende de Área").
+ *    Cada sub-área se ubica DEBAJO de su área padre (dagre, top-down) conectada por línea.
+ *  - Cada área puede tener un jefe (`OrgArea.jefe_id`): se ubica arriba del área (tier 0,
+ *    centrado) y el resto de los miembros debajo, en grilla. No hay líneas dentro del área.
+ *  - Se muestran las áreas con miembros y, además, sus áreas ancestro (aunque estén vacías)
+ *    para que la cadena de dependencias se vea completa.
  */
 import dagre from '@dagrejs/dagre';
 import type { OrgEmpleado, OrgArea } from '@/lib/organigrama';
 
 export const CARD_W = 210;
 export const CARD_H = 124;
-export const TITLE_H = 40;
-const AREA_PAD = 26;
-const NODESEP = 44; // separación horizontal entre hermanos
-const RANKSEP = 96; // separación vertical entre niveles
+export const TITLE_H = 44;
+const GAP_X = 24;
+const GAP_Y = 28;
+const PAD = 22;
+const COLS = 3; // miembros por fila (debajo del jefe)
+const AREA_NODESEP = 72; // separación horizontal entre áreas hermanas
+const AREA_RANKSEP = 104; // separación vertical entre niveles de áreas
 const MARGIN = 60;
 
 export interface AreaBox {
@@ -28,66 +33,113 @@ export interface AreaBox {
 }
 
 export interface LayoutResult {
-  /** Caja absoluta por nombre de área (solo áreas con al menos un miembro). */
   areaBoxes: Record<string, AreaBox>;
-  /** Posición absoluta (top-left) auto-calculada por id de empleado. */
   empAbs: Record<number, { x: number; y: number }>;
+  /** Aristas jerárquicas área→área (padre → sub-área). */
+  areaEdges: Array<{ parent: string; child: string }>;
 }
 
 export function computeLayout(empleados: OrgEmpleado[], areas: OrgArea[]): LayoutResult {
-  const empAbs: Record<number, { x: number; y: number }> = {};
   const areaBoxes: Record<string, AreaBox> = {};
-  if (empleados.length === 0) return { areaBoxes, empAbs };
+  const empAbs: Record<number, { x: number; y: number }> = {};
+  const areaEdges: Array<{ parent: string; child: string }> = [];
 
-  const ids = new Set(empleados.map((e) => e.id));
+  const areaByName = new Map(areas.map((a) => [a.nombre, a] as const));
+  const areaById = new Map(areas.map((a) => [a.id, a] as const));
 
-  // 1) Árbol top-down con dagre sobre la jerarquía de reporte.
+  const membersByArea = new Map<string, OrgEmpleado[]>();
+  for (const e of empleados) {
+    if (!areaByName.has(e.area)) continue; // flotantes (área inexistente)
+    const list = membersByArea.get(e.area) ?? [];
+    list.push(e);
+    membersByArea.set(e.area, list);
+  }
+
+  // Áreas a mostrar = las que tienen miembros + todos sus ancestros (vía parent_id),
+  // así una sub-área se ve aunque su padre esté vacío.
+  const shown = new Set<string>();
+  for (const a of areas) {
+    if ((membersByArea.get(a.nombre)?.length ?? 0) === 0) continue;
+    shown.add(a.nombre);
+    let cur = a.parent_id;
+    const seen = new Set<number>();
+    while (cur != null && !seen.has(cur)) {
+      seen.add(cur);
+      const parent = areaById.get(cur);
+      if (!parent) break;
+      shown.add(parent.nombre);
+      cur = parent.parent_id;
+    }
+  }
+  const shownAreas = areas.filter((a) => shown.has(a.nombre));
+  if (shownAreas.length === 0) return { areaBoxes, empAbs, areaEdges };
+
+  // Filas por área (jefe arriba, resto en grilla) y tamaño de la caja.
+  interface Info {
+    rows: OrgEmpleado[][];
+    w: number;
+    h: number;
+  }
+  const info = new Map<string, Info>();
+  for (const a of shownAreas) {
+    const members = membersByArea.get(a.nombre) ?? [];
+    const jefe = a.jefe_id != null ? members.find((m) => m.id === a.jefe_id) : undefined;
+    const rest = members.filter((m) => m.id !== jefe?.id);
+    const rows: OrgEmpleado[][] = [];
+    if (jefe) rows.push([jefe]);
+    for (let i = 0; i < rest.length; i += COLS) rows.push(rest.slice(i, i + COLS));
+    const maxCols = rows.length ? Math.max(1, ...rows.map((r) => r.length)) : 1;
+    const innerW = maxCols * CARD_W + (maxCols - 1) * GAP_X;
+    const innerH = rows.length ? rows.length * CARD_H + (rows.length - 1) * GAP_Y : 0;
+    info.set(a.nombre, {
+      rows,
+      w: innerW + 2 * PAD,
+      h: (rows.length ? innerH + 2 * PAD : PAD) + TITLE_H,
+    });
+  }
+
+  // Aristas: parent_id → área (si el padre también se muestra).
+  for (const a of shownAreas) {
+    if (a.parent_id == null) continue;
+    const parent = areaById.get(a.parent_id);
+    if (parent && parent.nombre !== a.nombre && shown.has(parent.nombre)) {
+      areaEdges.push({ parent: parent.nombre, child: a.nombre });
+    }
+  }
+
+  // Árbol de áreas con dagre.
   const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: 'TB', nodesep: NODESEP, ranksep: RANKSEP, marginx: MARGIN, marginy: MARGIN });
+  g.setGraph({
+    rankdir: 'TB',
+    nodesep: AREA_NODESEP,
+    ranksep: AREA_RANKSEP,
+    marginx: MARGIN,
+    marginy: MARGIN,
+  });
   g.setDefaultEdgeLabel(() => ({}));
-  for (const e of empleados) g.setNode(String(e.id), { width: CARD_W, height: CARD_H });
-  for (const e of empleados) {
-    if (e.manager_id != null && ids.has(e.manager_id)) {
-      g.setEdge(String(e.manager_id), String(e.id));
-    }
+  for (const a of shownAreas) {
+    const i = info.get(a.nombre)!;
+    g.setNode(a.nombre, { width: i.w, height: i.h });
   }
+  for (const e of areaEdges) g.setEdge(e.parent, e.child);
   dagre.layout(g);
-  for (const e of empleados) {
-    const n = g.node(String(e.id));
-    if (n) empAbs[e.id] = { x: n.x - CARD_W / 2, y: n.y - CARD_H / 2 };
+
+  for (const a of shownAreas) {
+    const i = info.get(a.nombre)!;
+    const n = g.node(a.nombre);
+    const x = n.x - i.w / 2;
+    const y = n.y - i.h / 2;
+    areaBoxes[a.nombre] = { nombre: a.nombre, color: a.color, is_top: a.is_top, x, y, w: i.w, h: i.h };
+
+    i.rows.forEach((row, ri) => {
+      const rowW = row.length * CARD_W + (row.length - 1) * GAP_X;
+      const startX = x + (i.w - rowW) / 2;
+      const rowY = y + TITLE_H + PAD + ri * (CARD_H + GAP_Y);
+      row.forEach((m, ci) => {
+        empAbs[m.id] = { x: startX + ci * (CARD_W + GAP_X), y: rowY };
+      });
+    });
   }
 
-  // 2) Posición efectiva por empleado (libre si fue arrastrado; si no, la del árbol).
-  const eff = (e: OrgEmpleado): { x: number; y: number } =>
-    e.free_x != null && e.free_y != null
-      ? { x: e.free_x, y: e.free_y }
-      : empAbs[e.id] ?? { x: 0, y: 0 };
-
-  // 3) Cajas de área = bounding box de los miembros + padding + barra de título.
-  for (const area of areas) {
-    const miembros = empleados.filter((e) => e.area === area.nombre);
-    if (miembros.length === 0) continue; // áreas sin gente no dibujan caja
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    for (const m of miembros) {
-      const p = eff(m);
-      minX = Math.min(minX, p.x);
-      minY = Math.min(minY, p.y);
-      maxX = Math.max(maxX, p.x + CARD_W);
-      maxY = Math.max(maxY, p.y + CARD_H);
-    }
-    areaBoxes[area.nombre] = {
-      nombre: area.nombre,
-      color: area.color,
-      is_top: area.is_top,
-      x: minX - AREA_PAD,
-      y: minY - AREA_PAD - TITLE_H,
-      w: maxX - minX + 2 * AREA_PAD,
-      h: maxY - minY + 2 * AREA_PAD + TITLE_H,
-    };
-  }
-
-  return { areaBoxes, empAbs };
+  return { areaBoxes, empAbs, areaEdges };
 }

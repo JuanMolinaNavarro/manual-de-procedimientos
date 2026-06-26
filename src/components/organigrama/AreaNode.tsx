@@ -1,7 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import { type NodeProps } from '@xyflow/react';
+import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { MoreVertical } from 'lucide-react';
 import {
   DropdownMenu,
@@ -47,6 +47,9 @@ function AreaNodeComp({ data }: NodeProps) {
       }}
       className="pointer-events-none rounded-3xl border-2"
     >
+      {/* Anclas (ocultas) para las líneas jerárquicas área→área. */}
+      <Handle type="target" position={Position.Top} isConnectable={false} className="!opacity-0" />
+      <Handle type="source" position={Position.Bottom} isConnectable={false} className="!opacity-0" />
       <div
         className="pointer-events-auto flex items-center justify-between gap-2 rounded-t-3xl px-4"
         style={{ height: TITLE_H, background: hexToRgba(d.color, 0.16) }}

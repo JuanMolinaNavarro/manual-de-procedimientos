@@ -2,6 +2,7 @@ import { prisma } from './prisma';
 import {
   createArea,
   createEmpleado,
+  updateArea,
   updateEmpleado,
   type CreateOrgAreaData,
   type CreateOrgEmpleadoData,
@@ -19,6 +20,21 @@ export const SEED_AREAS: CreateOrgAreaData[] = [
   { nombre: 'Tecnología', color: '#34C759' },
   { nombre: 'Ventas', color: '#FF9500' },
 ];
+
+/** Jefe inicial por área, referenciado por el _id del empleado de ejemplo. */
+const SEED_AREA_JEFES: Record<string, number> = {
+  Dirección: 1, // Carlos González
+  RRHH: 2, // Marina Fernández
+  Tecnología: 3, // Facundo Olarte
+  Ventas: 4, // Sofía López
+};
+
+/** Dependencia entre áreas (sub-área → área de la que depende). */
+const SEED_AREA_PARENTS: Record<string, string> = {
+  RRHH: 'Dirección',
+  Tecnología: 'Dirección',
+  Ventas: 'Dirección',
+};
 
 type SeedEmpleado = CreateOrgEmpleadoData & { _id: number; _manager: number | null };
 
@@ -281,8 +297,19 @@ export async function seedOrganigrama(reset: boolean): Promise<SeedResult> {
     ]);
   }
 
+  const areaIdByName = new Map<string, number>();
   for (const a of SEED_AREAS) {
-    await createArea(a);
+    const row = await createArea(a);
+    areaIdByName.set(row.nombre, row.id);
+  }
+
+  // Dependencias entre áreas (sub-áreas).
+  for (const [child, parent] of Object.entries(SEED_AREA_PARENTS)) {
+    const childId = areaIdByName.get(child);
+    const parentId = areaIdByName.get(parent);
+    if (childId != null && parentId != null) {
+      await updateArea(childId, { parent_id: parentId });
+    }
   }
 
   // Insertar empleados sin jefe, mapear _id → id real, luego setear manager_id.
@@ -296,6 +323,15 @@ export async function seedOrganigrama(reset: boolean): Promise<SeedResult> {
   for (const e of SEED_EMPLEADOS) {
     if (e._manager != null) {
       await updateEmpleado(idMap.get(e._id)!, { manager_id: idMap.get(e._manager) ?? null });
+    }
+  }
+
+  // Jefe de cada área.
+  for (const [nombre, jefeHtmlId] of Object.entries(SEED_AREA_JEFES)) {
+    const areaId = areaIdByName.get(nombre);
+    const jefeId = idMap.get(jefeHtmlId);
+    if (areaId != null && jefeId != null) {
+      await updateArea(areaId, { jefe_id: jefeId });
     }
   }
 

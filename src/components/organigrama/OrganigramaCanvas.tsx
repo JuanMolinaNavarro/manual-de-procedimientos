@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -19,7 +19,7 @@ import {
 import '@xyflow/react/dist/style.css';
 
 import { useOrganigrama } from './useOrganigrama';
-import { computeLayout } from './layout';
+import { computeLayout, CARD_W, CARD_H, type AreaBox } from './layout';
 import EmpleadoNode, { EMPLEADO_NODE_TYPE, type EmpleadoNodeData } from './EmpleadoNode';
 import AreaNode, { AREA_NODE_TYPE, type AreaNodeData } from './AreaNode';
 import RelacionEdge, { RELACION_EDGE_TYPE, type RelacionEdgeData } from './RelacionEdge';
@@ -71,6 +71,9 @@ function CanvasInner() {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [search, setSearch] = useState('');
+  // Últimas cajas de área y posiciones calculadas, para detección de drop y snap-back.
+  const areaBoxesRef = useRef<Record<string, AreaBox>>({});
+  const empAbsRef = useRef<Record<number, { x: number; y: number }>>({});
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [startEdit, setStartEdit] = useState(false);
@@ -102,8 +105,14 @@ function CanvasInner() {
 
   // ── Construcción de nodos/edges desde los datos ──
   useEffect(() => {
-    const { areaBoxes, empAbs } = computeLayout(empleados, areas);
+    const { areaBoxes, empAbs, areaEdges } = computeLayout(empleados, areas);
+    areaBoxesRef.current = areaBoxes;
+    empAbsRef.current = empAbs;
     const colorByArea = new Map(areas.map((a) => [a.nombre, a.color] as const));
+    const idByArea = new Map(areas.map((a) => [a.nombre, a.id] as const));
+    const jefeIds = new Set(
+      areas.map((a) => a.jefe_id).filter((id): id is number => id != null),
+    );
 
     // Áreas: cajas de fondo (no arrastrables) detrás de las viñetas. Solo las que
     // tienen miembros (computeLayout omite las vacías).
@@ -131,21 +140,18 @@ function CanvasInner() {
         };
       });
 
-    // Empleados: posición absoluta del árbol (o libre si fue arrastrado). Sin contenedor
-    // padre: la jerarquía la dan las líneas, no la pertenencia a una caja.
+    // Empleados: nodos sueltos en posición absoluta (jefe arriba, miembros debajo).
     const empNodes: Node[] = empleados.map((e) => {
       const data: EmpleadoNodeData = {
         empleado: e,
         dimmed: !matchesQuery(e, search),
         areaColor: colorByArea.get(e.area),
+        esJefe: jefeIds.has(e.id),
       };
       return {
         id: `emp-${e.id}`,
         type: EMPLEADO_NODE_TYPE,
-        position: {
-          x: e.free_x ?? empAbs[e.id]?.x ?? 80,
-          y: e.free_y ?? empAbs[e.id]?.y ?? 80,
-        },
+        position: empAbs[e.id] ?? { x: 40, y: 40 },
         data: data as unknown as Record<string, unknown>,
         zIndex: 1,
       };
@@ -154,17 +160,25 @@ function CanvasInner() {
     // áreas (fondo) antes que empleados
     setNodes([...areaNodes, ...empNodes]);
 
+    // Jerarquía: líneas SOLO entre áreas (área padre → área hija). Sin flecha, estilo
+    // "smoothstep" (codos) para el look de organigrama. Dentro de cada área no hay líneas.
+    const areaHierEdges: Edge[] = areaEdges
+      .map(({ parent, child }) => {
+        const pid = idByArea.get(parent);
+        const cid = idByArea.get(child);
+        if (pid == null || cid == null) return null;
+        return {
+          id: `aedge-${cid}`,
+          source: `area-${pid}`,
+          target: `area-${cid}`,
+          type: 'smoothstep',
+          style: { stroke: '#94a3b8', strokeWidth: 2 },
+        } as Edge;
+      })
+      .filter((e): e is Edge => e !== null);
+
+    // Relaciones especiales (opcionales) entre empleados: se mantienen.
     const empIds = new Set(empleados.map((e) => e.id));
-    const mgrEdges: Edge[] = empleados
-      .filter((e) => e.manager_id != null && empIds.has(e.manager_id))
-      .map((e) => ({
-        id: `mgr-${e.id}`,
-        source: `emp-${e.manager_id}`,
-        target: `emp-${e.id}`,
-        type: RELACION_EDGE_TYPE,
-        data: { estilo: 'solid', color: '#94a3b8' } as RelacionEdgeData as unknown as Record<string, unknown>,
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8', width: 16, height: 16 },
-      }));
     const specialEdges: Edge[] = lineas
       .filter((l) => empIds.has(l.from_id) && empIds.has(l.to_id))
       .map((l) => ({
@@ -180,21 +194,36 @@ function CanvasInner() {
         } as RelacionEdgeData as unknown as Record<string, unknown>,
         markerEnd: { type: MarkerType.ArrowClosed, color: l.color, width: 16, height: 16 },
       }));
-    setEdges([...mgrEdges, ...specialEdges]);
+    setEdges([...areaHierEdges, ...specialEdges]);
   }, [empleados, areas, lineas, search, setNodes, setEdges, onEditArea, onDeleteArea]);
 
-  // ── Drag stop: persistir posición libre del empleado. El árbol manda salvo que
-  // el usuario lo reubique a mano; "Reorganizar" limpia las posiciones libres. El
-  // área se cambia desde la ficha, no arrastrando (en un árbol la posición la define
-  // la jerarquía, no la caja sobre la que se suelta).
+  // ── Drag stop: si se soltó sobre OTRA área, el empleado cambia de área y su "Reporta a"
+  // pasa a ser el jefe de esa área. En cualquier otro caso, vuelve a su lugar (snap-back).
   const onNodeDragStop = useCallback<OnNodeDrag<Node>>(
     (_e, node) => {
-      if (node.type === EMPLEADO_NODE_TYPE) {
-        const empId = Number(node.id.slice(4));
-        api.updateEmpleado(empId, { free_x: node.position.x, free_y: node.position.y }).catch(() => {});
+      if (node.type !== EMPLEADO_NODE_TYPE) return;
+      const empId = Number(node.id.slice(4));
+      const areaActual = empleados.find((e) => e.id === empId)?.area;
+      const cx = node.position.x + CARD_W / 2;
+      const cy = node.position.y + CARD_H / 2;
+      let target: string | null = null;
+      for (const [nombre, b] of Object.entries(areaBoxesRef.current)) {
+        if (cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h) {
+          target = nombre;
+          break;
+        }
+      }
+      if (target && target !== areaActual) {
+        const jefeId = areas.find((a) => a.nombre === target)?.jefe_id ?? null;
+        const patch: { area: string; manager_id?: number } = { area: target };
+        if (jefeId != null && jefeId !== empId) patch.manager_id = jefeId;
+        api.updateEmpleado(empId, patch).catch(() => {});
+      } else {
+        const pos = empAbsRef.current[empId];
+        if (pos) setNodes((nds) => nds.map((n) => (n.id === node.id ? { ...n, position: pos } : n)));
       }
     },
-    [api],
+    [api, empleados, areas, setNodes],
   );
 
   // ── Conectar (arrastrar handle→handle): crea línea especial ──
@@ -425,10 +454,15 @@ function CanvasInner() {
         key={`${areaDialog.area?.id ?? 'new'}:${areaDialog.open}`}
         open={areaDialog.open}
         area={areaDialog.area}
+        miembros={
+          areaDialog.area ? empleados.filter((e) => e.area === areaDialog.area!.nombre) : []
+        }
+        areas={areas}
         onOpenChange={(o) => setAreaDialog((s) => ({ ...s, open: o }))}
-        onSubmit={async ({ nombre, color }) => {
-          if (areaDialog.area) await api.updateArea(areaDialog.area.id, { nombre, color });
-          else await api.createArea({ nombre, color });
+        onSubmit={async ({ nombre, color, jefe_id, parent_id }) => {
+          if (areaDialog.area)
+            await api.updateArea(areaDialog.area.id, { nombre, color, jefe_id, parent_id });
+          else await api.createArea({ nombre, color, jefe_id, parent_id });
         }}
       />
     </div>
