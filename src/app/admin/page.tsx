@@ -11,6 +11,7 @@ import {
   TrendingUp,
   CreditCard,
   Antenna,
+  Network,
 } from 'lucide-react';
 
 const MODULE_META: Record<
@@ -48,6 +49,10 @@ const MODULE_META: Record<
   'senales-ip': {
     icon: <Antenna className="h-8 w-8" />,
     description: 'Gestionar contratos de compradores y vendedores de señales IP.',
+  },
+  organigrama: {
+    icon: <Network className="h-8 w-8" />,
+    description: 'Visualizar y gestionar la estructura organizacional de la empresa.',
   },
 };
 

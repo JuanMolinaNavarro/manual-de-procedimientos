@@ -6,7 +6,9 @@ if [ -n "$DATABASE_URL" ]; then
   tries=0
   if [ ! -d "prisma/migrations" ] || [ -z "$(ls -A prisma/migrations 2>/dev/null)" ]; then
     echo "No migrations found. Applying schema with prisma db push..."
-    until npx prisma db push; do
+    # --accept-data-loss: en flujo de "db push" sin migraciones, Prisma marca cambios
+    # aditivos (p.ej. índices únicos) como posible pérdida y abortaría el arranque.
+    until npx prisma db push --accept-data-loss; do
       tries=$((tries + 1))
       if [ "$tries" -ge 15 ]; then
         echo "Database not ready after retries, exiting."

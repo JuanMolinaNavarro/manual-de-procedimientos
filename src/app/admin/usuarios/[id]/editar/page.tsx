@@ -18,6 +18,7 @@ interface Usuario {
   rol: string;
   isActive: boolean;
   modulos: string[];
+  modulos_edit: string[];
 }
 
 export default function EditarUsuarioPage() {
@@ -35,6 +36,8 @@ export default function EditarUsuarioPage() {
   // Empty means all allowed (no restrictions).
   const [selectedModulos, setSelectedModulos] = useState<Set<string>>(new Set());
   const [modulosRestricted, setModulosRestricted] = useState(false);
+  // Permiso de edición del organigrama (parte de modulos_edit).
+  const [puedeEditarOrg, setPuedeEditarOrg] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -54,6 +57,7 @@ export default function EditarUsuarioPage() {
 
         const data = (await usuarioRes.json()) as Usuario;
         setFormData(data);
+        setPuedeEditarOrg((data.modulos_edit ?? []).includes('organigrama'));
 
         // Initialise module state from saved modulos
         if (data.modulos && data.modulos.length > 0) {
@@ -107,6 +111,12 @@ export default function EditarUsuarioPage() {
       modulosToSave = allSelected ? [] : Array.from(selectedModulos);
     }
 
+    // Permisos de edición: preservamos otros slugs y seteamos/quitamos 'organigrama'.
+    let modulosEditToSave = (formData.modulos_edit ?? []).filter((s) => s !== 'organigrama');
+    if (formData.rol === 'admin' && puedeEditarOrg) {
+      modulosEditToSave = [...modulosEditToSave, 'organigrama'];
+    }
+
     try {
       const response = await fetch(`/api/admin/usuarios/${usuarioId}`, {
         method: 'PUT',
@@ -119,6 +129,7 @@ export default function EditarUsuarioPage() {
           rol: formData.rol,
           isActive: formData.isActive,
           modulos: modulosToSave,
+          modulos_edit: modulosEditToSave,
         }),
       });
 
@@ -262,6 +273,18 @@ export default function EditarUsuarioPage() {
                     })}
                   </div>
                 )}
+              </div>
+            )}
+
+            {formData.rol === 'admin' && (
+              <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+                <div>
+                  <p className="font-medium">Puede editar el organigrama</p>
+                  <p className="text-sm text-muted-foreground">
+                    Si está apagado, el usuario solo puede ver el organigrama (sin editar).
+                  </p>
+                </div>
+                <Switch checked={puedeEditarOrg} onCheckedChange={setPuedeEditarOrg} />
               </div>
             )}
 

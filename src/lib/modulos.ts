@@ -7,6 +7,7 @@ export const ADMIN_MODULOS = [
   { slug: 'leads',          label: 'Ventas',         href: '/admin/leads' },
   { slug: 'planes',         label: 'Planes',         href: '/admin/planes' },
   { slug: 'senales-ip',    label: 'Señales IP',     href: '/admin/senales-ip' },
+  { slug: 'organigrama',   label: 'Organigrama',    href: '/admin/organigrama' },
 ] as const;
 
 export type AdminModulo = typeof ADMIN_MODULOS[number];
@@ -31,4 +32,14 @@ export function canAccessPath(pathname: string, modulos: string[]): boolean {
   return ADMIN_MODULOS.some(
     (m) => modulos.includes(m.slug) && (pathname === m.href || pathname.startsWith(m.href + '/'))
   );
+}
+
+/**
+ * Returns true if the user may EDIT the given module. `modulosEdit` is the per-user
+ * edit whitelist (empty = cannot edit anything → view-only). Unlike `modulos` (the
+ * navigation whitelist where empty means "all allowed"), an empty edit list grants
+ * nothing: editing is opt-in.
+ */
+export function canEditModule(slug: AdminModuloSlug, modulosEdit: string[]): boolean {
+  return modulosEdit.includes(slug);
 }
