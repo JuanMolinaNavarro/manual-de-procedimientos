@@ -26,6 +26,7 @@ import RelacionEdge, { RELACION_EDGE_TYPE, type RelacionEdgeData } from './Relac
 import Toolbar from './Toolbar';
 import FichaModal from './FichaModal';
 import AreaFormDialog from './AreaFormDialog';
+import EmpresaFormDialog from './EmpresaFormDialog';
 import {
   Dialog,
   DialogContent,
@@ -43,7 +44,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { OrgEmpleado, OrgLinea, OrgArea } from '@/lib/organigrama';
+import type { OrgEmpleado, OrgLinea, OrgArea, Organigrama } from '@/lib/organigrama';
 
 const nodeTypes = { [EMPLEADO_NODE_TYPE]: EmpleadoNode, [AREA_NODE_TYPE]: AreaNode };
 const edgeTypes = { [RELACION_EDGE_TYPE]: RelacionEdge };
@@ -64,9 +65,9 @@ function matchesQuery(emp: OrgEmpleado, q: string): boolean {
   return hay.includes(q.toLowerCase());
 }
 
-function CanvasInner() {
+function CanvasInner({ canEdit }: { canEdit: boolean }) {
   const api = useOrganigrama();
-  const { empleados, areas, lineas, loading, error, reload } = api;
+  const { empleados, areas, lineas, loading, error, reload, organigramas, orgId } = api;
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -74,6 +75,8 @@ function CanvasInner() {
   // Últimas cajas de área y posiciones calculadas, para detección de drop y snap-back.
   const areaBoxesRef = useRef<Record<string, AreaBox>>({});
   const empAbsRef = useRef<Record<number, { x: number; y: number }>>({});
+  // Área resaltada como destino mientras se arrastra una viñeta.
+  const dragTargetRef = useRef<string | null>(null);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [startEdit, setStartEdit] = useState(false);
@@ -84,23 +87,33 @@ function CanvasInner() {
     open: false,
     area: null,
   });
+  const [empresaDialog, setEmpresaDialog] = useState<{ open: boolean; empresa: Organigrama | null }>({
+    open: false,
+    empresa: null,
+  });
+  // "Crear jefe" desde el diálogo de área: abre la ficha en alta por encima y, al
+  // guardar, el empleado creado se preselecciona como jefe (nuevoJefeId).
+  const [creatingJefe, setCreatingJefe] = useState(false);
+  const [nuevoJefeId, setNuevoJefeId] = useState<number | null>(null);
 
   // ── Handlers de áreas (menú del AreaNode / leyenda) ──
   const onEditArea = useCallback(
     (id: number) => {
+      if (!canEdit) return;
       const area = areas.find((a) => a.id === id) ?? null;
       if (area) setAreaDialog({ open: true, area });
     },
-    [areas],
+    [areas, canEdit],
   );
   const onDeleteArea = useCallback(
     (id: number) => {
+      if (!canEdit) return;
       const area = areas.find((a) => a.id === id);
       if (window.confirm(`¿Eliminar el área "${area?.nombre}"? Sus empleados quedarán sin área.`)) {
         api.deleteArea(id).catch(() => {});
       }
     },
-    [areas, api],
+    [areas, api, canEdit],
   );
 
   // ── Construcción de nodos/edges desde los datos ──
@@ -126,6 +139,8 @@ function CanvasInner() {
           color: a.color,
           width: box.w,
           height: box.h,
+          isDropTarget: false,
+          canEdit,
           onEdit: onEditArea,
           onDelete: onDeleteArea,
         };
@@ -195,13 +210,59 @@ function CanvasInner() {
         markerEnd: { type: MarkerType.ArrowClosed, color: l.color, width: 16, height: 16 },
       }));
     setEdges([...areaHierEdges, ...specialEdges]);
-  }, [empleados, areas, lineas, search, setNodes, setEdges, onEditArea, onDeleteArea]);
+  }, [empleados, areas, lineas, search, setNodes, setEdges, onEditArea, onDeleteArea, canEdit]);
+
+  // ── Drag: resalta la caja del área (distinta a la actual) bajo el centro de la viñeta.
+  const onNodeDrag = useCallback<OnNodeDrag<Node>>(
+    (_e, node) => {
+      if (node.type !== EMPLEADO_NODE_TYPE) return;
+      const empId = Number(node.id.slice(4));
+      const areaActual = empleados.find((e) => e.id === empId)?.area;
+      const cx = node.position.x + CARD_W / 2;
+      const cy = node.position.y + CARD_H / 2;
+      let hit: string | null = null;
+      for (const [nombre, b] of Object.entries(areaBoxesRef.current)) {
+        if (cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h) {
+          hit = nombre;
+          break;
+        }
+      }
+      const hl = hit && hit !== areaActual ? hit : null;
+      if (hl !== dragTargetRef.current) {
+        dragTargetRef.current = hl;
+        setNodes((nds) =>
+          nds.map((n) =>
+            n.type === AREA_NODE_TYPE
+              ? {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    isDropTarget: (n.data as unknown as AreaNodeData).nombre === hl,
+                  },
+                }
+              : n,
+          ),
+        );
+      }
+    },
+    [empleados, setNodes],
+  );
 
   // ── Drag stop: si se soltó sobre OTRA área, el empleado cambia de área y su "Reporta a"
   // pasa a ser el jefe de esa área. En cualquier otro caso, vuelve a su lugar (snap-back).
   const onNodeDragStop = useCallback<OnNodeDrag<Node>>(
     (_e, node) => {
+      if (!canEdit) return;
       if (node.type !== EMPLEADO_NODE_TYPE) return;
+      // Limpiar el resaltado del área destino.
+      if (dragTargetRef.current !== null) {
+        dragTargetRef.current = null;
+        setNodes((nds) =>
+          nds.map((n) =>
+            n.type === AREA_NODE_TYPE ? { ...n, data: { ...n.data, isDropTarget: false } } : n,
+          ),
+        );
+      }
       const empId = Number(node.id.slice(4));
       const areaActual = empleados.find((e) => e.id === empId)?.area;
       const cx = node.position.x + CARD_W / 2;
@@ -223,12 +284,13 @@ function CanvasInner() {
         if (pos) setNodes((nds) => nds.map((n) => (n.id === node.id ? { ...n, position: pos } : n)));
       }
     },
-    [api, empleados, areas, setNodes],
+    [api, empleados, areas, setNodes, canEdit],
   );
 
   // ── Conectar (arrastrar handle→handle): crea línea especial ──
   const onConnect = useCallback(
     (c: Connection) => {
+      if (!canEdit) return;
       if (!c.source || !c.target || c.source === c.target) return;
       const from = Number(c.source.slice(4));
       const to = Number(c.target.slice(4));
@@ -237,7 +299,7 @@ function CanvasInner() {
         .createLinea({ from_id: from, to_id: to, tipo: 'special', estilo: 'dashed', color: '#5856D6', etiqueta: '' })
         .catch(() => {});
     },
-    [api],
+    [api, canEdit],
   );
 
   const onNodeClick = useCallback((_e: React.MouseEvent, node: Node) => {
@@ -250,13 +312,14 @@ function CanvasInner() {
 
   const onEdgeClick = useCallback(
     (_e: React.MouseEvent, edge: Edge) => {
+      if (!canEdit) return;
       const lineaId = (edge.data as RelacionEdgeData | undefined)?.lineaId;
       if (lineaId != null) {
         const l = lineas.find((x) => x.id === lineaId);
         if (l) setEditLinea(l);
       }
     },
-    [lineas],
+    [lineas, canEdit],
   );
 
   // ── Toolbar actions ──
@@ -264,6 +327,16 @@ function CanvasInner() {
   // ocurre recién al Guardar (onCreate).
   const handleAddEmpleado = useCallback(() => {
     setSelectedId(null);
+    setCreatingJefe(false);
+    setCreatingEmpleado(true);
+    setStartEdit(true);
+    setModalOpen(true);
+  }, []);
+
+  // Crear un empleado nuevo (ficha por encima del diálogo de área) para usarlo de jefe.
+  const handleCreateJefe = useCallback(() => {
+    setSelectedId(null);
+    setCreatingJefe(true);
     setCreatingEmpleado(true);
     setStartEdit(true);
     setModalOpen(true);
@@ -285,7 +358,12 @@ function CanvasInner() {
   }, [api, empleados, areas]);
 
   const handleReiniciar = useCallback(async () => {
-    if (!window.confirm('¿Reiniciar el organigrama? Se borrará todo y se cargarán los datos de ejemplo.')) return;
+    if (
+      !window.confirm(
+        '¿Reiniciar? Se borrará TODO (todas las empresas) y se cargará la empresa de ejemplo.',
+      )
+    )
+      return;
     try {
       await fetch('/api/admin/organigrama/seed', {
         method: 'POST',
@@ -296,6 +374,13 @@ function CanvasInner() {
     } catch {}
   }, [reload]);
 
+  const handleCreateOrg = useCallback(() => setEmpresaDialog({ open: true, empresa: null }), []);
+
+  const handleEditOrg = useCallback(() => {
+    const o = organigramas.find((x) => x.id === orgId) ?? null;
+    if (o) setEmpresaDialog({ open: true, empresa: o });
+  }, [organigramas, orgId]);
+
   const selectedEmp = useMemo(
     () => empleados.find((e) => e.id === selectedId) ?? null,
     [empleados, selectedId],
@@ -304,13 +389,25 @@ function CanvasInner() {
   return (
     <div className="flex h-full flex-col">
       <Toolbar
+        organigramas={organigramas}
+        orgId={orgId}
+        onSelectOrg={api.setOrgId}
+        onCreateOrg={handleCreateOrg}
+        onEditOrg={handleEditOrg}
         search={search}
         onSearch={setSearch}
         onAddEmpleado={handleAddEmpleado}
         onAddArea={handleAddArea}
         onReorganizar={handleReorganizar}
         onReiniciar={handleReiniciar}
+        canEdit={canEdit}
       />
+
+      {!canEdit && (
+        <div className="bg-[var(--neu-bg)] px-4 py-1.5 text-center text-xs text-[var(--neu-fg-soft)]">
+          Modo solo lectura — no tenés permiso para editar este organigrama.
+        </div>
+      )}
 
       {error && (
         <div className="bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>
@@ -318,27 +415,39 @@ function CanvasInner() {
 
       <div className="relative min-h-0 flex-1">
         {loading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 text-sm text-muted-foreground">
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--neu-bg)]/70 text-sm text-[var(--neu-fg-soft)]">
             Cargando organigrama…
           </div>
         )}
-        {!loading && empleados.length === 0 && areas.length === 0 && (
+        {!loading && organigramas.length === 0 && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 text-center">
-            <p className="text-sm text-muted-foreground">El organigrama está vacío.</p>
-            <Button
-              onClick={async () => {
-                try {
-                  await fetch('/api/admin/organigrama/seed', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ reset: false }),
-                  });
-                  await reload();
-                } catch {}
-              }}
-            >
-              Cargar datos de ejemplo
-            </Button>
+            <p className="text-sm text-[var(--neu-fg-soft)]">Todavía no hay empresas.</p>
+            {canEdit && (
+              <Button
+                variant="ghost"
+                className="neu-btn h-10 rounded-xl"
+                onClick={async () => {
+                  try {
+                    await fetch('/api/admin/organigrama/seed', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      // reset: limpia datos huérfanos previos y crea la empresa de ejemplo.
+                      body: JSON.stringify({ reset: true }),
+                    });
+                    await reload();
+                  } catch {}
+                }}
+              >
+                Cargar empresa de ejemplo
+              </Button>
+            )}
+          </div>
+        )}
+        {!loading && organigramas.length > 0 && empleados.length === 0 && areas.length === 0 && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 text-center">
+            <p className="text-sm text-[var(--neu-fg-soft)]">
+              Esta empresa está vacía. Agregá un empleado o un área con los botones de arriba.
+            </p>
           </div>
         )}
         <ReactFlow
@@ -346,12 +455,15 @@ function CanvasInner() {
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
+          onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
           onConnect={onConnect}
           onNodeClick={onNodeClick}
           onEdgeClick={onEdgeClick}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
+          nodesDraggable={canEdit}
+          nodesConnectable={canEdit}
           fitView
           minZoom={0.2}
           maxZoom={1.6}
@@ -359,34 +471,49 @@ function CanvasInner() {
           panOnScroll
           proOptions={{ hideAttribution: true }}
         >
-          <Background gap={24} />
+          <Background gap={26} size={1} className="opacity-50" />
           <Controls showInteractive={false} />
           <MiniMap pannable zoomable className="!hidden md:!block" />
           {areas.length > 0 && (
-            <Panel
-              position="top-left"
-              className="!m-2 max-w-[260px] rounded-xl border border-border bg-card/90 p-2 shadow-sm backdrop-blur"
-            >
-              <div className="mb-1 flex items-center justify-between gap-2 px-1">
-                <span className="text-xs font-semibold text-foreground">Áreas</span>
-                <button onClick={handleAddArea} className="text-xs text-primary hover:underline">
-                  + Área
-                </button>
+            <Panel position="top-left" className="neu-raised !m-3 max-w-[260px] rounded-2xl p-3">
+              <div className="mb-2 flex items-center justify-between gap-2 px-1">
+                <span className="text-xs font-bold uppercase tracking-wide text-[var(--neu-fg-soft)]">
+                  Áreas
+                </span>
+                {canEdit && (
+                  <button
+                    onClick={handleAddArea}
+                    className="text-xs font-semibold text-[var(--neu-accent)] hover:underline"
+                  >
+                    + Área
+                  </button>
+                )}
               </div>
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap gap-1.5">
                 {areas.map((a) => {
                   const count = empleados.filter((e) => e.area === a.nombre).length;
-                  return (
+                  const inner = (
+                    <>
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: a.color }} />
+                      <span className="text-[var(--neu-fg)]">{a.nombre}</span>
+                      <span className="text-[var(--neu-fg-soft)]">{count}</span>
+                    </>
+                  );
+                  const cls =
+                    'neu-raised-sm flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px]';
+                  return canEdit ? (
                     <button
                       key={a.id}
                       onClick={() => onEditArea(a.id)}
-                      className="flex items-center gap-1.5 rounded-full border border-border bg-background px-2 py-0.5 text-[11px] hover:bg-accent"
+                      className={`${cls} transition-shadow active:shadow-none`}
                       title="Editar área"
                     >
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: a.color }} />
-                      <span className="text-foreground">{a.nombre}</span>
-                      <span className="text-muted-foreground">{count}</span>
+                      {inner}
                     </button>
+                  ) : (
+                    <div key={a.id} className={cls}>
+                      {inner}
+                    </div>
                   );
                 })}
               </div>
@@ -402,11 +529,13 @@ function CanvasInner() {
         open={modalOpen}
         creating={creatingEmpleado}
         startInEdit={startEdit}
+        canEdit={canEdit}
         onOpenChange={(o) => {
           setModalOpen(o);
           if (!o) {
             setSelectedId(null);
             setCreatingEmpleado(false);
+            setCreatingJefe(false);
           }
         }}
         onSave={async (id, data) => {
@@ -422,6 +551,11 @@ function CanvasInner() {
           setModalOpen(false);
           setCreatingEmpleado(false);
           setSelectedId(null);
+          // Si se creó como jefe, queda preseleccionado en el diálogo de área (sigue abierto).
+          if (creatingJefe) {
+            setCreatingJefe(false);
+            setNuevoJefeId(emp.id);
+          }
         }}
         onDelete={async (id) => {
           if (window.confirm('¿Eliminar este empleado?')) {
@@ -454,15 +588,32 @@ function CanvasInner() {
         key={`${areaDialog.area?.id ?? 'new'}:${areaDialog.open}`}
         open={areaDialog.open}
         area={areaDialog.area}
-        miembros={
-          areaDialog.area ? empleados.filter((e) => e.area === areaDialog.area!.nombre) : []
-        }
+        miembros={empleados}
         areas={areas}
-        onOpenChange={(o) => setAreaDialog((s) => ({ ...s, open: o }))}
+        onCreateJefe={handleCreateJefe}
+        forcedJefeId={nuevoJefeId}
+        onOpenChange={(o) => {
+          setAreaDialog((s) => ({ ...s, open: o }));
+          if (!o) setNuevoJefeId(null);
+        }}
         onSubmit={async ({ nombre, color, jefe_id, parent_id }) => {
-          if (areaDialog.area)
-            await api.updateArea(areaDialog.area.id, { nombre, color, jefe_id, parent_id });
-          else await api.createArea({ nombre, color, jefe_id, parent_id });
+          const area = areaDialog.area
+            ? await api.updateArea(areaDialog.area.id, { nombre, color, jefe_id, parent_id })
+            : await api.createArea({ nombre, color, jefe_id, parent_id });
+          // El jefe elegido se mueve a esta área (sobreescribe su área anterior).
+          if (jefe_id != null && area) await api.updateEmpleado(jefe_id, { area: area.nombre });
+        }}
+      />
+
+      <EmpresaFormDialog
+        key={`${empresaDialog.empresa?.id ?? 'new'}:${empresaDialog.open}`}
+        open={empresaDialog.open}
+        empresa={empresaDialog.empresa}
+        onOpenChange={(o) => setEmpresaDialog((s) => ({ ...s, open: o }))}
+        onSubmit={async ({ nombre, direccion }) => {
+          if (empresaDialog.empresa)
+            await api.updateOrganigrama(empresaDialog.empresa.id, { nombre, direccion });
+          else await api.createOrganigrama(nombre, direccion);
         }}
       />
     </div>
@@ -489,7 +640,7 @@ function EdgeEditDialog({
 
   return (
     <Dialog open={linea != null} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="neu-surface max-w-sm rounded-3xl">
         <DialogHeader>
           <DialogTitle>Editar relación</DialogTitle>
         </DialogHeader>
@@ -540,10 +691,10 @@ function EdgeEditDialog({
   );
 }
 
-export default function OrganigramaCanvas() {
+export default function OrganigramaCanvas({ canEdit }: { canEdit: boolean }) {
   return (
     <ReactFlowProvider>
-      <CanvasInner />
+      <CanvasInner canEdit={canEdit} />
     </ReactFlowProvider>
   );
 }

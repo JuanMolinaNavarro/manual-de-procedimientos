@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { writeFileSync, mkdirSync, unlinkSync, readFileSync } from 'fs';
 import { join, extname } from 'path';
-import { isAdmin } from '@/lib/admin-auth';
+import { isAdmin, canEditModule } from '@/lib/admin-auth';
 import { getEmpleadoById, setFotoEmpleado } from '@/lib/organigrama';
 
 const FOTO_DIR = join(process.cwd(), 'uploads', 'organigrama', 'fotos');
@@ -32,8 +32,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAdmin())) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  if (!(await canEditModule('organigrama'))) {
+    return NextResponse.json({ error: 'Sin permiso de edición' }, { status: 403 });
   }
   const { id } = await params;
   const empleadoId = Number(id);
@@ -68,8 +68,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAdmin())) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  if (!(await canEditModule('organigrama'))) {
+    return NextResponse.json({ error: 'Sin permiso de edición' }, { status: 403 });
   }
   const { id } = await params;
   const empleadoId = Number(id);

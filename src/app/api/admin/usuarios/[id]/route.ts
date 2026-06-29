@@ -78,6 +78,7 @@ export async function PUT(
       apellido?: string;
       isActive?: boolean;
       modulos?: string[];
+      modulos_edit?: string[];
     };
 
     const data = {
@@ -88,6 +89,7 @@ export async function PUT(
       apellido: body.apellido?.trim() || null,
       isActive: typeof body.isActive === 'boolean' ? body.isActive : undefined,
       modulos: Array.isArray(body.modulos) ? body.modulos : undefined,
+      modulos_edit: Array.isArray(body.modulos_edit) ? body.modulos_edit : undefined,
     };
 
     if (data.rol && data.rol !== 'admin' && data.rol !== 'agente') {
@@ -96,6 +98,13 @@ export async function PUT(
 
     if (data.modulos) {
       const invalid = data.modulos.filter((s) => !ADMIN_MODULO_SLUGS.includes(s as never));
+      if (invalid.length > 0) {
+        return NextResponse.json({ error: `Modulos invalidos: ${invalid.join(', ')}` }, { status: 400 });
+      }
+    }
+
+    if (data.modulos_edit) {
+      const invalid = data.modulos_edit.filter((s) => !ADMIN_MODULO_SLUGS.includes(s as never));
       if (invalid.length > 0) {
         return NextResponse.json({ error: `Modulos invalidos: ${invalid.join(', ')}` }, { status: 400 });
       }
@@ -111,6 +120,7 @@ export async function PUT(
         apellido: data.apellido ?? undefined,
         isActive: data.isActive ?? undefined,
         modulos: data.modulos ?? undefined,
+        modulos_edit: data.modulos_edit ?? undefined,
       },
     });
 

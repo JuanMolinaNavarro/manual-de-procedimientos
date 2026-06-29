@@ -33,3 +33,13 @@ export function canAccessPath(pathname: string, modulos: string[]): boolean {
     (m) => modulos.includes(m.slug) && (pathname === m.href || pathname.startsWith(m.href + '/'))
   );
 }
+
+/**
+ * Returns true if the user may EDIT the given module. `modulosEdit` is the per-user
+ * edit whitelist (empty = cannot edit anything → view-only). Unlike `modulos` (the
+ * navigation whitelist where empty means "all allowed"), an empty edit list grants
+ * nothing: editing is opt-in.
+ */
+export function canEditModule(slug: AdminModuloSlug, modulosEdit: string[]): boolean {
+  return modulosEdit.includes(slug);
+}

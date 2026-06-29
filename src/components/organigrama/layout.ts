@@ -11,8 +11,8 @@
 import dagre from '@dagrejs/dagre';
 import type { OrgEmpleado, OrgArea } from '@/lib/organigrama';
 
-export const CARD_W = 210;
-export const CARD_H = 124;
+export const CARD_W = 234;
+export const CARD_H = 138;
 export const TITLE_H = 44;
 const GAP_X = 24;
 const GAP_Y = 28;
@@ -55,24 +55,11 @@ export function computeLayout(empleados: OrgEmpleado[], areas: OrgArea[]): Layou
     membersByArea.set(e.area, list);
   }
 
-  // Áreas a mostrar = las que tienen miembros + todos sus ancestros (vía parent_id),
-  // así una sub-área se ve aunque su padre esté vacío.
-  const shown = new Set<string>();
-  for (const a of areas) {
-    if ((membersByArea.get(a.nombre)?.length ?? 0) === 0) continue;
-    shown.add(a.nombre);
-    let cur = a.parent_id;
-    const seen = new Set<number>();
-    while (cur != null && !seen.has(cur)) {
-      seen.add(cur);
-      const parent = areaById.get(cur);
-      if (!parent) break;
-      shown.add(parent.nombre);
-      cur = parent.parent_id;
-    }
-  }
-  const shownAreas = areas.filter((a) => shown.has(a.nombre));
+  // Se muestran TODAS las áreas del organigrama (incluidas las vacías): así la caja se
+  // ve aunque no tenga empleados y se puede arrastrar gente adentro.
+  const shownAreas = areas;
   if (shownAreas.length === 0) return { areaBoxes, empAbs, areaEdges };
+  const shownNames = new Set(shownAreas.map((a) => a.nombre));
 
   // Filas por área (jefe arriba, resto en grilla) y tamaño de la caja.
   interface Info {
@@ -98,11 +85,11 @@ export function computeLayout(empleados: OrgEmpleado[], areas: OrgArea[]): Layou
     });
   }
 
-  // Aristas: parent_id → área (si el padre también se muestra).
+  // Aristas: parent_id → área (si el padre existe en este organigrama).
   for (const a of shownAreas) {
     if (a.parent_id == null) continue;
     const parent = areaById.get(a.parent_id);
-    if (parent && parent.nombre !== a.nombre && shown.has(parent.nombre)) {
+    if (parent && parent.nombre !== a.nombre && shownNames.has(parent.nombre)) {
       areaEdges.push({ parent: parent.nombre, child: a.nombre });
     }
   }
@@ -124,17 +111,45 @@ export function computeLayout(empleados: OrgEmpleado[], areas: OrgArea[]): Layou
   for (const e of areaEdges) g.setEdge(e.parent, e.child);
   dagre.layout(g);
 
+  // 1) Posición (top-left) de cada caja desde dagre.
   for (const a of shownAreas) {
     const i = info.get(a.nombre)!;
     const n = g.node(a.nombre);
-    const x = n.x - i.w / 2;
-    const y = n.y - i.h / 2;
-    areaBoxes[a.nombre] = { nombre: a.nombre, color: a.color, is_top: a.is_top, x, y, w: i.w, h: i.h };
+    areaBoxes[a.nombre] = {
+      nombre: a.nombre,
+      color: a.color,
+      is_top: a.is_top,
+      x: n.x - i.w / 2,
+      y: n.y - i.h / 2,
+      w: i.w,
+      h: i.h,
+    };
+  }
 
+  // 2) Áreas que dependen de un MISMO padre quedan a la misma altura (mismo top Y).
+  //    Las raíces forman su propio grupo. dagre centra por rango; al tener distinta
+  //    altura sus tops no coincidían, así que los alineamos al más alto del grupo.
+  const grupos = new Map<string, AreaBox[]>();
+  for (const a of shownAreas) {
+    const key = a.parent_id != null ? `p${a.parent_id}` : 'root';
+    const arr = grupos.get(key) ?? [];
+    arr.push(areaBoxes[a.nombre]);
+    grupos.set(key, arr);
+  }
+  for (const boxes of grupos.values()) {
+    if (boxes.length < 2) continue;
+    const topY = Math.min(...boxes.map((b) => b.y));
+    for (const b of boxes) b.y = topY;
+  }
+
+  // 3) Ubicar empleados en filas centradas, usando la caja ya alineada.
+  for (const a of shownAreas) {
+    const i = info.get(a.nombre)!;
+    const box = areaBoxes[a.nombre];
     i.rows.forEach((row, ri) => {
       const rowW = row.length * CARD_W + (row.length - 1) * GAP_X;
-      const startX = x + (i.w - rowW) / 2;
-      const rowY = y + TITLE_H + PAD + ri * (CARD_H + GAP_Y);
+      const startX = box.x + (box.w - rowW) / 2;
+      const rowY = box.y + TITLE_H + PAD + ri * (CARD_H + GAP_Y);
       row.forEach((m, ci) => {
         empAbs[m.id] = { x: startX + ci * (CARD_W + GAP_X), y: rowY };
       });

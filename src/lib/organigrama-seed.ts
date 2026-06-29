@@ -2,6 +2,7 @@ import { prisma } from './prisma';
 import {
   createArea,
   createEmpleado,
+  createOrganigrama,
   updateArea,
   updateEmpleado,
   type CreateOrgAreaData,
@@ -42,7 +43,7 @@ export const SEED_EMPLEADOS: SeedEmpleado[] = [
   {
     _id: 1, _manager: null,
     nombre: 'Carlos González', rol: 'Director General', area: 'Dirección',
-    email: 'carlos@empresa.com', telefono: '1001', movil: '+54 381 123-4567', estado: 'active',
+    email: 'carlos@empresa.com', telefono: '1001', estado: 'active',
     sede: 'Sede Central', horario: 'Lun - Vie, 08:00 - 17:00', modalidad: 'Presencial', guardias: 'No', actualizado: '24/05/2024',
     summary: 'Director General con amplia trayectoria en liderazgo estratégico y gestión de organizaciones. Orientado a resultados y a la mejora continua.',
     antiguedad: '9 años', formacion: 'MBA', seniority: 'Senior', especialidad: 'Estrategia y Dirección',
@@ -65,7 +66,7 @@ export const SEED_EMPLEADOS: SeedEmpleado[] = [
   {
     _id: 2, _manager: 1,
     nombre: 'Marina Fernández', rol: 'Recursos Humanos', area: 'RRHH',
-    email: 'marina@empresa.com', telefono: '1010', movil: '+54 381 234-5678', estado: 'active',
+    email: 'marina@empresa.com', telefono: '1010', estado: 'active',
     sede: 'Sede Central', horario: 'Lun - Vie, 08:00 - 17:00', modalidad: 'Híbrido', guardias: 'No', actualizado: '24/05/2024',
     summary: 'Profesional de RRHH especializada en gestión del talento, selección y desarrollo organizacional.',
     antiguedad: '6 años', formacion: 'Lic. en RRHH', seniority: 'Senior', especialidad: 'Gestión del Talento',
@@ -85,7 +86,7 @@ export const SEED_EMPLEADOS: SeedEmpleado[] = [
   {
     _id: 3, _manager: 1,
     nombre: 'Facundo Olarte', rol: 'Desarrollo e Ingeniería', area: 'Tecnología',
-    email: 'facundo@empresa.com', telefono: '1048', movil: '+54 381 345-6789', estado: 'active',
+    email: 'facundo@empresa.com', telefono: '1048', estado: 'active',
     sede: 'Sede Central', horario: 'Lun - Vie, 08:00 - 17:00', modalidad: 'Híbrido', guardias: 'Disponible', actualizado: '24/05/2024',
     summary: 'Profesional en Ingeniería en Sistemas con más de 4 años de experiencia en desarrollo de soluciones internas, automatización de procesos y análisis de datos. Orientado a resultados, proactivo y apasionado por la mejora continua.',
     antiguedad: '4 años', formacion: 'Ing. en Sistemas', seniority: 'Semi Senior', especialidad: 'Automatización y Análisis',
@@ -115,7 +116,7 @@ export const SEED_EMPLEADOS: SeedEmpleado[] = [
   {
     _id: 4, _manager: 1,
     nombre: 'Sofia López', rol: 'Comercial', area: 'Ventas',
-    email: 'sofia@empresa.com', telefono: '1055', movil: '+54 381 456-7890', estado: 'active',
+    email: 'sofia@empresa.com', telefono: '1055', estado: 'active',
     sede: 'Sede Buenos Aires', horario: 'Lun - Vie, 09:00 - 18:00', modalidad: 'Presencial', guardias: 'No', actualizado: '24/05/2024',
     summary: 'Líder comercial con foco en el desarrollo de nuevos mercados y la gestión estratégica de cuentas clave.',
     antiguedad: '7 años', formacion: 'Lic. en Comercialización', seniority: 'Senior', especialidad: 'Estrategia Comercial',
@@ -135,7 +136,7 @@ export const SEED_EMPLEADOS: SeedEmpleado[] = [
   {
     _id: 5, _manager: 2,
     nombre: 'Ana Fernández', rol: 'Liquidación de sueldos', area: 'RRHH',
-    email: 'ana@empresa.com', telefono: '1011', movil: '+54 381 567-8901', estado: 'active',
+    email: 'ana@empresa.com', telefono: '1011', estado: 'active',
     sede: 'Sede Central', horario: 'Lun - Vie, 08:00 - 16:00', modalidad: 'Presencial', guardias: 'No', actualizado: '24/05/2024',
     summary: 'Especialista en liquidación de haberes y administración de personal.',
     antiguedad: '4 años', formacion: 'Téc. en Administración', seniority: 'Semi Senior', especialidad: 'Nómina y Liquidación',
@@ -155,7 +156,7 @@ export const SEED_EMPLEADOS: SeedEmpleado[] = [
   {
     _id: 6, _manager: 2,
     nombre: 'Luis García', rol: 'Reclutamiento', area: 'RRHH',
-    email: 'luis@empresa.com', telefono: '1012', movil: '+54 381 678-9012', estado: 'active',
+    email: 'luis@empresa.com', telefono: '1012', estado: 'active',
     sede: 'Sede Central', horario: 'Lun - Vie, 09:00 - 18:00', modalidad: 'Remoto', guardias: 'No', actualizado: '24/05/2024',
     summary: 'Reclutador especializado en perfiles técnicos.',
     antiguedad: '2 años', formacion: 'Lic. en Psicología', seniority: 'Junior', especialidad: 'Adquisición de Talento',
@@ -174,7 +175,7 @@ export const SEED_EMPLEADOS: SeedEmpleado[] = [
   {
     _id: 7, _manager: 3,
     nombre: 'Pablo Sánchez', rol: 'Backend Senior', area: 'Tecnología',
-    email: 'pablo@empresa.com', telefono: '1049', movil: '+54 381 789-0123', estado: 'active',
+    email: 'pablo@empresa.com', telefono: '1049', estado: 'active',
     sede: 'Sede Central', horario: 'Lun - Vie, 09:00 - 18:00', modalidad: 'Remoto', guardias: 'Disponible', actualizado: '24/05/2024',
     summary: 'Desarrollador backend senior con foco en arquitecturas escalables y microservicios.',
     antiguedad: '4 años', formacion: 'Ing. en Informática', seniority: 'Senior', especialidad: 'Backend / Cloud',
@@ -195,7 +196,7 @@ export const SEED_EMPLEADOS: SeedEmpleado[] = [
   {
     _id: 8, _manager: 3,
     nombre: 'Rosa Domínguez', rol: 'Frontend Developer', area: 'Tecnología',
-    email: 'rosa@empresa.com', telefono: '1050', movil: '+54 381 890-1234', estado: 'active',
+    email: 'rosa@empresa.com', telefono: '1050', estado: 'active',
     sede: 'Sede Central', horario: 'Lun - Vie, 09:00 - 18:00', modalidad: 'Híbrido', guardias: 'No', actualizado: '24/05/2024',
     summary: 'Desarrolladora frontend especializada en interfaces modernas y experiencia de usuario.',
     antiguedad: '3 años', formacion: 'Téc. en Desarrollo Web', seniority: 'Semi Senior', especialidad: 'Frontend / UX',
@@ -215,7 +216,7 @@ export const SEED_EMPLEADOS: SeedEmpleado[] = [
   {
     _id: 9, _manager: 3,
     nombre: 'Marcos Silva', rol: 'Soporte Técnico', area: 'Tecnología',
-    email: 'soporte@empresa.com', telefono: '1051', movil: '+54 381 901-2345', estado: 'inactive',
+    email: 'soporte@empresa.com', telefono: '1051', estado: 'inactive',
     sede: 'Sede Central', horario: 'Lun - Vie, 08:00 - 16:00', modalidad: 'Presencial', guardias: 'Rotativas', actualizado: '24/05/2024',
     summary: 'Soporte técnico nivel 2. Actualmente en licencia.',
     antiguedad: '5 años', formacion: 'Téc. en Redes', seniority: 'Semi Senior', especialidad: 'Help Desk / Redes',
@@ -235,7 +236,7 @@ export const SEED_EMPLEADOS: SeedEmpleado[] = [
   {
     _id: 10, _manager: 4,
     nombre: 'Valeria Acosta', rol: 'Ejecutiva de Ventas', area: 'Ventas',
-    email: 'valeria@empresa.com', telefono: '1056', movil: '+54 381 012-3456', estado: 'active',
+    email: 'valeria@empresa.com', telefono: '1056', estado: 'active',
     sede: 'Sede Buenos Aires', horario: 'Lun - Vie, 09:00 - 18:00', modalidad: 'Presencial', guardias: 'No', actualizado: '24/05/2024',
     summary: 'Ejecutiva de ventas enfocada en cuentas estratégicas.',
     antiguedad: '2 años', formacion: 'Lic. en Administración', seniority: 'Junior', especialidad: 'Ventas B2B',
@@ -254,7 +255,7 @@ export const SEED_EMPLEADOS: SeedEmpleado[] = [
   {
     _id: 11, _manager: 4,
     nombre: 'Marco Ruiz', rol: 'Account Manager', area: 'Ventas',
-    email: 'marco@empresa.com', telefono: '1057', movil: '+54 381 123-4568', estado: 'active',
+    email: 'marco@empresa.com', telefono: '1057', estado: 'active',
     sede: 'Sede Buenos Aires', horario: 'Lun - Vie, 09:00 - 18:00', modalidad: 'Híbrido', guardias: 'No', actualizado: '24/05/2024',
     summary: 'Account manager orientado a la retención de clientes.',
     antiguedad: '3 años', formacion: 'Lic. en Marketing', seniority: 'Semi Senior', especialidad: 'Customer Success',
@@ -285,21 +286,30 @@ export interface SeedResult {
  * casteo de las columnas Json sea consistente con el resto del CRUD.
  */
 export async function seedOrganigrama(reset: boolean): Promise<SeedResult> {
-  const count = await prisma.orgEmpleado.count();
-  if (!reset && count > 0) {
-    return { seeded: false, empleados: count, areas: await prisma.orgArea.count() };
+  // "Ya sembrado" se define por si existe alguna empresa, no por la cantidad de
+  // empleados (podría haber datos huérfanos sin organigrama de versiones previas).
+  if (!reset && (await prisma.organigrama.count()) > 0) {
+    return {
+      seeded: false,
+      empleados: await prisma.orgEmpleado.count(),
+      areas: await prisma.orgArea.count(),
+    };
   }
   if (reset) {
     await prisma.$transaction([
       prisma.orgLinea.deleteMany({}),
       prisma.orgEmpleado.deleteMany({}),
       prisma.orgArea.deleteMany({}),
+      prisma.organigrama.deleteMany({}),
     ]);
   }
 
+  // Organigrama de ejemplo (empresa por defecto). Todo lo sembrado se scopea a éste.
+  const org = await createOrganigrama('Mi Empresa');
+
   const areaIdByName = new Map<string, number>();
   for (const a of SEED_AREAS) {
-    const row = await createArea(a);
+    const row = await createArea({ ...a, organigrama_id: org.id });
     areaIdByName.set(row.nombre, row.id);
   }
 
@@ -317,7 +327,7 @@ export async function seedOrganigrama(reset: boolean): Promise<SeedResult> {
   for (const e of SEED_EMPLEADOS) {
     const { _id, _manager, ...rest } = e;
     void _manager;
-    const row = await createEmpleado(rest);
+    const row = await createEmpleado({ ...rest, organigrama_id: org.id });
     idMap.set(_id, row.id);
   }
   for (const e of SEED_EMPLEADOS) {

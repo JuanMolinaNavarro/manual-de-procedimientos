@@ -5,6 +5,7 @@ import type {
   OrgEmpleado,
   OrgArea,
   OrgLinea,
+  Organigrama,
   CreateOrgEmpleadoData,
   UpdateOrgEmpleadoData,
   CreateOrgAreaData,
@@ -39,6 +40,15 @@ export interface OrganigramaApi {
   loading: boolean;
   error: string | null;
   reload: () => Promise<void>;
+  // organigramas (empresas/ubicaciones)
+  organigramas: Organigrama[];
+  orgId: number | null;
+  setOrgId: (id: number) => void;
+  createOrganigrama: (nombre: string, direccion?: string) => Promise<Organigrama>;
+  updateOrganigrama: (
+    id: number,
+    data: { nombre?: string; direccion?: string | null },
+  ) => Promise<Organigrama>;
   // empleados
   createEmpleado: (data: CreateOrgEmpleadoData) => Promise<OrgEmpleado>;
   updateEmpleado: (id: number, data: UpdateOrgEmpleadoData) => Promise<OrgEmpleado>;
@@ -56,21 +66,25 @@ export interface OrganigramaApi {
 }
 
 export function useOrganigrama(): OrganigramaApi {
+  const [organigramas, setOrganigramas] = useState<Organigrama[]>([]);
+  const [orgId, setOrgIdState] = useState<number | null>(null);
   const [empleados, setEmpleados] = useState<OrgEmpleado[]>([]);
   const [areas, setAreas] = useState<OrgArea[]>([]);
   const [lineas, setLineas] = useState<OrgLinea[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ref para leer las áreas actuales dentro de updateArea sin recrear el callback
+  // refs para leer valores actuales dentro de callbacks estables.
   const areasRef = useRef(areas);
   areasRef.current = areas;
+  const orgIdRef = useRef<number | null>(orgId);
+  orgIdRef.current = orgId;
 
-  const reload = useCallback(async () => {
+  const loadGraph = useCallback(async (id: number) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await jsonFetch<OrganigramaCompleto>(BASE);
+      const data = await jsonFetch<OrganigramaCompleto>(`${BASE}?organigramaId=${id}`);
       setEmpleados(data.empleados);
       setAreas(data.areas);
       setLineas(data.lineas);
@@ -81,15 +95,70 @@ export function useOrganigrama(): OrganigramaApi {
     }
   }, []);
 
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const list = await jsonFetch<Organigrama[]>(`${BASE}/organigramas`);
+      setOrganigramas(list);
+      const first = list[0]?.id ?? null;
+      setOrgIdState(first);
+      if (first != null) {
+        await loadGraph(first);
+      } else {
+        setEmpleados([]);
+        setAreas([]);
+        setLineas([]);
+        setLoading(false);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al cargar las empresas');
+      setLoading(false);
+    }
+  }, [loadGraph]);
+
   useEffect(() => {
     reload();
   }, [reload]);
+
+  const setOrgId = useCallback(
+    (id: number) => {
+      setOrgIdState(id);
+      loadGraph(id);
+    },
+    [loadGraph],
+  );
+
+  const createOrganigrama = useCallback(async (nombre: string, direccion?: string) => {
+    const org = await jsonFetch<Organigrama>(`${BASE}/organigramas`, {
+      method: 'POST',
+      body: JSON.stringify({ nombre, direccion }),
+    });
+    setOrganigramas((prev) => [...prev, org]);
+    setOrgIdState(org.id);
+    setEmpleados([]);
+    setAreas([]);
+    setLineas([]);
+    return org;
+  }, []);
+
+  const updateOrganigrama = useCallback(
+    async (id: number, data: { nombre?: string; direccion?: string | null }) => {
+      const org = await jsonFetch<Organigrama>(`${BASE}/organigramas/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+      setOrganigramas((prev) => prev.map((o) => (o.id === id ? org : o)));
+      return org;
+    },
+    [],
+  );
 
   // ── empleados ──
   const createEmpleado = useCallback(async (data: CreateOrgEmpleadoData) => {
     const emp = await jsonFetch<OrgEmpleado>(`${BASE}/empleados`, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, organigrama_id: orgIdRef.current }),
     });
     setEmpleados((prev) => [...prev, emp]);
     return emp;
@@ -131,7 +200,7 @@ export function useOrganigrama(): OrganigramaApi {
   const createArea = useCallback(async (data: CreateOrgAreaData) => {
     const area = await jsonFetch<OrgArea>(`${BASE}/areas`, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, organigrama_id: orgIdRef.current }),
     });
     setAreas((prev) => [...prev, area]);
     return area;
@@ -162,7 +231,7 @@ export function useOrganigrama(): OrganigramaApi {
   const createLinea = useCallback(async (data: CreateOrgLineaData) => {
     const linea = await jsonFetch<OrgLinea>(`${BASE}/lineas`, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, organigrama_id: orgIdRef.current }),
     });
     setLineas((prev) => [...prev, linea]);
     return linea;
@@ -194,6 +263,11 @@ export function useOrganigrama(): OrganigramaApi {
       loading,
       error,
       reload,
+      organigramas,
+      orgId,
+      setOrgId,
+      createOrganigrama,
+      updateOrganigrama,
       createEmpleado,
       updateEmpleado,
       deleteEmpleado,
@@ -213,6 +287,11 @@ export function useOrganigrama(): OrganigramaApi {
       loading,
       error,
       reload,
+      organigramas,
+      orgId,
+      setOrgId,
+      createOrganigrama,
+      updateOrganigrama,
       createEmpleado,
       updateEmpleado,
       deleteEmpleado,

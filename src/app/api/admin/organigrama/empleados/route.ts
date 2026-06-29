@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdmin, getSessionUsername } from '@/lib/admin-auth';
+import { isAdmin, getSessionUsername, canEditModule } from '@/lib/admin-auth';
 import {
   getAllEmpleados,
   createEmpleado,
@@ -20,8 +20,8 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    if (!(await isAdmin())) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    if (!(await canEditModule('organigrama'))) {
+      return NextResponse.json({ error: 'Sin permiso de edición' }, { status: 403 });
     }
     const username = await getSessionUsername();
     const body = (await request.json()) as CreateOrgEmpleadoData;

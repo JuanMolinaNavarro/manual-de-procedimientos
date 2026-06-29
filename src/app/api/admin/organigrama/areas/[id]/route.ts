@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdmin } from '@/lib/admin-auth';
+import { canEditModule } from '@/lib/admin-auth';
 import { updateArea, deleteArea, type UpdateOrgAreaData } from '@/lib/organigrama';
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    if (!(await isAdmin())) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    if (!(await canEditModule('organigrama'))) {
+      return NextResponse.json({ error: 'Sin permiso de edición' }, { status: 403 });
     }
     const { id } = await params;
     const body = (await request.json()) as UpdateOrgAreaData;
@@ -23,8 +23,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    if (!(await isAdmin())) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    if (!(await canEditModule('organigrama'))) {
+      return NextResponse.json({ error: 'Sin permiso de edición' }, { status: 403 });
     }
     const { id } = await params;
     const ok = await deleteArea(Number(id));

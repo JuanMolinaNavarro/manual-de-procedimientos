@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdmin } from '@/lib/admin-auth';
+import { isAdmin, canEditModule } from '@/lib/admin-auth';
 import { getAllAreas, createArea, type CreateOrgAreaData } from '@/lib/organigrama';
 
 export async function GET() {
@@ -16,8 +16,8 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    if (!(await isAdmin())) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    if (!(await canEditModule('organigrama'))) {
+      return NextResponse.json({ error: 'Sin permiso de edición' }, { status: 403 });
     }
     const body = (await request.json()) as CreateOrgAreaData;
     if (!body.nombre?.trim()) {

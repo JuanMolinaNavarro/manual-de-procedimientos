@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,10 @@ interface AreaFormDialogProps {
   miembros: OrgEmpleado[];
   /** Todas las áreas (para elegir de cuál depende). */
   areas: OrgArea[];
+  /** Abre el modal de "nuevo empleado" por encima para crear el jefe del área. */
+  onCreateJefe: () => void;
+  /** Id de un empleado recién creado para preseleccionar como jefe. */
+  forcedJefeId?: number | null;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: {
     nombre: string;
@@ -49,6 +53,8 @@ export default function AreaFormDialog({
   area,
   miembros,
   areas,
+  onCreateJefe,
+  forcedJefeId,
   onOpenChange,
   onSubmit,
 }: AreaFormDialogProps) {
@@ -58,6 +64,11 @@ export default function AreaFormDialog({
   const [parentId, setParentId] = useState<number | null>(area?.parent_id ?? null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Cuando se crea un empleado desde este modal, queda preseleccionado como jefe.
+  useEffect(() => {
+    if (forcedJefeId != null) setJefeId(forcedJefeId);
+  }, [forcedJefeId]);
 
   // No se puede depender de uno mismo ni de una sub-área propia (evita ciclos).
   const descendientes = useMemo(() => {
@@ -96,7 +107,7 @@ export default function AreaFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="neu-surface max-w-md rounded-3xl">
         <DialogHeader>
           <DialogTitle>{area ? 'Editar área' : 'Nueva área'}</DialogTitle>
         </DialogHeader>
@@ -108,6 +119,7 @@ export default function AreaFormDialog({
               onChange={(e) => setNombre(e.target.value)}
               placeholder="Ej. Marketing"
               autoFocus
+              className="neu-field rounded-lg focus-visible:ring-0"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') submit();
               }}
@@ -136,7 +148,7 @@ export default function AreaFormDialog({
               value={parentId != null ? String(parentId) : 'none'}
               onValueChange={(v) => setParentId(v === 'none' ? null : Number(v))}
             >
-              <SelectTrigger>
+              <SelectTrigger className="neu-field rounded-lg">
                 <SelectValue placeholder="Área raíz (no depende de otra)" />
               </SelectTrigger>
               <SelectContent>
@@ -151,27 +163,30 @@ export default function AreaFormDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Jefe de área</Label>
-            <Select
-              value={jefeId != null ? String(jefeId) : 'none'}
-              onValueChange={(v) => setJefeId(v === 'none' ? null : Number(v))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Sin jefe" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— Sin jefe —</SelectItem>
-                {miembros.map((m) => (
-                  <SelectItem key={m.id} value={String(m.id)}>
-                    {m.nombre} · {m.rol}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {miembros.length === 0 && (
-              <p className="text-[11px] text-muted-foreground">
-                Asigná empleados a esta área para poder elegir un jefe.
-              </p>
-            )}
+            <div className="flex items-center gap-2">
+              <Select
+                value={jefeId != null ? String(jefeId) : 'none'}
+                onValueChange={(v) => setJefeId(v === 'none' ? null : Number(v))}
+              >
+                <SelectTrigger className="neu-field flex-1 rounded-lg">
+                  <SelectValue placeholder="Sin jefe" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Sin jefe —</SelectItem>
+                  {miembros.map((m) => (
+                    <SelectItem key={m.id} value={String(m.id)}>
+                      {m.nombre} · {m.rol}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button type="button" variant="outline" onClick={onCreateJefe} title="Crear empleado">
+                Nuevo
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Elegí un empleado existente o creá uno nuevo como jefe.
+            </p>
           </div>
           {err && <p className="text-sm text-destructive">{err}</p>}
         </div>

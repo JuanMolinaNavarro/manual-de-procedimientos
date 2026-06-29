@@ -37,20 +37,15 @@ function EmpleadoNodeComp({ data, selected }: NodeProps) {
 
   return (
     <div
-      style={{
-        width: CARD_W,
-        height: CARD_H,
-        borderLeftWidth: areaColor ? 5 : undefined,
-        borderLeftColor: areaColor,
-      }}
+      style={{ width: CARD_W, height: CARD_H }}
       className={[
-        'group relative flex flex-col rounded-2xl border bg-card p-3 shadow-sm transition-all',
+        'neu-raised group relative flex flex-col rounded-2xl p-3 transition-shadow',
         selected
-          ? 'border-primary ring-2 ring-primary/30'
+          ? 'outline outline-2 outline-offset-2 outline-[var(--neu-accent)]'
           : esJefe
-            ? 'border-amber-300 ring-2 ring-amber-400/60'
-            : 'border-border',
-        dimmed ? 'opacity-25' : 'opacity-100',
+            ? 'outline outline-2 outline-offset-2 outline-amber-400'
+            : '',
+        dimmed ? 'opacity-40' : 'opacity-100',
         inactivo ? 'grayscale' : '',
       ].join(' ')}
     >
@@ -62,33 +57,39 @@ function EmpleadoNodeComp({ data, selected }: NodeProps) {
       <Handle type="target" position={Position.Top} className="!h-2 !w-2 !bg-muted-foreground" />
 
       <div className="flex items-start gap-3">
-        {url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={url}
-            alt={emp.nombre}
-            className="h-12 w-12 shrink-0 rounded-full object-cover"
+        <div className="relative shrink-0">
+          {url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={url} alt={emp.nombre} className="h-12 w-12 rounded-full object-cover" />
+          ) : (
+            <div className="neu-inset flex h-12 w-12 items-center justify-center rounded-full text-sm font-semibold text-[var(--neu-fg-soft)]">
+              {iniciales(emp.nombre)}
+            </div>
+          )}
+          <span
+            title={inactivo ? 'Inactivo' : 'Activo'}
+            className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-[var(--neu-bg)] ${
+              inactivo ? 'bg-[var(--neu-fg-soft)]' : 'bg-green-500'
+            }`}
           />
-        ) : (
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-            {iniciales(emp.nombre)}
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-foreground">{emp.nombre}</p>
-          <p className="truncate text-xs text-muted-foreground">{emp.rol}</p>
         </div>
-        <span
-          className={[
-            'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium',
-            inactivo ? 'bg-muted text-muted-foreground' : 'bg-green-500/15 text-green-600 dark:text-green-400',
-          ].join(' ')}
-        >
-          {inactivo ? 'Inactivo' : 'Activo'}
-        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-1.5">
+            {areaColor && (
+              <span
+                className="mt-1 h-2 w-2 shrink-0 rounded-full"
+                style={{ background: areaColor }}
+              />
+            )}
+            <span className="line-clamp-2 text-sm font-semibold leading-tight text-[var(--neu-fg)]">
+              {emp.nombre}
+            </span>
+          </div>
+          <p className="mt-0.5 truncate text-xs text-[var(--neu-fg-soft)]">{emp.rol}</p>
+        </div>
       </div>
 
-      <div className="mt-auto space-y-0.5 pt-2 text-[11px] text-muted-foreground">
+      <div className="mt-auto space-y-0.5 pt-2 text-[11px] text-[var(--neu-fg-soft)]">
         {emp.email && <p className="truncate">✉ {emp.email}</p>}
         {emp.telefono && <p className="truncate">☎ Interno {emp.telefono}</p>}
       </div>

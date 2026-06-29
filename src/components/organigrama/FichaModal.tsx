@@ -30,7 +30,10 @@ import type {
   Experiencia,
   HardSkill,
   SoftSkill,
+  HorarioDia,
 } from '@/lib/organigrama';
+
+const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 import { fotoUrl, iniciales } from './EmpleadoNode';
 import { resizeImageTo } from './image';
 
@@ -42,6 +45,8 @@ interface FichaModalProps {
   /** true → modal en modo alta: form en blanco, se crea recién al Guardar. */
   creating?: boolean;
   startInEdit?: boolean;
+  /** Si es false, la ficha es de solo lectura (sin botón Editar ni alta). */
+  canEdit?: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (id: number, data: UpdateOrgEmpleadoData) => Promise<void>;
   onCreate: (data: CreateOrgEmpleadoData, foto?: Blob) => Promise<void>;
@@ -58,19 +63,20 @@ const SEDE_LABEL = 'Sede';
 function blankEmpleado(areaDefault: string): OrgEmpleado {
   return {
     id: 0,
+    organigrama_id: null,
     nombre: '',
     rol: '',
     area: areaDefault,
     manager_id: null,
     email: null,
     telefono: null,
-    movil: null,
     foto_archivo: null,
     estado: 'active',
     sede: null,
     horario: null,
     modalidad: null,
     guardias: null,
+    horarios: null,
     actualizado: null,
     summary: null,
     antiguedad: null,
@@ -103,6 +109,7 @@ export default function FichaModal({
   open,
   creating,
   startInEdit,
+  canEdit = true,
   onOpenChange,
   onSave,
   onCreate,
@@ -113,6 +120,7 @@ export default function FichaModal({
   const defaultArea = areas[0]?.nombre ?? '';
   const [form, setForm] = useState<Form | null>(empleado);
   const [edit, setEdit] = useState(false);
+  const [tab, setTab] = useState('resumen');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // En alta, la foto se difiere: se guarda el blob y se sube recién al crear.
@@ -125,10 +133,11 @@ export default function FichaModal({
 
   useEffect(() => {
     setForm(creating ? blankEmpleado(defaultArea) : empleado);
-    setEdit(creating ? true : Boolean(startInEdit));
+    setEdit(canEdit ? (creating ? true : Boolean(startInEdit)) : false);
     setErr(null);
     setPendingFoto(null);
-  }, [empleado, creating, startInEdit, open, defaultArea]);
+    setTab('resumen');
+  }, [empleado, creating, startInEdit, open, defaultArea, canEdit]);
 
   // Descendientes del empleado actual: no pueden ser su jefe (anti-ciclos en cliente).
   const descendientes = useMemo(() => {
@@ -153,6 +162,44 @@ export default function FichaModal({
 
   const url = creating ? pendingFotoUrl : fotoUrl(emp);
 
+  // ── Visibilidad de pestañas ──
+  // En modo lectura ocultamos las pestañas sin información cargada; en edición se
+  // muestran todas para poder agregar datos.
+  const hasText = (s?: string | null) => Boolean(s && s.trim());
+  const hasList = (a?: (string | null)[] | null) =>
+    (a ?? []).some((s) => s != null && String(s).trim() !== '');
+  const hasItems = (a?: unknown[] | null) => (a ?? []).length > 0;
+  const tieneHorarios = (emp.horarios ?? []).some((h) => h.valor && h.valor.trim() !== '');
+
+  const TABS: { value: string; label: string; full: boolean }[] = [
+    { value: 'resumen', label: 'Resumen', full: hasText(emp.summary) || tieneHorarios },
+    {
+      value: 'resp',
+      label: 'Responsabilidades',
+      full: hasList(emp.resp_primarias) || hasList(emp.resp_secundarias),
+    },
+    { value: 'io', label: 'Inputs/Outputs', full: hasList(emp.inputs) || hasList(emp.outputs) },
+    {
+      value: 'hab',
+      label: 'Habilidades',
+      full: hasItems(emp.hard_skills) || hasItems(emp.soft_skills) || hasList(emp.skills),
+    },
+    { value: 'exp', label: 'Experiencia', full: hasItems(emp.experiencia) },
+    { value: 'proy', label: 'Proyectos', full: hasList(emp.projects) },
+    {
+      value: 'mas',
+      label: 'Más Info',
+      full:
+        hasText(emp.antiguedad) ||
+        hasText(emp.formacion) ||
+        hasText(emp.seniority) ||
+        hasText(emp.especialidad) ||
+        hasText(emp.actualizado),
+    },
+  ];
+  const visibleTabs = edit ? TABS : TABS.filter((t) => t.full);
+  const activeTab = visibleTabs.some((t) => t.value === tab) ? tab : visibleTabs[0]?.value ?? '';
+
   async function handleSave() {
     if (!form) return;
     if (!form.nombre.trim()) {
@@ -169,12 +216,12 @@ export default function FichaModal({
         manager_id: form.manager_id,
         email: form.email,
         telefono: form.telefono,
-        movil: form.movil,
         estado: form.estado,
         sede: form.sede,
         horario: form.horario,
         modalidad: form.modalidad,
         guardias: form.guardias,
+        horarios: form.horarios ?? [],
         actualizado: form.actualizado,
         summary: form.summary,
         antiguedad: form.antiguedad,
@@ -225,11 +272,11 @@ export default function FichaModal({
           sin esto el modal quedaba clavado en 512px en pantallas ≥640px. */}
       <DialogContent
         showCloseButton={false}
-        className="w-[95vw] max-w-5xl gap-0 overflow-hidden p-0 sm:max-w-5xl"
+        className="neu-surface w-[95vw] max-w-5xl gap-0 overflow-hidden rounded-3xl p-0 sm:max-w-5xl"
       >
         <div className="grid md:grid-cols-[260px_1fr]">
           {/* Panel lateral */}
-          <aside className="flex flex-col gap-3 border-b border-border bg-muted/40 p-5 md:border-b-0 md:border-r">
+          <aside className="flex flex-col gap-3 p-5">
             <div className="relative mx-auto">
               {url ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -281,13 +328,13 @@ export default function FichaModal({
                     value={emp.nombre}
                     onChange={(e) => set('nombre', e.target.value)}
                     placeholder="Nombre y apellido"
-                    className="text-center"
+                    className="neu-field rounded-lg text-center focus-visible:ring-0"
                   />
                   <Input
                     value={emp.rol}
                     onChange={(e) => set('rol', e.target.value)}
                     placeholder="Rol / puesto"
-                    className="text-center text-sm"
+                    className="neu-field rounded-lg text-center text-sm focus-visible:ring-0"
                   />
                 </>
               ) : (
@@ -301,9 +348,7 @@ export default function FichaModal({
             <div className="space-y-2.5 text-xs">
               <Field label="Email" value={emp.email} edit={edit} onChange={(v) => set('email', v)} />
               <Field label="Interno" value={emp.telefono} edit={edit} onChange={(v) => set('telefono', v)} />
-              <Field label="Móvil" value={emp.movil} edit={edit} onChange={(v) => set('movil', v)} />
               <Field label={SEDE_LABEL} value={emp.sede} edit={edit} onChange={(v) => set('sede', v)} />
-              <Field label="Horario" value={emp.horario} edit={edit} onChange={(v) => set('horario', v)} />
               <Field label="Modalidad" value={emp.modalidad} edit={edit} onChange={(v) => set('modalidad', v)} />
               <Field label="Guardias" value={emp.guardias} edit={edit} onChange={(v) => set('guardias', v)} />
 
@@ -314,7 +359,7 @@ export default function FichaModal({
                     value={emp.area || 'none'}
                     onValueChange={(v) => set('area', v === 'none' ? '' : v)}
                   >
-                    <SelectTrigger className="h-8">
+                    <SelectTrigger className="neu-field h-8 rounded-lg">
                       <SelectValue placeholder="Sin área" />
                     </SelectTrigger>
                     <SelectContent>
@@ -338,7 +383,7 @@ export default function FichaModal({
                     value={emp.manager_id != null ? String(emp.manager_id) : 'none'}
                     onValueChange={(v) => set('manager_id', v === 'none' ? null : Number(v))}
                   >
-                    <SelectTrigger className="h-8">
+                    <SelectTrigger className="neu-field h-8 rounded-lg">
                       <SelectValue placeholder="Sin jefe" />
                     </SelectTrigger>
                     <SelectContent>
@@ -363,7 +408,7 @@ export default function FichaModal({
                 <Label className="text-[11px] text-muted-foreground">Estado</Label>
                 {edit ? (
                   <Select value={emp.estado} onValueChange={(v) => set('estado', v)}>
-                    <SelectTrigger className="h-8">
+                    <SelectTrigger className="neu-field h-8 rounded-lg">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -380,7 +425,7 @@ export default function FichaModal({
 
           {/* Panel principal */}
           <div className="flex flex-col">
-            <div className="flex items-center justify-between gap-2 border-b border-border bg-background px-4 py-3">
+            <div className="flex items-center justify-between gap-2 px-4 py-3">
               <span className="truncate text-sm font-medium text-muted-foreground">
                 {err ? (
                   <span className="text-destructive">{err}</span>
@@ -427,11 +472,11 @@ export default function FichaModal({
                       {saving ? 'Guardando…' : 'Guardar'}
                     </Button>
                   </>
-                ) : (
+                ) : canEdit ? (
                   <Button size="sm" variant="outline" onClick={() => setEdit(true)}>
                     <Pencil className="mr-1 h-3.5 w-3.5" /> Editar
                   </Button>
-                )}
+                ) : null}
                 <Button
                   size="icon"
                   variant="ghost"
@@ -445,65 +490,76 @@ export default function FichaModal({
             </div>
 
             <Tabs
-              defaultValue="resumen"
+              value={activeTab}
+              onValueChange={setTab}
               orientation="vertical"
               className="flex min-h-0 flex-1 gap-0"
             >
-              <TabsList className="w-44 shrink-0 flex-col items-stretch justify-start gap-1 rounded-none border-r border-border bg-muted/20 p-2">
-                <TabsTrigger value="resumen">Resumen</TabsTrigger>
-                <TabsTrigger value="resp">Responsabilidades</TabsTrigger>
-                <TabsTrigger value="io">Inputs/Outputs</TabsTrigger>
-                <TabsTrigger value="hab">Habilidades</TabsTrigger>
-                <TabsTrigger value="exp">Experiencia</TabsTrigger>
-                <TabsTrigger value="proy">Proyectos</TabsTrigger>
-                <TabsTrigger value="mas">Más Info</TabsTrigger>
+              <TabsList className="w-44 shrink-0 flex-col items-stretch justify-start gap-1 rounded-none bg-transparent p-3">
+                {visibleTabs.map((t) => (
+                  <TabsTrigger key={t.value} value={t.value}>
+                    {t.label}
+                  </TabsTrigger>
+                ))}
               </TabsList>
 
               <div className="flex-1 p-5">
-                <TabsContent value="resumen" className="mt-0">
-                  {edit ? (
-                    <Textarea
-                      value={emp.summary ?? ''}
-                      onChange={(e) => set('summary', e.target.value)}
-                      rows={4}
-                      placeholder="Resumen profesional…"
-                    />
-                  ) : (
-                    <p className="whitespace-pre-wrap text-sm text-foreground">{emp.summary || 'Sin resumen.'}</p>
-                  )}
-                </TabsContent>
+                {visibleTabs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Sin información cargada. Usá “Editar” para agregar datos.
+                  </p>
+                ) : (
+                  <>
+                    <TabsContent value="resumen" className="mt-0 space-y-5">
+                      {edit ? (
+                        <Textarea
+                          value={emp.summary ?? ''}
+                          onChange={(e) => set('summary', e.target.value)}
+                          rows={4}
+                          placeholder="Resumen profesional…"
+                          className="neu-field rounded-lg focus-visible:ring-0"
+                        />
+                      ) : (
+                        <p className="whitespace-pre-wrap text-sm text-foreground">{emp.summary || 'Sin resumen.'}</p>
+                      )}
+                      <HorariosEditor horarios={emp.horarios} edit={edit} onChange={(v) => set('horarios', v)} />
+                    </TabsContent>
 
-                <TabsContent value="resp" className="mt-0 space-y-4">
-                  <StringList title="Responsabilidades primarias" items={emp.resp_primarias} edit={edit} onChange={(v) => set('resp_primarias', v)} />
-                  <StringList title="Responsabilidades secundarias" items={emp.resp_secundarias} edit={edit} onChange={(v) => set('resp_secundarias', v)} />
-                </TabsContent>
+                    <TabsContent value="resp" className="mt-0 space-y-4">
+                      <StringList title="Responsabilidades primarias" items={emp.resp_primarias} edit={edit} onChange={(v) => set('resp_primarias', v)} />
+                      <StringList title="Responsabilidades secundarias" items={emp.resp_secundarias} edit={edit} onChange={(v) => set('resp_secundarias', v)} />
+                    </TabsContent>
 
-                <TabsContent value="io" className="mt-0 space-y-4">
-                  <StringList title="Inputs" items={emp.inputs} edit={edit} onChange={(v) => set('inputs', v)} />
-                  <StringList title="Outputs" items={emp.outputs} edit={edit} onChange={(v) => set('outputs', v)} />
-                </TabsContent>
+                    <TabsContent value="io" className="mt-0 space-y-4">
+                      <StringList title="Inputs" items={emp.inputs} edit={edit} onChange={(v) => set('inputs', v)} />
+                      <StringList title="Outputs" items={emp.outputs} edit={edit} onChange={(v) => set('outputs', v)} />
+                    </TabsContent>
 
-                <TabsContent value="hab" className="mt-0 space-y-4">
-                  <HardSkillsEditor items={emp.hard_skills} edit={edit} onChange={(v) => set('hard_skills', v)} />
-                  <SoftSkillsEditor items={emp.soft_skills} edit={edit} onChange={(v) => set('soft_skills', v)} />
-                  <StringList title="Etiquetas / skills" items={emp.skills} edit={edit} onChange={(v) => set('skills', v)} />
-                </TabsContent>
+                    <TabsContent value="hab" className="mt-0 space-y-4">
+                      <HardSkillsEditor items={emp.hard_skills} edit={edit} onChange={(v) => set('hard_skills', v)} />
+                      <SoftSkillsEditor items={emp.soft_skills} edit={edit} onChange={(v) => set('soft_skills', v)} />
+                      <StringList title="Etiquetas / skills" items={emp.skills} edit={edit} onChange={(v) => set('skills', v)} />
+                    </TabsContent>
 
-                <TabsContent value="exp" className="mt-0">
-                  <ExperienciaEditor items={emp.experiencia} edit={edit} onChange={(v) => set('experiencia', v)} />
-                </TabsContent>
+                    <TabsContent value="exp" className="mt-0">
+                      <ExperienciaEditor items={emp.experiencia} edit={edit} onChange={(v) => set('experiencia', v)} />
+                    </TabsContent>
 
-                <TabsContent value="proy" className="mt-0">
-                  <StringList title="Proyectos" items={emp.projects} edit={edit} onChange={(v) => set('projects', v)} />
-                </TabsContent>
+                    <TabsContent value="proy" className="mt-0">
+                      <StringList title="Proyectos" items={emp.projects} edit={edit} onChange={(v) => set('projects', v)} />
+                    </TabsContent>
 
-                <TabsContent value="mas" className="mt-0 grid gap-3 sm:grid-cols-2">
-                  <Field label="Antigüedad" value={emp.antiguedad} edit={edit} onChange={(v) => set('antiguedad', v)} block />
-                  <Field label="Formación" value={emp.formacion} edit={edit} onChange={(v) => set('formacion', v)} block />
-                  <Field label="Seniority" value={emp.seniority} edit={edit} onChange={(v) => set('seniority', v)} block />
-                  <Field label="Especialidad" value={emp.especialidad} edit={edit} onChange={(v) => set('especialidad', v)} block />
-                  <Field label="Actualizado" value={emp.actualizado} edit={edit} onChange={(v) => set('actualizado', v)} block />
-                </TabsContent>
+                    <TabsContent value="mas" className="mt-0">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Antigüedad" value={emp.antiguedad} edit={edit} onChange={(v) => set('antiguedad', v)} block hideWhenEmpty />
+                        <Field label="Formación" value={emp.formacion} edit={edit} onChange={(v) => set('formacion', v)} block hideWhenEmpty />
+                        <Field label="Seniority" value={emp.seniority} edit={edit} onChange={(v) => set('seniority', v)} block hideWhenEmpty />
+                        <Field label="Especialidad" value={emp.especialidad} edit={edit} onChange={(v) => set('especialidad', v)} block hideWhenEmpty />
+                        <Field label="Actualizado" value={emp.actualizado} edit={edit} onChange={(v) => set('actualizado', v)} block hideWhenEmpty />
+                      </div>
+                    </TabsContent>
+                  </>
+                )}
               </div>
             </Tabs>
           </div>
@@ -521,21 +577,65 @@ function Field({
   edit,
   onChange,
   block,
+  hideWhenEmpty,
 }: {
   label: string;
   value: string | null;
   edit: boolean;
   onChange: (v: string | null) => void;
   block?: boolean;
+  /** En modo lectura, no renderiza nada si el valor está vacío. */
+  hideWhenEmpty?: boolean;
 }) {
+  if (!edit && hideWhenEmpty && !(value && value.trim())) return null;
   return (
     <div className={block ? 'space-y-1' : 'space-y-0.5'}>
       <Label className="text-[11px] text-muted-foreground">{label}</Label>
       {edit ? (
-        <Input className="h-8" value={value ?? ''} onChange={(e) => onChange(e.target.value || null)} />
+        <Input className="neu-field h-8 rounded-lg" value={value ?? ''} onChange={(e) => onChange(e.target.value || null)} />
       ) : (
         <p className="truncate text-foreground">{value || '—'}</p>
       )}
+    </div>
+  );
+}
+
+function HorariosEditor({
+  horarios,
+  edit,
+  onChange,
+}: {
+  horarios: HorarioDia[] | null;
+  edit: boolean;
+  onChange: (v: HorarioDia[]) => void;
+}) {
+  const valorDe = (dia: string) => (horarios ?? []).find((h) => h.dia === dia)?.valor ?? '';
+  const setDia = (dia: string, valor: string) =>
+    onChange(DIAS_SEMANA.map((d) => ({ dia: d, valor: d === dia ? valor : valorDe(d) })));
+  // En lectura solo se listan los días con horario cargado; si no hay ninguno, la
+  // sección no se renderiza (mantiene limpia la pestaña Resumen).
+  const dias = edit ? DIAS_SEMANA : DIAS_SEMANA.filter((d) => valorDe(d).trim() !== '');
+  if (!edit && dias.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      <h4 className="text-sm font-semibold text-foreground">Horarios</h4>
+      <div className="space-y-1.5">
+        {dias.map((d) => (
+          <div key={d} className="flex items-center gap-3">
+            <span className="w-24 shrink-0 text-xs text-[var(--neu-fg-soft)]">{d}</span>
+            {edit ? (
+              <Input
+                className="neu-field h-8 flex-1 rounded-lg focus-visible:ring-0"
+                value={valorDe(d)}
+                placeholder="—"
+                onChange={(e) => setDia(d, e.target.value)}
+              />
+            ) : (
+              <span className="text-sm text-foreground">{valorDe(d)}</span>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -569,7 +669,7 @@ function StringList({
             {edit ? (
               <>
                 <Input
-                  className="h-8"
+                  className="neu-field h-8 rounded-lg"
                   value={it}
                   onChange={(e) => {
                     const next = [...list];
@@ -739,10 +839,10 @@ function ExperienciaEditor({
           <div key={i} className="rounded-lg border border-border p-3">
             {edit ? (
               <div className="grid gap-2 sm:grid-cols-3">
-                <Input className="h-8" placeholder="Rol" value={x.role} onChange={(e) => upd(i, { role: e.target.value })} />
-                <Input className="h-8" placeholder="Empresa" value={x.company} onChange={(e) => upd(i, { company: e.target.value })} />
+                <Input className="neu-field h-8 rounded-lg" placeholder="Rol" value={x.role} onChange={(e) => upd(i, { role: e.target.value })} />
+                <Input className="neu-field h-8 rounded-lg" placeholder="Empresa" value={x.company} onChange={(e) => upd(i, { company: e.target.value })} />
                 <div className="flex items-center gap-2">
-                  <Input className="h-8" placeholder="Período" value={x.period} onChange={(e) => upd(i, { period: e.target.value })} />
+                  <Input className="neu-field h-8 rounded-lg" placeholder="Período" value={x.period} onChange={(e) => upd(i, { period: e.target.value })} />
                   <button className="text-muted-foreground hover:text-destructive" onClick={() => onChange(list.filter((_, j) => j !== i))}>
                     <X className="h-4 w-4" />
                   </button>

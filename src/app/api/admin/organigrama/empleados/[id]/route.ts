@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdmin, getSessionUsername } from '@/lib/admin-auth';
+import { isAdmin, getSessionUsername, canEditModule } from '@/lib/admin-auth';
 import {
   getEmpleadoById,
   updateEmpleado,
@@ -20,8 +20,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    if (!(await isAdmin())) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    if (!(await canEditModule('organigrama'))) {
+      return NextResponse.json({ error: 'Sin permiso de edición' }, { status: 403 });
     }
     const { id } = await params;
     const empleadoId = Number(id);
@@ -50,8 +50,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    if (!(await isAdmin())) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    if (!(await canEditModule('organigrama'))) {
+      return NextResponse.json({ error: 'Sin permiso de edición' }, { status: 403 });
     }
     const { id } = await params;
     const ok = await deleteEmpleado(Number(id));

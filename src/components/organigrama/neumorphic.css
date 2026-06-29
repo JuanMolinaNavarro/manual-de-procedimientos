@@ -1,0 +1,125 @@
+/* ────────────────────────────────────────────────────────────────────────────
+   Neumorphic (soft UI) — estilo del módulo de organigrama.
+   Superficie monocromática + sombras duales (clara arriba-izq / oscura abajo-der).
+   Las variables son globales para que las utilidades funcionen también dentro de
+   los modales (que React/Radix portalean fuera del wrapper .organigrama-neu).
+   ──────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --neu-bg: #e7eaf1;
+  --neu-fg: #4a4f5a;
+  --neu-fg-soft: #888fa0;
+  --neu-dark: #c2c7d4;
+  --neu-light: #ffffff;
+  --neu-accent: #6c7bf5;
+}
+
+.dark {
+  --neu-bg: #23262c;
+  --neu-fg: #d7dbe3;
+  --neu-fg-soft: #969db0;
+  --neu-dark: #191b20;
+  --neu-light: #2e323b;
+  --neu-accent: #8b97ff;
+}
+
+/* Superficie raíz del módulo */
+.organigrama-neu {
+  background: var(--neu-bg);
+  color: var(--neu-fg);
+  font-family: var(--font-nunito), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Utilidades (globales) ── */
+.neu-raised {
+  background: var(--neu-bg);
+  border: none !important;
+  box-shadow:
+    6px 6px 14px var(--neu-dark),
+    -6px -6px 14px var(--neu-light);
+}
+.neu-raised-sm {
+  background: var(--neu-bg);
+  border: none !important;
+  box-shadow:
+    3px 3px 7px var(--neu-dark),
+    -3px -3px 7px var(--neu-light);
+}
+.neu-inset {
+  background: var(--neu-bg);
+  border: none !important;
+  box-shadow:
+    inset 5px 5px 10px var(--neu-dark),
+    inset -5px -5px 10px var(--neu-light);
+}
+.neu-surface {
+  background: var(--neu-bg) !important;
+  color: var(--neu-fg);
+  border: none !important;
+  /* Modal flotando sobre el overlay: sombra de elevación neutra (sin el "glow"
+     blanco del soft-UI, que ahí queda como halo). */
+  box-shadow: 0 24px 64px -16px rgba(0, 0, 0, 0.45) !important;
+  font-family: var(--font-nunito), ui-sans-serif, system-ui, sans-serif;
+}
+.neu-btn {
+  background: var(--neu-bg) !important;
+  color: var(--neu-fg) !important;
+  border: none !important;
+  box-shadow:
+    4px 4px 9px var(--neu-dark),
+    -4px -4px 9px var(--neu-light);
+  transition: box-shadow 0.15s ease, color 0.15s ease;
+}
+.neu-btn:hover {
+  color: var(--neu-accent) !important;
+}
+.neu-btn:active {
+  box-shadow:
+    inset 3px 3px 7px var(--neu-dark),
+    inset -3px -3px 7px var(--neu-light);
+}
+/* input/select dentro de superficies neu */
+.neu-field {
+  background: var(--neu-bg) !important;
+  color: var(--neu-fg) !important;
+  border: none !important;
+  box-shadow:
+    inset 3px 3px 6px var(--neu-dark),
+    inset -3px -3px 6px var(--neu-light) !important;
+}
+
+/* ── React Flow (scopeado al módulo) ── */
+.organigrama-neu .react-flow__attribution {
+  display: none;
+}
+.organigrama-neu .react-flow__controls {
+  border-radius: 16px;
+  overflow: hidden;
+  border: none;
+  box-shadow:
+    5px 5px 12px var(--neu-dark),
+    -5px -5px 12px var(--neu-light);
+}
+.organigrama-neu .react-flow__controls-button {
+  background: var(--neu-bg);
+  border: none;
+  border-bottom: 1px solid var(--neu-dark);
+  color: var(--neu-fg);
+}
+.organigrama-neu .react-flow__controls-button:hover {
+  background: var(--neu-bg);
+  color: var(--neu-accent);
+}
+.organigrama-neu .react-flow__controls-button svg {
+  fill: currentColor;
+}
+.organigrama-neu .react-flow__minimap {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow:
+    5px 5px 12px var(--neu-dark),
+    -5px -5px 12px var(--neu-light);
+}
+.organigrama-neu .react-flow__edge-path {
+  stroke: var(--neu-fg-soft);
+}

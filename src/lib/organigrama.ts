@@ -20,23 +20,29 @@ export interface SoftSkill {
   rating: number; // 1-5
 }
 
+export interface HorarioDia {
+  dia: string; // Lunes..Domingo
+  valor: string; // p.ej. "08:00 - 17:00" (vacío = sin horario)
+}
+
 // ─── Empleado ───────────────────────────────────────────────────────────────
 
 export interface OrgEmpleado {
   id: number;
+  organigrama_id: number | null;
   nombre: string;
   rol: string;
   area: string;
   manager_id: number | null;
   email: string | null;
   telefono: string | null;
-  movil: string | null;
   foto_archivo: string | null;
   estado: string; // active | inactive
   sede: string | null;
   horario: string | null;
   modalidad: string | null;
   guardias: string | null;
+  horarios: HorarioDia[] | null;
   actualizado: string | null;
   summary: string | null;
   antiguedad: string | null;
@@ -62,18 +68,19 @@ export interface OrgEmpleado {
 }
 
 export interface CreateOrgEmpleadoData {
+  organigrama_id?: number | null;
   nombre: string;
   rol: string;
   area: string;
   manager_id?: number | null;
   email?: string | null;
   telefono?: string | null;
-  movil?: string | null;
   estado?: string;
   sede?: string | null;
   horario?: string | null;
   modalidad?: string | null;
   guardias?: string | null;
+  horarios?: HorarioDia[] | null;
   actualizado?: string | null;
   summary?: string | null;
   antiguedad?: string | null;
@@ -102,6 +109,7 @@ export type UpdateOrgEmpleadoData = Partial<Omit<CreateOrgEmpleadoData, 'created
 
 export interface OrgArea {
   id: number;
+  organigrama_id: number | null;
   nombre: string;
   color: string;
   is_top: boolean;
@@ -114,6 +122,7 @@ export interface OrgArea {
 }
 
 export interface CreateOrgAreaData {
+  organigrama_id?: number | null;
   nombre: string;
   color?: string;
   is_top?: boolean;
@@ -129,6 +138,7 @@ export type UpdateOrgAreaData = Partial<CreateOrgAreaData>;
 
 export interface OrgLinea {
   id: number;
+  organigrama_id: number | null;
   from_id: number;
   to_id: number;
   tipo: string; // special | report-override
@@ -139,6 +149,7 @@ export interface OrgLinea {
 }
 
 export interface CreateOrgLineaData {
+  organigrama_id?: number | null;
   from_id: number;
   to_id: number;
   tipo?: string;
@@ -158,6 +169,16 @@ export interface OrganigramaCompleto {
   lineas: OrgLinea[];
 }
 
+// ─── Organigrama (empresa/ubicación) ──────────────────────────────────────────
+
+export interface Organigrama {
+  id: number;
+  nombre: string;
+  direccion: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
 // ─── Mappers ──────────────────────────────────────────────────────────────────
 
 // Las columnas Json llegan como JsonValue; las casteamos a sus tipos concretos.
@@ -175,6 +196,7 @@ function mapEmpleado(row: any): OrgEmpleado {
     skills: row.skills as string[] | null,
     projects: row.projects as string[] | null,
     proyectos_actuales: row.proyectos_actuales as string[] | null,
+    horarios: row.horarios as HorarioDia[] | null,
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -195,13 +217,13 @@ export async function getEmpleadoById(id: number): Promise<OrgEmpleado | null> {
 export async function createEmpleado(data: CreateOrgEmpleadoData): Promise<OrgEmpleado> {
   const row = await prisma.orgEmpleado.create({
     data: {
+      organigrama_id: data.organigrama_id ?? null,
       nombre: data.nombre,
       rol: data.rol,
       area: data.area,
       manager_id: data.manager_id ?? null,
       email: data.email ?? null,
       telefono: data.telefono ?? null,
-      movil: data.movil ?? null,
       estado: data.estado ?? 'active',
       sede: data.sede ?? null,
       horario: data.horario ?? null,
@@ -223,6 +245,7 @@ export async function createEmpleado(data: CreateOrgEmpleadoData): Promise<OrgEm
       skills: (data.skills ?? undefined) as any,
       projects: (data.projects ?? undefined) as any,
       proyectos_actuales: (data.proyectos_actuales ?? undefined) as any,
+      horarios: (data.horarios ?? undefined) as any,
       free_x: data.free_x ?? null,
       free_y: data.free_y ?? null,
       created_by: data.created_by ?? null,
@@ -248,7 +271,6 @@ export async function updateEmpleado(
       manager_id: data.manager_id,
       email: data.email,
       telefono: data.telefono,
-      movil: data.movil,
       estado: data.estado ?? undefined,
       sede: data.sede,
       horario: data.horario,
@@ -270,6 +292,7 @@ export async function updateEmpleado(
       skills: json(data.skills),
       projects: json(data.projects),
       proyectos_actuales: json(data.proyectos_actuales),
+      horarios: json(data.horarios),
       free_x: data.free_x,
       free_y: data.free_y,
       updated_by: data.updated_by,
@@ -334,6 +357,7 @@ export async function getAreaById(id: number): Promise<OrgArea | null> {
 export async function createArea(data: CreateOrgAreaData): Promise<OrgArea> {
   return prisma.orgArea.create({
     data: {
+      organigrama_id: data.organigrama_id ?? null,
       nombre: data.nombre,
       color: data.color ?? '#86868b',
       is_top: data.is_top ?? false,
@@ -402,6 +426,7 @@ export async function getAllLineas(): Promise<OrgLinea[]> {
 export async function createLinea(data: CreateOrgLineaData): Promise<OrgLinea> {
   return prisma.orgLinea.create({
     data: {
+      organigrama_id: data.organigrama_id ?? null,
       from_id: data.from_id,
       to_id: data.to_id,
       tipo: data.tipo ?? 'special',
@@ -437,11 +462,45 @@ export async function deleteLinea(id: number): Promise<boolean> {
 
 // ─── Agregado (bootstrap del lienzo) ──────────────────────────────────────────
 
-export async function getOrganigramaCompleto(): Promise<OrganigramaCompleto> {
+export async function getOrganigramaCompleto(organigramaId: number): Promise<OrganigramaCompleto> {
   const [empleados, areas, lineas] = await Promise.all([
-    getAllEmpleados(),
-    getAllAreas(),
-    getAllLineas(),
+    prisma.orgEmpleado.findMany({ where: { organigrama_id: organigramaId }, orderBy: { id: 'asc' } }),
+    prisma.orgArea.findMany({ where: { organigrama_id: organigramaId }, orderBy: { id: 'asc' } }),
+    prisma.orgLinea.findMany({ where: { organigrama_id: organigramaId }, orderBy: { id: 'asc' } }),
   ]);
-  return { empleados, areas, lineas };
+  return {
+    empleados: empleados.map(mapEmpleado),
+    areas: areas as unknown as OrgArea[],
+    lineas: lineas as unknown as OrgLinea[],
+  };
+}
+
+// ─── Organigramas (empresas/ubicaciones) ──────────────────────────────────────
+
+export async function getAllOrganigramas(): Promise<Organigrama[]> {
+  return prisma.organigrama.findMany({ orderBy: { id: 'asc' } }) as Promise<Organigrama[]>;
+}
+
+export async function createOrganigrama(
+  nombre: string,
+  direccion?: string | null,
+): Promise<Organigrama> {
+  return prisma.organigrama.create({
+    data: { nombre, direccion: direccion ?? null },
+  }) as Promise<Organigrama>;
+}
+
+export async function updateOrganigrama(
+  id: number,
+  data: { nombre?: string; direccion?: string | null },
+): Promise<Organigrama | null> {
+  const existing = await prisma.organigrama.findUnique({ where: { id } });
+  if (!existing) return null;
+  return prisma.organigrama.update({
+    where: { id },
+    data: {
+      nombre: data.nombre ?? undefined,
+      direccion: data.direccion === undefined ? undefined : data.direccion,
+    },
+  }) as Promise<Organigrama>;
 }

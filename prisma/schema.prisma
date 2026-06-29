@@ -65,6 +65,7 @@ model Usuario {
   rol        String   @default("agente")
   isActive   Boolean  @default(true)
   modulos    String[] @default([])
+  modulos_edit String[] @default([])
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
@@ -287,21 +288,32 @@ model Factura {
 // y el "CV" rico como columnas Json. Reemplaza las 4 claves de localStorage del
 // HTML original por una única fuente de verdad compartida en Postgres.
 
+model Organigrama {
+  id         Int      @id @default(autoincrement())
+  nombre     String // empresa o ubicación
+  direccion  String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("organigramas")
+}
+
 model OrgEmpleado {
-  id           Int     @id @default(autoincrement())
-  nombre       String
-  rol          String
-  area         String // == OrgArea.nombre
+  id             Int     @id @default(autoincrement())
+  organigrama_id Int? // empresa/ubicación a la que pertenece
+  nombre         String
+  rol            String
+  area           String // == OrgArea.nombre
   manager_id   Int?
   email        String?
   telefono     String? // interno ("phone")
-  movil        String? // ("mobile")
   foto_archivo String? // filename en uploads/organigrama/fotos
   estado       String  @default("active") // active | inactive
   sede         String?
   horario      String?
   modalidad    String?
   guardias     String?
+  horarios     Json? // [{dia, valor}] horario por día de la semana
   actualizado  String?
   summary      String?
   antiguedad   String?
@@ -337,25 +349,29 @@ model OrgEmpleado {
 }
 
 model OrgArea {
-  id         Int      @id @default(autoincrement())
-  nombre     String   @unique
-  color      String   @default("#86868b")
-  is_top     Boolean  @default(false)
-  jefe_id    Int? // empleado jefe del área (sin relación FK formal; se limpia por código)
-  parent_id  Int? // área de la que depende (sub-área); sin FK formal, se limpia por código
-  pos_x      Float? // override de posición manual del área
-  pos_y      Float?
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  id             Int      @id @default(autoincrement())
+  organigrama_id Int? // empresa/ubicación a la que pertenece
+  nombre         String
+  color          String   @default("#86868b")
+  is_top         Boolean  @default(false)
+  jefe_id        Int? // empleado jefe del área (sin relación FK formal; se limpia por código)
+  parent_id      Int? // área de la que depende (sub-área); sin FK formal, se limpia por código
+  pos_x          Float? // override de posición manual del área
+  pos_y          Float?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
 
+  // El nombre del área es único POR organigrama (dos empresas pueden tener "RRHH").
+  @@unique([organigrama_id, nombre])
   @@map("org_areas")
 }
 
 model OrgLinea {
-  id         Int      @id @default(autoincrement())
-  from_id    Int
-  to_id      Int
-  tipo       String   @default("special") // special | report-override
+  id             Int      @id @default(autoincrement())
+  organigrama_id Int? // empresa/ubicación a la que pertenece
+  from_id        Int
+  to_id          Int
+  tipo           String   @default("special") // special | report-override
   estilo     String   @default("solid") // solid | dashed | dotted
   color      String   @default("#86868b")
   etiqueta   String?
