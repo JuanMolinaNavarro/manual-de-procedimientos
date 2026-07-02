@@ -35,6 +35,8 @@ services:
       MWPROXY_BASE_URL: ${MWPROXY_BASE_URL}
       MWPROXY_TOKEN: ${MWPROXY_TOKEN}
       LEADS_API_KEY: ${LEADS_API_KEY}
+      ISPBOSS_API_KEY: ${ISPBOSS_API_KEY}
+      ISPBOSS_BASE_URL: ${ISPBOSS_BASE_URL:-https://viaccc.ispboss.com}
     ports:
       - "3000:3000"
     volumes:
@@ -59,6 +61,8 @@ services:
       MWPROXY_BASE_URL: ${MWPROXY_BASE_URL}
       MWPROXY_TOKEN: ${MWPROXY_TOKEN}
       LEADS_API_KEY: ${LEADS_API_KEY}
+      ISPBOSS_API_KEY: ${ISPBOSS_API_KEY}
+      ISPBOSS_BASE_URL: ${ISPBOSS_BASE_URL:-https://viaccc.ispboss.com}
     ports:
       - "3000:3000"
     volumes:
