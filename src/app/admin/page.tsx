@@ -12,6 +12,7 @@ import {
   CreditCard,
   Antenna,
   Network,
+  Database,
 } from 'lucide-react';
 
 const MODULE_META: Record<
@@ -53,6 +54,10 @@ const MODULE_META: Record<
   organigrama: {
     icon: <Network className="h-8 w-8" />,
     description: 'Visualizar y gestionar la estructura organizacional de la empresa.',
+  },
+  padron: {
+    icon: <Database className="h-8 w-8" />,
+    description: 'Padrón de abonados por empresa: cargar Excel y buscar duplicados.',
   },
 };
 
