@@ -7,6 +7,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Padrón de abonados importado desde Excel, para control de duplicados
+// (búsqueda por documento, nombre o domicilio). Se reemplaza en cada carga.
+model PadronAbonado {
+  id                  Int      @id @default(autoincrement())
+  // Default 'CCC' para backfillear el padrón CCC ya cargado al introducir la
+  // columna (db push no puede agregar NOT NULL sin default a una tabla con datos).
+  // El código siempre setea la empresa explícita en cada carga.
+  empresa             String   @default("CCC")
+  codigo              String?
+  nombre_completo     String?
+  estado              String?
+  domicilio           String?
+  domicilio_info_adic String?
+  documento_numero    String?
+  created_at          DateTime @default(now())
+
+  @@index([empresa, documento_numero])
+  @@index([empresa, codigo])
+  @@map("padron_abonados")
+}
+
 model Bonificacion {
   id             Int      @id @default(autoincrement())
   empresa        String

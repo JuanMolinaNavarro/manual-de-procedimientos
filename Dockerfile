@@ -23,6 +23,9 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/src ./src
+# next.config debe estar en runtime: `next start` lo lee del disco para aplicar
+# límites como proxyClientMaxBodySize (subida del Excel del padrón). Sin él, cae al default de 10MB.
+COPY --from=builder /app/next.config.ts ./next.config.ts
 
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
