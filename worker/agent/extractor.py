@@ -13,8 +13,11 @@ from pathlib import Path
 from typing import Iterable, Sequence, Union
 
 import pymupdf
-from openai import OpenAI
 
+# `openai` se importa de forma PEREZOSA dentro de extract() (ver abajo). El worker
+# ya no usa el LLM (extracción 100% determinista en agent/parsers), pero este módulo
+# sigue exponiendo pdf_to_text/pdf_to_b64_pngs (PyMuPDF) que usan los flows. Hacer el
+# import lazy evita arrastrar la dependencia `openai` sólo por importar esos helpers.
 from .config import OPENAI_API_KEY, OPENAI_MODEL
 from .schemas import FacturaEnergiaElectrica, FacturaRecaudacion, FacturaSoportes, FacturaSEPSA, FacturaUnion
 
@@ -488,6 +491,7 @@ def extract(
     if not images:
         raise ValueError("No se pudieron renderizar páginas del PDF")
 
+    from openai import OpenAI  # import perezoso: solo si realmente se usa el LLM
     client = OpenAI(api_key=OPENAI_API_KEY)
 
     system_prompt = _BASE_SYSTEM_PROMPT
