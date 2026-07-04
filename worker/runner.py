@@ -14,7 +14,8 @@ Variables de entorno:
   UPLOADS_DIR        directorio del volumen compartido con los PDFs
                      (default /app/uploads/facturas)
   POLL_INTERVAL      segundos entre polls (default 15)
-  (+ OPENAI_API_KEY, FINNEGANS_USER/PASS/WORKSPACE, HEADLESS — usadas por el agente)
+  WORKER_RESTART_EVERY  reinicia el navegador cada N facturas (default 5; <=0 lo desactiva)
+  (+ FINNEGANS_USER/PASS/WORKSPACE, HEADLESS — usadas por el agente. El LLM ya no se usa.)
 """
 from __future__ import annotations
 
@@ -23,6 +24,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 import requests
 
@@ -33,8 +35,30 @@ WORKER_SECRET = os.getenv("WORKER_SECRET", "")
 WORKER_EMPRESA = os.getenv("WORKER_EMPRESA") or None
 UPLOADS_DIR = Path(os.getenv("UPLOADS_DIR", "/app/uploads/facturas"))
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "15"))
+# Reinicia el navegador cada N facturas (preventivo, para que un cuelgue de
+# Finnegans a mitad de lote no arrastre a las siguientes). <=0 lo desactiva.
+RESTART_EVERY = int(os.getenv("WORKER_RESTART_EVERY", "5"))
 
 _HEADERS = {"X-Worker-Key": WORKER_SECRET}
+
+# Firmas en el mensaje de error que delatan una SESIÓN/NAVEGADOR roto (vs. un
+# problema de datos como un descuadre de control-total, que es una revisión
+# legítima y NO amerita reiniciar). Ante estas, se reinicia y se reintenta.
+_SESION_ROTA_SIGNS = (
+    "iframe",
+    "empresa destino",
+    "seleccionar empresa",
+    "header qued",
+    "timeout",
+    "target closed",
+    "no-scope",
+    "crash",
+)
+
+
+def _parece_sesion_rota(carga: dict) -> bool:
+    msg = (carga.get("mensaje") or "").lower()
+    return any(s in msg for s in _SESION_ROTA_SIGNS)
 
 
 def log(msg: str) -> None:
@@ -92,18 +116,56 @@ def process_cycle() -> int:
 
 
 async def _procesar_cola(items: list[dict]) -> None:
-    """Abre una sesión de FinnegansSession y procesa las facturas una por una."""
+    """Procesa las facturas una por una REINICIANDO el navegador periódicamente.
+
+    Un solo navegador para todo el lote se degrada: si Finnegans cuelga a mitad de
+    camino (sesión expirada, modal trabado, iframe perdido) todas las facturas
+    siguientes fallan en cascada. Para evitarlo:
+      - Reinicio PREVENTIVO cada `RESTART_EVERY` facturas (estado 100% limpio).
+      - Reinicio REACTIVO + reintento cuando una carga falla por sesión rota
+        (detectado por el mensaje o por is_logged_in()), para no condenar al resto.
+    Cada factura: extrae (determinista) → carga → callback inmediato.
+    """
     from agent.flows.base import FinnegansSession
     from agent.main import cargar_una
 
     total = len(items)
+
     # `WORKER_EMPRESA or "Prueba"` es solo el default del constructor; cada flow
     # resuelve/override la empresa destino al inicio de su carga.
-    async with FinnegansSession(empresa=WORKER_EMPRESA or "Prueba", keep_open=False) as s:
+    async def _abrir() -> FinnegansSession:
+        s = FinnegansSession(empresa=WORKER_EMPRESA or "Prueba", keep_open=False)
+        await s.start()
+        return s
+
+    async def _cerrar(s: Optional[FinnegansSession]) -> None:
+        if s is not None:
+            try:
+                await s.close()
+            except Exception as e:  # noqa: BLE001
+                log(f"error cerrando el navegador: {e}")
+
+    session: Optional[FinnegansSession] = None
+    usadas = 0  # facturas cargadas con la sesión actual
+
+    async def _reiniciar(motivo: str) -> FinnegansSession:
+        nonlocal usadas
+        log(f"reiniciando navegador — {motivo}")
+        await _cerrar(session)
+        s = await _abrir()
+        usadas = 0
+        return s
+
+    try:
+        session = await _abrir()
         for i, item in enumerate(items, 1):
             factura_id = item["factura_id"]
             nombre = item.get("nombre_archivo")
             pdf_path = UPLOADS_DIR / nombre if nombre else None
+
+            # Reinicio PREVENTIVO del navegador cada RESTART_EVERY facturas.
+            if RESTART_EVERY > 0 and usadas >= RESTART_EVERY:
+                session = await _reiniciar(f"preventivo tras {usadas} factura(s)")
 
             post_callback({"factura_id": factura_id, "estado_carga": "cargando"})
 
@@ -115,8 +177,7 @@ async def _procesar_cola(items: list[dict]) -> None:
                 })
                 continue
 
-            # 1) Extracción (LLM). Bloquea el event loop pero no hay nada más que
-            #    correr en paralelo en este worker.
+            # 1) Extracción DETERMINISTA (sin IA). No usa el navegador.
             log(f"[{i}/{total}] {nombre}: extrayendo…")
             try:
                 datos = process_pdf(pdf_path)
@@ -134,16 +195,35 @@ async def _procesar_cola(items: list[dict]) -> None:
                     "factura_id": factura_id,
                     "estado_carga": "revision",
                     "tipo_flujo": tipo_flujo,
-                    "carga_error": "Requiere verificación manual.",
+                    "carga_error": datos.get("_error_extraccion") or "Requiere verificación manual.",
                 })
                 continue
 
             # 2) Carga en FinnegansGO reusando la sesión ya logueada.
             log(f"[{i}/{total}] {nombre} ({tipo_flujo}): cargando en FinnegansGO…")
             try:
-                carga = await cargar_una(datos, WORKER_EMPRESA, pdf_path, s)
+                carga = await cargar_una(datos, WORKER_EMPRESA, pdf_path, session)
             except Exception as e:  # noqa: BLE001
                 carga = {"exito": False, "mensaje": f"Error inesperado: {e}", "nro_interno": None}
+            usadas += 1
+
+            # Si FALLÓ por sesión/navegador roto (no por datos), reiniciar el
+            # navegador y reintentar ESTA factura una vez. Un descuadre de
+            # control-total NO entra acá (es revisión legítima).
+            if not carga.get("exito") and (
+                _parece_sesion_rota(carga) or not await session.is_logged_in()
+            ):
+                session = await _reiniciar("sesión rota tras fallo de carga")
+                log(f"[{i}/{total}] {nombre}: reintentando con navegador nuevo…")
+                try:
+                    carga = await cargar_una(datos, WORKER_EMPRESA, pdf_path, session)
+                except Exception as e:  # noqa: BLE001
+                    carga = {
+                        "exito": False,
+                        "mensaje": f"Error inesperado tras reinicio: {e}",
+                        "nro_interno": None,
+                    }
+                usadas += 1
 
             # 3) Callback inmediato con el resultado de ESTA factura.
             estado = _estado_carga_from_result(carga)
@@ -163,6 +243,8 @@ async def _procesar_cola(items: list[dict]) -> None:
                 "monto_total": str(monto) if monto is not None else None,
             })
             log(f"[{i}/{total}] {nombre}: {estado} — {carga.get('mensaje')}")
+    finally:
+        await _cerrar(session)
 
 
 def main() -> None:

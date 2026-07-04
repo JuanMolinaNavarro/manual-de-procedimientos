@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from datetime import date
 from pathlib import Path
 
@@ -27,9 +28,11 @@ COMPANIES_DIR = KNOWLEDGE_DIR / "companies"
 FLOWS_DIR = KNOWLEDGE_DIR / "flows"
 CENTROS_COSTO_PATH = KNOWLEDGE_DIR / "centros_costo.json"
 EMPRESAS_FINNEGANS_PATH = KNOWLEDGE_DIR / "empresas_finnegans.json"
+CATALOGO_FINNEGANS_PATH = KNOWLEDGE_DIR / "empresas_finnegans_catalogo.json"
 
 _CENTROS_COSTO_CACHE: dict | None = None
 _EMPRESAS_FINNEGANS_CACHE: dict | None = None
+_CATALOGO_FINNEGANS_CACHE: dict | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -129,6 +132,101 @@ def _load_empresas_finnegans() -> dict:
     return _EMPRESAS_FINNEGANS_CACHE
 
 
+def _load_catalogo_finnegans() -> dict:
+    global _CATALOGO_FINNEGANS_CACHE
+    if _CATALOGO_FINNEGANS_CACHE is None:
+        if CATALOGO_FINNEGANS_PATH.exists():
+            with open(CATALOGO_FINNEGANS_PATH, encoding="utf-8-sig") as f:
+                _CATALOGO_FINNEGANS_CACHE = json.load(f)
+        else:
+            _CATALOGO_FINNEGANS_CACHE = {"by_cuit": {}}
+    return _CATALOGO_FINNEGANS_CACHE
+
+
+def lookup_empresa_finnegans_by_cuit(cuit: str | None, nombre: str | None = None) -> str | None:
+    """Nombre EXACTO en FinnegansGO para un CUIT, desde el catálogo autoritativo.
+
+    Es la vía MÁS confiable para la empresa destino: el CUIT del cliente lo lee el
+    extractor de forma determinista y el catálogo tiene el nombre tal cual figura en
+    el modal "Seleccionar Empresa".
+
+    Si el CUIT mapea a MÁS de una empresa (colisión: p.ej. TAFI CABLE COLOR y MONTE
+    QUEMADO comparten 30-69714056-1), desambigua por `nombre` (comparación tolerante).
+    Si no se puede desambiguar, devuelve None (NO adivina) y el caller cae al lookup
+    por nombre. Devuelve None también si el CUIT no está en el catálogo.
+    """
+    if not cuit:
+        return None
+    entradas = _load_catalogo_finnegans().get("by_cuit", {}).get(_normalize_cuit(cuit), [])
+    if not entradas:
+        return None
+    if len(entradas) == 1:
+        return entradas[0]["nombre"]
+    # Colisión de CUIT: elegir la empresa cuyo nombre coincide con el cliente del PDF.
+    if nombre:
+        objetivo = _normalize_for_compare(nombre)
+        for e in entradas:
+            en = _normalize_for_compare(e["nombre"])
+            if objetivo and en and (objetivo == en or objetivo in en or en in objetivo):
+                return e["nombre"]
+    return None
+
+
+def _norm_header(nombre: str | None) -> str:
+    """Normaliza un nombre como lo hace el matcher del modal 'Seleccionar Empresa'
+    (FinnegansSession._normalize_empresa): quita acentos y Ñ→N, saca puntos y
+    espacios, mayúsculas. Que un nombre matchee el catálogo con esta norma implica
+    que select_empresa lo va a encontrar en el modal."""
+    if not nombre:
+        return ""
+    s = unicodedata.normalize("NFD", str(nombre))
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    s = re.sub(r"[.\s]+", "", s)
+    return s.upper()
+
+
+def _iter_catalogo_nombres():
+    for entradas in _load_catalogo_finnegans().get("by_cuit", {}).values():
+        for e in entradas:
+            yield e["nombre"]
+
+
+def lookup_empresa_finnegans_by_nombre(nombre: str | None) -> str | None:
+    """Nombre EXACTO del header para un NOMBRE de empresa (no CUIT), contra el
+    catálogo autoritativo. Se usa cuando solo se tiene un nombre — p.ej. la empresa
+    pagadora que viene del Excel, o el cliente cuando falta el CUIT.
+
+    Match tolerante estilo-header: exacto normalizado primero; si no, prefijo pero
+    SÓLO si es inequívoco (un único candidato), para no elegir la empresa equivocada
+    entre nombres parecidos (p.ej. 'COMPAÑIA DE SEÑALES IP' vs 'COMPAÑIA DE CIRCUITOS
+    CERRADO'). None si no hay match seguro."""
+    target = _norm_header(nombre)
+    if not target:
+        return None
+    nombres = list(_iter_catalogo_nombres())
+    for en in nombres:  # 1) exacto normalizado (inequívoco)
+        if _norm_header(en) == target:
+            return en
+    cands = []  # 2) prefijo, sólo si hay un único candidato
+    for en in nombres:
+        n = _norm_header(en)
+        corto, largo = (target, n) if len(target) <= len(n) else (n, target)
+        if len(corto) >= 6 and largo.startswith(corto):
+            cands.append(en)
+    return cands[0] if len(cands) == 1 else None
+
+
+def _empresa_header_o_aviso(empresa: str | None, log) -> str | None:
+    """Devuelve `empresa` avisando (auditoría) si NO está en el catálogo del header:
+    en ese caso select_empresa podría no encontrarla y la factura iría a revisión."""
+    if empresa and lookup_empresa_finnegans_by_nombre(empresa) is None:
+        log(
+            f"AVISO: la empresa resuelta '{empresa}' NO está en el catálogo del header "
+            f"(empresas_finnegans_catalogo.json); select_empresa podría no encontrarla."
+        )
+    return empresa
+
+
 def lookup_nombre_finnegans(nombre: str | None) -> str | None:
     """Devuelve el nombre EXACTO en FinnegansGO para un nombre de empresa que
     puede venir del PDF/Excel con variantes (sin la Ñ, sin puntos, etc.).
@@ -179,67 +277,76 @@ def resolve_empresa_finnegans(datos: dict, log=None) -> str | None:
     """Resuelve el nombre EXACTO de la empresa en FinnegansGO a la que se le
     carga esta factura.
 
+    Esta es la EMPRESA del header ("Seleccionar Empresa"), NO el Destinatario del
+    formulario (ese usa `_search_cliente`/`_expected_cliente` + el alias map, que es
+    otra grafía). Todos los caminos devuelven la grafía EXACTA del header vía el
+    catálogo autoritativo; el alias/nombre-crudo queda sólo como último recurso.
+
     Estrategia (en orden):
-      1) NUM_SERVICIO → si está en el Excel Y el TITULAR del Excel coincide
-         con el cliente del PDF → usar la empresa pagadora del Excel.
-         (Esto cubre casos "PAGA MR" donde cliente ≠ pagadora real.)
-      2) Si no hay NS válido o el TITULAR no coincide con el cliente
-         (probable error de extracción del LLM) → lookup por
-         cuit_cliente/cliente en el knowledge base de companies.
-      3) Último fallback: usar el nombre del cliente tal cual, vía el alias map.
+      1) NUM_SERVICIO → si el TITULAR del Excel coincide con el cliente del PDF →
+         empresa pagadora del Excel (cubre "PAGA MR", cliente ≠ pagador), llevada a
+         la grafía del header.
+      2) cuit_cliente → catálogo (vía más confiable; desambigua colisión TAFI/MONTE).
+      3) nombre del cliente → catálogo (si faltó/no matcheó el CUIT).
+      4) companies (legacy) → normalizado a la grafía del header.
+      5) último recurso: alias/nombre crudo (con AVISO si cae fuera del catálogo).
 
     Args:
         datos: dict con `numero_servicio`, `cliente`, `cuit_cliente`.
         log: callable opcional para mensajes informativos del trazado.
 
     Returns:
-        Nombre exacto de la empresa en FinnegansGO, o None si no se pudo resolver.
+        Nombre exacto de la empresa en el header de FinnegansGO, o None si no se pudo.
     """
     log = log or (lambda msg: None)
     ns = datos.get("numero_servicio")
     cliente = datos.get("cliente") or ""
     cuit_cliente = datos.get("cuit_cliente")
 
-    # 1) NS + cross-check con TITULAR
+    # 1) NS→pagadora (Excel): PRIORIDAD para "PAGA MR" (cliente ≠ pagador). El nombre
+    #    de la pagadora se lleva a la grafía EXACTA del header vía catálogo.
     pagadora_excel = lookup_empresa_pagadora(ns)
     titular_excel = lookup_titular(ns)
+    if pagadora_excel and _titular_matches_cliente(titular_excel, cliente):
+        empresa = (
+            lookup_empresa_finnegans_by_nombre(pagadora_excel)
+            or lookup_nombre_finnegans(pagadora_excel)
+            or pagadora_excel
+        )
+        log(f"empresa via NS Excel (PAGA): NS={ns}, pagadora={pagadora_excel!r} -> {empresa!r}")
+        return _empresa_header_o_aviso(empresa, log)
     if pagadora_excel:
-        if _titular_matches_cliente(titular_excel, cliente):
-            empresa = lookup_nombre_finnegans(pagadora_excel) or pagadora_excel
-            log(
-                f"empresa via NS Excel: NS={ns}, titular={titular_excel!r}, "
-                f"pagadora={pagadora_excel!r} -> {empresa!r}"
-            )
-            return empresa
-        # Mismatch: NS está en Excel pero el TITULAR no es el cliente del PDF.
-        # Probablemente el LLM extrajo el NS equivocado.
         log(
-            f"AVISO: NS={ns} en Excel mapea a TITULAR={titular_excel!r}, "
-            f"pero el cliente del PDF es {cliente!r}. El LLM probablemente "
-            f"extrajo mal el numero_servicio. Cayendo a lookup por cliente."
+            f"AVISO: NS={ns} en Excel mapea a TITULAR={titular_excel!r} != cliente "
+            f"{cliente!r}; se ignora la pagadora y se resuelve por CUIT/nombre."
         )
 
-    # 2) lookup por cliente en companies
+    # 2) cuit_cliente → CATÁLOGO (vía más confiable; grafía exacta del header).
+    exacto = lookup_empresa_finnegans_by_cuit(cuit_cliente, nombre=cliente)
+    if exacto:
+        log(f"empresa via catálogo (CUIT {cuit_cliente!r}, cliente {cliente!r}) -> {exacto!r}")
+        return exacto
+
+    # 3) nombre del cliente → CATÁLOGO (si faltó o no matcheó el CUIT).
+    exacto = lookup_empresa_finnegans_by_nombre(cliente)
+    if exacto:
+        log(f"empresa via catálogo (nombre {cliente!r}) -> {exacto!r}")
+        return exacto
+
+    # 4) companies (legacy): normalizar a la grafía del header vía catálogo si se puede.
     company = lookup_company(cuit=cuit_cliente, nombre=cliente)
     if company:
         nombre = company.get("nombre_finnegans") or company.get("razon_social")
         if nombre and nombre != "PENDIENTE_VERIFICAR":
-            # `nombre_finnegans` YA es el nombre EXACTO del modal "Seleccionar
-            # Empresa"; NO pasarlo por el alias, que lo reescribe a la forma de
-            # Destinatario (p.ej. CCC: 'CIRCUITOS CERRADO SA' -> 'CERRADOS S A',
-            # que el modal del header NO encuentra). El alias es para Destinatario.
-            empresa = nombre
-            log(
-                f"empresa via knowledge-companies: cuit={cuit_cliente!r}, "
-                f"cliente={cliente!r} -> company={nombre!r} -> {empresa!r}"
-            )
-            return empresa
+            empresa = lookup_empresa_finnegans_by_nombre(nombre) or nombre
+            log(f"empresa via companies: cuit={cuit_cliente!r} -> {nombre!r} -> {empresa!r}")
+            return _empresa_header_o_aviso(empresa, log)
 
-    # 3) último fallback: nombre raw del cliente via alias
+    # 5) último recurso: nombre del cliente por catálogo, alias o crudo (con AVISO).
     if cliente:
-        empresa = lookup_nombre_finnegans(cliente) or cliente
-        log(f"empresa via cliente raw (sin entry en companies/): {cliente!r} -> {empresa!r}")
-        return empresa
+        empresa = lookup_empresa_finnegans_by_nombre(cliente) or lookup_nombre_finnegans(cliente) or cliente
+        log(f"empresa via cliente (último recurso): {cliente!r} -> {empresa!r}")
+        return _empresa_header_o_aviso(empresa, log)
 
     log(
         f"NO se pudo resolver empresa: NS={ns!r}, cliente={cliente!r}, "

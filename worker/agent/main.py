@@ -14,14 +14,9 @@ import json
 import sys
 from pathlib import Path
 
-from .extractor import extract, pdf_to_b64_pngs, pdf_to_text
-from .reconciliation import (
-    completar_percepcion_iva_3pct,
-    hint_reconciliacion,
-    reconciliar_importes,
-)
+from .parsers import extract_deterministico
+from .reconciliation import reconciliar_importes
 from .knowledge_base import (
-    build_context_for_prompt,
     lookup_company,
     provider_for_flow,
     record_example,
@@ -30,37 +25,32 @@ from .knowledge_base import (
 )
 
 
-def _merge_no_destructivo(base: dict, nuevo: dict) -> dict:
-    """Devuelve `nuevo` conservando de `base` los campos que `nuevo` dejo vacios.
-
-    Si la nueva extraccion devolvio un campo None o "" pero la anterior tenia un
-    valor real, se conserva el de la anterior. Evita perder datos de ruteo
-    (cliente, cuit_cliente, numero_servicio) entre extracciones. NO toca listas ni
-    0/0.0 (valores legitimos, p.ej. percepciones_iibb=[] o un importe 0)."""
-    for k, v in base.items():
-        nv = nuevo.get(k)
-        if (nv is None or nv == "") and v not in (None, ""):
-            nuevo[k] = v
-    return nuevo
-
-
 def process_pdf(pdf_path: Path) -> dict:
     print(f"\nâ†’ Procesando: {pdf_path.name}", file=sys.stderr)
 
-    # Renderizamos imÃ¡genes Y extraemos texto una sola vez (extract se llama hasta 2 veces).
-    # Mandar ambas fuentes al modelo permite cross-checking de nÃºmeros (CUITs, importes,
-    # CAE) y mitiga errores de OCR de la imagen y de parsing del texto.
-    images = pdf_to_b64_pngs(pdf_path)
-    if not images:
-        raise ValueError(f"No se pudieron renderizar pÃ¡ginas del PDF: {pdf_path}")
-    text = pdf_to_text(pdf_path)
-    print(
-        f"   PDF: {len(images)} pÃ¡gina(s) renderizada(s) + {len(text)} chars de texto",
-        file=sys.stderr,
-    )
-
-    # 1. Primera extracciÃ³n sin contexto (necesaria para obtener cuit_emisor)
-    factura = extract(images, text=text)
+    # EXTRACCION DETERMINISTA (sin IA). El LLM fue REMOVIDO del pipeline: si ningun
+    # parser reconoce el formato, la factura se marca para REVISION manual — nunca se
+    # deriva a OpenAI. La reconciliacion y el control-total de Finnegans siguen siendo
+    # la red de seguridad contra un descuadre.
+    try:
+        factura = extract_deterministico(pdf_path)
+    except Exception as e:  # noqa: BLE001
+        print(f"   Parser determinista fallo: {e}", file=sys.stderr)
+        return {
+            "archivo": pdf_path.name,
+            "tipo_flujo": None,
+            "_estado": "revision",
+            "_error_extraccion": f"Parser determinista fallo: {e}",
+        }
+    if factura is None:
+        print("   Formato no reconocido por el extractor determinista (sin IA).", file=sys.stderr)
+        return {
+            "archivo": pdf_path.name,
+            "tipo_flujo": None,
+            "_estado": "revision",
+            "_error_extraccion": "Formato no reconocido por el extractor determinista.",
+        }
+    print(f"   Extraccion DETERMINISTA (sin IA): {factura.tipo_flujo}", file=sys.stderr)
     result = factura.model_dump()
 
     # 2. PROVEEDOR a partir del FLUJO elegido (no al reves).
@@ -91,14 +81,6 @@ def process_pdf(pdf_path: Path) -> dict:
     else:
         print(f"   Empresa propia: '{result.get('cliente')}' CUIT {result.get('cuit_cliente')} â€” NO encontrada", file=sys.stderr)
 
-    # 5. Re-extraer con el contexto del proveedor (mejora la precision de campos).
-    context = None
-    if provider:
-        context = build_context_for_prompt(provider)
-        base = result  # primera extraccion (clasificacion + datos ya leidos)
-        factura = extract(images, text=text, provider_context=context)
-        result = _merge_no_destructivo(base, factura.model_dump())
-
     # 6. Marcar el proveedor A PARTIR DEL FLUJO. Si por algun motivo el flujo no
     #    mapeo (no deberia con los flujos soportados), se cae al nombre crudo del
     #    LLM pero igual se marca 'listo' para no bloquear la carga.
@@ -111,49 +93,17 @@ def process_pdf(pdf_path: Path) -> dict:
     if provider:
         record_example(provider["id"], pdf_path.name, factura.tipo_flujo)
 
-    # 7. Reconciliacion deterministica de importes (NO bloquea: solo dispara un
-    #    reintento de extraccion con hint dirigido). Finnegans sigue siendo el
-    #    arbitro final del descuadre via su control de total.
+    # 7. Reconciliacion deterministica de importes (solo REPORTE/log). Ya no dispara
+    #    reintentos con IA: el extractor determinista es la unica fuente. El
+    #    control-total de Finnegans sigue siendo el arbitro final del descuadre.
     recon = reconciliar_importes(result, tipo_flujo)
     if recon and recon["necesita_retry"]:
         print(
-            f"   Descuadre detectado: suma={recon['esperado']:.2f} vs "
+            f"   AVISO: descuadre suma={recon['esperado']:.2f} vs "
             f"total={recon['monto_total']:.2f} (dif {recon['diff']:+.2f}). "
-            f"Reintentando extraccion con hint…",
+            f"Se intentara cargar; Finnegans validara el control de total.",
             file=sys.stderr,
         )
-        for etiqueta, aporte in recon.get("desglose", []):
-            print(f"      {etiqueta:<26} = {aporte:>14,.2f}", file=sys.stderr)
-        print(f"      {'TOTAL declarado':<26} = {recon['monto_total']:>14,.2f}", file=sys.stderr)
-        base = result
-        factura = extract(
-            images, text=text, provider_context=context, hint=hint_reconciliacion(recon)
-        )
-        result = _merge_no_destructivo(base, factura.model_dump())
-        # Reponer metadatos (no vienen del schema del extractor).
-        for k in ("_provider_id", "_nombre_finnegans", "_proveedor_nombre", "_estado"):
-            result[k] = base.get(k)
-        recon = reconciliar_importes(result, tipo_flujo)
-        if recon and recon["necesita_retry"]:
-            print(
-                f"   AVISO: tras el reintento sigue sin cuadrar "
-                f"(dif {recon['diff']:+.2f}). Se intentara cargar igual; "
-                f"Finnegans validara el control de total.",
-                file=sys.stderr,
-            )
-        else:
-            print("   Reintento OK: los importes ahora cuadran.", file=sys.stderr)
-
-    # Backstop determinístico (recaudación): si tras el reintento falta exactamente
-    # ~3% del subtotal, es la confusión CABA-IIBB == RG3337 (mismo importe). Se
-    # completa el lado ausente sin depender del LLM.
-    if recon and recon.get("necesita_retry") and completar_percepcion_iva_3pct(result, recon):
-        print(
-            "   Backstop 3%: se completó la percepción de 3% faltante "
-            "(CABA IIBB / RG3337).",
-            file=sys.stderr,
-        )
-        recon = reconciliar_importes(result, tipo_flujo)
     result["_reconciliacion"] = recon
 
     # Empresa propia DESTINO (la que el flow resolverá por NUM_SERVICIO / cliente

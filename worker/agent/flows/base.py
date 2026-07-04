@@ -166,6 +166,43 @@ class FinnegansSession:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, input)
 
+    async def start(self) -> "FinnegansSession":
+        """Abre el navegador y hace login (equivalente a __aenter__). Pensado para
+        uso imperativo cuando el caller maneja el ciclo de vida a mano — p.ej. para
+        REINICIAR el navegador entre facturas y evitar el arrastre de una sesión
+        degradada (ver runner._procesar_cola)."""
+        return await self.__aenter__()
+
+    async def close(self) -> None:
+        """Cierra el navegador (equivalente a __aexit__ sin excepción)."""
+        await self.__aexit__(None, None, None)
+
+    async def is_logged_in(self) -> bool:
+        """Chequeo BARATO (~ms) de sesión sana: el shell de FinnegansGO está montado
+        (header de empresa con texto) y NO estamos en la pantalla de login. Sirve
+        para detectar una sesión muerta y disparar el reinicio del navegador, en vez
+        de gastar minutos en los timeouts de select_empresa. Tolera un parpadeo del
+        header (reintenta una vez tras 500 ms) para no reiniciar de más."""
+        for intento in range(2):
+            try:
+                url = (self.page.url or "").lower()
+            except Exception:
+                return False
+            if "login" in url:
+                return False
+            try:
+                header = await self.get_header_empresa()
+            except Exception:
+                header = None
+            if header:
+                return True
+            if intento == 0:
+                try:
+                    await self.page.wait_for_timeout(500)
+                except Exception:
+                    return False
+        return False
+
     # ------------------------------------------------------------------
     # Login
     # ------------------------------------------------------------------

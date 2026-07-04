@@ -1,0 +1,159 @@
+{
+  "descripcion": "Catalogo AUTORITATIVO de empresas en FinnegansGO (nombre EXACTO, id interno, CUIT). Fuente de verdad para resolver la empresa destino por cuit_cliente. by_cuit puede tener >1 empresa por CUIT (colision, p.ej. TAFI y MONTE QUEMADO comparten 30-69714056-1): desambiguar por nombre.",
+  "by_cuit": {
+    "30717623823": [
+      {
+        "id": "20",
+        "nombre": "7 COLORES S.A.S."
+      }
+    ],
+    "30716915332": [
+      {
+        "id": "24",
+        "nombre": "AIRES DE QUILMES SAS"
+      }
+    ],
+    "27358074990": [
+      {
+        "id": "17",
+        "nombre": "BELEN OLARTE - Registro Automotor N°5"
+      }
+    ],
+    "30612790813": [
+      {
+        "id": "33",
+        "nombre": "COMPAÑIA DE CIRCUITOS CERRADO SA"
+      }
+    ],
+    "30711961891": [
+      {
+        "id": "10",
+        "nombre": "COMPAÑIA DE SEÑALES IP SA"
+      }
+    ],
+    "30709922714": [
+      {
+        "id": "4",
+        "nombre": "CONAR S.A."
+      }
+    ],
+    "30716216000": [
+      {
+        "id": "26",
+        "nombre": "FIBRA DEL VALLE SAS"
+      }
+    ],
+    "30712045406": [
+      {
+        "id": "16",
+        "nombre": "FIBRA HOGAR SA"
+      }
+    ],
+    "30717915123": [
+      {
+        "id": "31",
+        "nombre": "FORMEDIA S.A.S"
+      }
+    ],
+    "30718146859": [
+      {
+        "id": "28",
+        "nombre": "GO PAY SAS"
+      }
+    ],
+    "30702376722": [
+      {
+        "id": "7",
+        "nombre": "GRUPO ARTE S.A."
+      }
+    ],
+    "20147334509": [
+      {
+        "id": "15",
+        "nombre": "GUSTAVO ANIBAL GABRIEL OLARTE"
+      }
+    ],
+    "30717888525": [
+      {
+        "id": "25",
+        "nombre": "INTER S.A.S - PROSPERO"
+      }
+    ],
+    "30697140561": [
+      {
+        "id": "13",
+        "nombre": "MONTE QUEMADO CABLE COLOR SA"
+      },
+      {
+        "id": "9",
+        "nombre": "TAFI CABLE COLOR SA"
+      }
+    ],
+    "30709635480": [
+      {
+        "id": "EMPRE01",
+        "nombre": "MULTIMEDIOS REGIONAL S.A"
+      }
+    ],
+    "30567438410": [
+      {
+        "id": "34",
+        "nombre": "NSTITUTO 9 DE JULIO INST PRIVADO INCORPORADO A LA ENSENANZA OFICIAL SRL"
+      }
+    ],
+    "30717971872": [
+      {
+        "id": "32",
+        "nombre": "OPERADORA DE MEDIOS SAS"
+      }
+    ],
+    "30714140252": [
+      {
+        "id": "5",
+        "nombre": "PROVIDERS SA"
+      }
+    ],
+    "30716255529": [
+      {
+        "id": "1",
+        "nombre": "PRUEBA"
+      }
+    ],
+    "30716118858": [
+      {
+        "id": "8",
+        "nombre": "REDES Y MEDIOS S.A.S."
+      }
+    ],
+    "33710074599": [
+      {
+        "id": "12",
+        "nombre": "SALTA CABLE COLOR S.A."
+      }
+    ],
+    "30717598454": [
+      {
+        "id": "3",
+        "nombre": "TECNOVUS SAS"
+      }
+    ],
+    "30712110097": [
+      {
+        "id": "18",
+        "nombre": "TUCUMAN COMUNICACIONES SA"
+      }
+    ],
+    "30715310542": [
+      {
+        "id": "30",
+        "nombre": "Tartagal Comunicaciones S.A."
+      }
+    ],
+    "30716135892": [
+      {
+        "id": "6",
+        "nombre": "VALLE MEDIOS S.A.S"
+      }
+    ]
+  }
+}
