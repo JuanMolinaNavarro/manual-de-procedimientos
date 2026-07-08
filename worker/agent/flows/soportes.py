@@ -338,8 +338,6 @@ async def cargar_arrendamiento_soportes(
         _log(f"  {k} = {datos.get(k)!r}")
     if datos.get("monto_total") in (None, 0, 0.0):
         _log("AVISO: monto_total vacío o 0 → no se va a setear el Total de Control")
-    if not datos.get("fecha_vencimiento"):
-        _log("AVISO: fecha_vencimiento vacío → no se va a setear la Fecha en las retenciones")
 
     async def _work(s: FinnegansSession) -> dict:
         """El trabajo real. Asume que `s` ya hizo login.
@@ -405,23 +403,12 @@ async def cargar_arrendamiento_soportes(
             )
 
         # ====================== RETENCIONES / PERCEPCIONES ======================
-        # Fecha de la retención = fecha_vencimiento, PERO Finnegans rechaza
-        # ("Fecha no permitida") cuando la retención queda anterior a la fecha
-        # de registro del comprobante (típico cuando la factura es del mes
-        # pasado y vencimiento < 30 → wdg_Fecha=último día del mes, vencimiento
-        # cae antes). Se clampa a fecha_registro como mínimo.
+        # Fecha de la percepción/retención = FECHA DE REGISTRO contable (la misma
+        # que wdg_Fecha). NO se usa el vencimiento del CAE: para facturas de fin de
+        # mes ese vencimiento cae en el mes siguiente y registraría la percepción en
+        # el período equivocado (p.ej. una factura de junio quedaría en julio).
         fecha_registro = _compute_fecha_registro(datos["fecha_emision"])
-        fecha_venc = None
-        if datos.get("fecha_vencimiento"):
-            fecha_venc_pdf = date.fromisoformat(str(datos["fecha_vencimiento"])[:10])
-            fecha_venc = max(fecha_venc_pdf, fecha_registro)
-            if fecha_venc != fecha_venc_pdf:
-                _log(
-                    f"AVISO: fecha_vencimiento {fecha_venc_pdf.isoformat()} es anterior a "
-                    f"fecha_registro {fecha_registro.isoformat()} → se usa "
-                    f"{fecha_venc.isoformat()} para las retenciones (sino Finnegans "
-                    f"rechaza con 'Fecha no permitida')."
-                )
+        fecha_venc = fecha_registro
 
         await s.click_tab("Retenciones / Percepciones")
 

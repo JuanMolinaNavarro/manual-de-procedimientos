@@ -636,10 +636,11 @@ async def cargar_gire(
 
         # Retenciones / Percepciones
         fecha_registro = _compute_fecha_registro(datos["fecha_emision"])
-        fecha_venc = None
-        if datos.get("fecha_vencimiento"):
-            fv = date.fromisoformat(str(datos["fecha_vencimiento"])[:10])
-            fecha_venc = max(fv, fecha_registro)
+        # Fecha de la percepción/retención = FECHA DE REGISTRO contable (la misma
+        # que wdg_Fecha). NO se usa el vencimiento del CAE: para facturas de fin de
+        # mes ese vencimiento cae en el mes siguiente y registraría la percepción en
+        # el período equivocado (p.ej. una factura de junio quedaría en julio).
+        fecha_venc = fecha_registro
         await s.click_tab("Retenciones / Percepciones")
 
         # Percepciones IIBB por jurisdiccion. Fuente de verdad UNICA: la lista

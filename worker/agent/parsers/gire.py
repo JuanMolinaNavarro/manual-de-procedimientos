@@ -79,7 +79,12 @@ def parse_gire(words, text: str) -> FacturaRecaudacion:
         cliente=_cliente(lineas),
         cuit_cliente=_cuit_cliente(lineas),
         fecha_emision=_fecha_emision(lineas) or "",
-        fecha_vencimiento=_fecha_vto_cae(lineas),  # GIRE no trae vto de factura aparte
+        # GIRE NO tiene fecha de vencimiento de comprobante: sólo existe el
+        # vencimiento del CAE (va en fecha_vencimiento_cae). Antes se copiaba acá el
+        # vto del CAE, lo que hacía que la percepción se registrara en el mes del CAE
+        # (julio) en vez del período contable (junio). La fecha de la retención ahora
+        # la maneja el flow con la fecha de registro; este campo queda en None.
+        fecha_vencimiento=None,
         concepto=_concepto(lineas),
         subtotal_gravado=subtotal if subtotal is not None else 0.0,
         percepcion_rg3337=percepcion_rg3337,
