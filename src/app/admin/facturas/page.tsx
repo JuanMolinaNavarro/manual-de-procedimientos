@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Trash2, FileText, Upload, RefreshCw, ChevronLeft, ChevronRight, X, Download } from 'lucide-react';
+import { Trash2, FileText, Upload, RefreshCw, RotateCcw, ChevronLeft, ChevronRight, X, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -200,6 +200,7 @@ export default function FacturasPage() {
   const [dateFilter, setDateFilter] = useState<DateFilter>('todas');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todas');
   const [errorDialog, setErrorDialog] = useState<{ nombre: string; mensaje: string } | null>(null);
+  const [retrying, setRetrying] = useState<Set<number>>(() => new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -308,6 +309,34 @@ export default function FacturasPage() {
       setFacturas((prev) => prev.filter((f) => f.id !== id));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al eliminar factura');
+    }
+  }
+
+  // Reintenta la carga de una factura en Error: la vuelve a 'pendiente' para que
+  // el worker la retome. Actualiza la fila al instante y arranca el polling.
+  async function handleRetry(id: number) {
+    if (retrying.has(id)) return;
+    setRetrying((prev) => new Set(prev).add(id));
+    try {
+      const res = await fetch(`/api/admin/facturas/${id}/reintentar`, { method: 'POST' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? 'Error al reintentar la carga');
+      }
+      setFacturas((prev) =>
+        prev.map((f) =>
+          f.id === id ? { ...f, estado_carga: 'pendiente', carga_error: null } : f,
+        ),
+      );
+      startPolling();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al reintentar la carga');
+    } finally {
+      setRetrying((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   }
 
@@ -466,7 +495,7 @@ export default function FacturasPage() {
                 <TableHead>Emisión</TableHead>
                 <TableHead>Nº Finnegans</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead className="w-[88px] text-right">Acciones</TableHead>
+                <TableHead className="w-[120px] text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -531,6 +560,19 @@ export default function FacturasPage() {
                             <FileText className="h-4 w-4" />
                           </a>
                         </Button>
+                        {(f.estado_carga === 'error' || f.estado_carga === 'revision') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRetry(f.id)}
+                            disabled={retrying.has(f.id)}
+                            title="Reintentar carga"
+                          >
+                            <RotateCcw
+                              className={`h-4 w-4 ${retrying.has(f.id) ? 'animate-spin' : ''}`}
+                            />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"

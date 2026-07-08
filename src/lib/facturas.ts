@@ -148,6 +148,34 @@ export async function applyCargaResultado(
   }
 }
 
+/**
+ * Reintenta la carga de una factura que quedó en `error`/`revision`: la vuelve a
+ * `pendiente` para que el worker la retome en su próximo ciclo, limpiando el
+ * resultado del intento anterior. Devuelve la factura actualizada, o `null` si el
+ * estado actual no es reintentable (no está en Error) o falla la actualización.
+ */
+export async function retryFacturaCarga(id: number): Promise<Factura | null> {
+  try {
+    const actual = await prisma.factura.findUnique({ where: { id } });
+    if (!actual) return null;
+    if (actual.estado_carga !== 'error' && actual.estado_carga !== 'revision') {
+      return null;
+    }
+    const row = await prisma.factura.update({
+      where: { id },
+      data: {
+        estado_carga: 'pendiente',
+        carga_error: null,
+        finnegans_numero_interno: null,
+        carga_at: null,
+      },
+    });
+    return row as unknown as Factura;
+  } catch {
+    return null;
+  }
+}
+
 export async function deleteFactura(id: number): Promise<boolean> {
   try {
     await prisma.factura.delete({ where: { id } });
