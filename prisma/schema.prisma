@@ -21,6 +21,9 @@ model PadronAbonado {
   domicilio           String?
   domicilio_info_adic String?
   documento_numero    String?
+  // "Importe Saldo Comprobantes" del Excel. Decimal (no String) porque es dinero:
+  // admite negativos (notas de crédito) y permite ordenar/filtrar por importe.
+  saldo               Decimal? @db.Decimal(14, 2)
   created_at          DateTime @default(now())
 
   @@index([empresa, documento_numero])

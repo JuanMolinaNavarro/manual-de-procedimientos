@@ -15,7 +15,13 @@ interface PadronItem {
   domicilio: string | null;
   domicilio_info_adic: string | null;
   documento_numero: string | null;
+  saldo: number | null;
 }
+
+const formatSaldo = (v: number | null) =>
+  v === null
+    ? '—'
+    : v.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 });
 
 interface Resultado {
   total: number;
@@ -273,6 +279,7 @@ export default function PadronPage() {
                           <th className="px-3 py-2 font-medium">Domicilio</th>
                           <th className="px-3 py-2 font-medium">Info adic.</th>
                           <th className="px-3 py-2 font-medium">Documento</th>
+                          <th className="px-3 py-2 text-right font-medium">Saldo</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -284,6 +291,13 @@ export default function PadronPage() {
                             <td className="px-3 py-2 text-foreground">{it.domicilio ?? '—'}</td>
                             <td className="px-3 py-2 text-muted-foreground">{it.domicilio_info_adic ?? '—'}</td>
                             <td className="px-3 py-2 tabular-nums text-foreground">{it.documento_numero ?? '—'}</td>
+                            <td
+                              className={`px-3 py-2 text-right tabular-nums ${
+                                it.saldo ? 'font-medium text-foreground' : 'text-muted-foreground'
+                              }`}
+                            >
+                              {formatSaldo(it.saldo)}
+                            </td>
                           </tr>
                         ))}
                       </tbody>

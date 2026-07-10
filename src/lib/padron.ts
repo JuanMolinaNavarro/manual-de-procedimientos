@@ -24,6 +24,22 @@ function toStr(v: unknown): string | null {
   return t === '' ? null : t;
 }
 
+/**
+ * El saldo llega como texto en formato es-AR: coma decimal, sin separador de
+ * miles y con el signo adelante ("0,00", "131050,00", "-51,87"). Devuelve la
+ * notación canónica ("-51.87") como string para que Prisma la castee a Decimal
+ * sin pasar por un float intermedio. Si aparecieran ambos separadores
+ * ("1.234,56"), el punto es de miles.
+ */
+function toDecimalStr(v: unknown): string | null {
+  const s = toStr(v);
+  if (s === null) return null;
+  const normalizado = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s;
+  const limpio = normalizado.replace(/[^\d.-]/g, '');
+  if (limpio === '' || !Number.isFinite(Number(limpio))) return null;
+  return limpio;
+}
+
 interface PadronRowInput {
   empresa: string;
   codigo: string | null;
@@ -32,12 +48,16 @@ interface PadronRowInput {
   domicilio: string | null;
   domicilio_info_adic: string | null;
   documento_numero: string | null;
+  saldo: string | null;
 }
 
 /**
  * Reemplaza el padrón de UNA empresa con el contenido del Excel.
  * Estructura esperada (fila 1 = encabezado):
- *   Codigo | NombreCompleto | Estado Cod. | Dom. Inst. | Dom.Inst.info.Adic | Documento Numero
+ *   Codigo | NombreCompleto | Estado Cod. | Dom. Inst. | Dom.Inst.info.Adic |
+ *   Documento Numero | Importe Saldo Comprobantes
+ * La última columna es opcional: los padrones exportados antes de que existiera
+ * se cargan con `saldo` en null.
  */
 export async function cargarPadronDesdeBuffer(
   empresa: string,
@@ -78,6 +98,7 @@ export async function cargarPadronDesdeBuffer(
         domicilio: toStr(v[4]),
         domicilio_info_adic: toStr(v[5]),
         documento_numero: documento,
+        saldo: toDecimalStr(v[7]),
       });
       if (batch.length >= BATCH) await flush();
     }
@@ -119,7 +140,7 @@ export async function buscarPadron(params: BusquedaPadronParams, pageSize = 10) 
   const where: Prisma.PadronAbonadoWhereInput = { AND: and };
   const page = Math.max(1, params.page ?? 1);
 
-  const [total, items] = await Promise.all([
+  const [total, filas] = await Promise.all([
     prisma.padronAbonado.count({ where }),
     prisma.padronAbonado.findMany({
       where,
@@ -128,6 +149,10 @@ export async function buscarPadron(params: BusquedaPadronParams, pageSize = 10) 
       orderBy: { nombre_completo: 'asc' },
     }),
   ]);
+
+  // Prisma devuelve `saldo` como Decimal; lo pasamos a number para que la ruta
+  // lo serialice como número JSON y no como objeto.
+  const items = filas.map((f) => ({ ...f, saldo: f.saldo === null ? null : f.saldo.toNumber() }));
 
   return { total, items, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
 }
