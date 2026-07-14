@@ -31,6 +31,22 @@ model PadronAbonado {
   @@map("padron_abonados")
 }
 
+// KML del "Mapa de abonados" exportado desde Google My Maps (privado).
+// Se guarda el contenido como texto (un único mapa global, id "global") y se
+// renderiza dentro del panel admin con Leaflet, sin exponer el mapa
+// públicamente. Reemplaza al iframe embebido de My Maps, que exigía compartir
+// el mapa como "cualquiera con el enlace".
+model MapaAbonadosKml {
+  id              String   @id @default("global")
+  nombre_archivo  String
+  contenido       String   @db.Text
+  actualizado_por String?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  @@map("mapa_abonados_kml")
+}
+
 model Bonificacion {
   id             Int      @id @default(autoincrement())
   empresa        String

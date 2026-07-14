@@ -1,11 +1,29 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EMPRESAS } from '@/lib/empresas';
+
+// Leaflet accede a `window`, así que el mapa solo se renderiza en el cliente.
+const MapaAbonados = dynamic(() => import('@/components/MapaAbonados'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-[480px] w-full items-center justify-center rounded-md border border-dashed border-border bg-muted/30 text-sm text-muted-foreground">
+      Cargando mapa…
+    </div>
+  ),
+});
+
+interface MapaMeta {
+  exists: boolean;
+  nombre_archivo: string | null;
+  actualizado_por: string | null;
+  updated_at: string | null;
+}
 
 interface PadronItem {
   id: number;
@@ -56,6 +74,14 @@ export default function PadronPage() {
   const [result, setResult] = useState<Resultado | null>(null);
   const [activeQuery, setActiveQuery] = useState<Query | null>(null);
 
+  // Mapa de abonados (KML privado)
+  const [mapaMeta, setMapaMeta] = useState<MapaMeta | null>(null);
+  const [mapaKey, setMapaKey] = useState(0);
+  const [kmlUploading, setKmlUploading] = useState(false);
+  const [kmlMsg, setKmlMsg] = useState('');
+  const [kmlError, setKmlError] = useState('');
+  const kmlFileRef = useRef<HTMLInputElement>(null);
+
   const refreshCounts = async () => {
     try {
       const res = await fetch('/api/admin/padron/cargar');
@@ -65,9 +91,45 @@ export default function PadronPage() {
     }
   };
 
+  const refreshMapaMeta = async () => {
+    try {
+      const res = await fetch('/api/admin/padron/mapa');
+      if (res.ok) setMapaMeta((await res.json()) as MapaMeta);
+    } catch {
+      /* noop */
+    }
+  };
+
   useEffect(() => {
     refreshCounts();
+    refreshMapaMeta();
   }, []);
+
+  const subirKml = async () => {
+    const file = kmlFileRef.current?.files?.[0];
+    setKmlMsg('');
+    setKmlError('');
+    if (!file) {
+      setKmlError('Elegí un archivo .kml.');
+      return;
+    }
+    setKmlUploading(true);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const res = await fetch('/api/admin/padron/mapa', { method: 'POST', body });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'No se pudo actualizar el mapa.');
+      setMapaMeta(data as MapaMeta);
+      setMapaKey((k) => k + 1); // fuerza la recarga del mapa
+      setKmlMsg('Mapa actualizado.');
+      if (kmlFileRef.current) kmlFileRef.current.value = '';
+    } catch (err) {
+      setKmlError(err instanceof Error ? err.message : 'Error inesperado.');
+    } finally {
+      setKmlUploading(false);
+    }
+  };
 
   // Al cambiar de empresa, limpiamos la búsqueda previa.
   const onEmpresaChange = (value: string) => {
@@ -328,6 +390,60 @@ export default function PadronPage() {
                   </div>
                 </>
               )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Mapa de abonados (KML privado exportado de My Maps) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Mapa de abonados</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <MapaAbonados recargarKey={mapaKey} />
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <input
+              ref={kmlFileRef}
+              type="file"
+              accept=".kml"
+              className="block w-full text-sm text-foreground file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-2 file:text-sm file:text-foreground hover:file:bg-accent"
+            />
+            <Button onClick={subirKml} disabled={kmlUploading} className="shrink-0">
+              {kmlUploading ? 'Subiendo…' : 'Actualizar mapa'}
+            </Button>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Exportá tu mapa desde <span className="font-medium text-foreground">Google My Maps</span>{' '}
+            (menú <span className="font-medium text-foreground">⋮ → “Exportar a KML/KMZ”</span>,
+            tildando <span className="font-medium text-foreground">“Exportar a un archivo .KML”</span>)
+            y subí el archivo acá. Se guarda en la base y se muestra solo dentro del panel: el mapa de
+            My Maps puede quedar privado, sin compartir con “cualquiera con el enlace”.
+          </p>
+
+          {mapaMeta?.exists && (
+            <p className="text-xs text-muted-foreground">
+              Última actualización:{' '}
+              <span className="font-medium text-foreground">
+                {mapaMeta.updated_at
+                  ? new Date(mapaMeta.updated_at).toLocaleString('es-AR')
+                  : '—'}
+              </span>
+              {mapaMeta.nombre_archivo ? ` · ${mapaMeta.nombre_archivo}` : ''}
+              {mapaMeta.actualizado_por ? ` · por ${mapaMeta.actualizado_por}` : ''}
+            </p>
+          )}
+
+          {kmlMsg && (
+            <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
+              {kmlMsg}
+            </div>
+          )}
+          {kmlError && (
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              {kmlError}
             </div>
           )}
         </CardContent>
