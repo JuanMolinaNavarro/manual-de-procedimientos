@@ -29,7 +29,7 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       SITE_USER: ${SITE_USER}
       SITE_PASSWORD: ${SITE_PASSWORD}
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/manualcall
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/manualcall
       OMDB_API_KEY: ${OMDB_API_KEY}
       FANART_API_KEY: ${FANART_API_KEY}
       MWPROXY_BASE_URL: ${MWPROXY_BASE_URL}
@@ -55,7 +55,7 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       SITE_USER: ${SITE_USER}
       SITE_PASSWORD: ${SITE_PASSWORD}
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/manualcall
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}:5432/manualcall
       OMDB_API_KEY: ${OMDB_API_KEY}
       FANART_API_KEY: ${FANART_API_KEY}
       MWPROXY_BASE_URL: ${MWPROXY_BASE_URL}
