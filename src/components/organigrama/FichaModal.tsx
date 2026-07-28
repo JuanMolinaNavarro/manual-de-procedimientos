@@ -36,6 +36,7 @@ import type {
 const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 import { fotoUrl, iniciales } from './EmpleadoNode';
 import { resizeImageTo } from './image';
+import ProyectosDelEmpleado, { useProyectosDeEmpleado } from './ProyectosDelEmpleado';
 
 interface FichaModalProps {
   empleado: OrgEmpleado | null;
@@ -131,6 +132,11 @@ export default function FichaModal({
   );
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Proyectos del módulo Proyectos y finanzas en los que participa la persona.
+  // Se pide acá (y no en la pestaña) porque el resultado define si la pestaña
+  // se muestra: en modo lectura las vacías se ocultan.
+  const estadoProyectos = useProyectosDeEmpleado(empleado?.id ?? null, open && !creating);
+
   useEffect(() => {
     setForm(creating ? blankEmpleado(defaultArea) : empleado);
     setEdit(canEdit ? (creating ? true : Boolean(startInEdit)) : false);
@@ -185,7 +191,11 @@ export default function FichaModal({
       full: hasItems(emp.hard_skills) || hasItems(emp.soft_skills) || hasList(emp.skills),
     },
     { value: 'exp', label: 'Experiencia', full: hasItems(emp.experiencia) },
-    { value: 'proy', label: 'Proyectos', full: hasList(emp.projects) },
+    {
+      value: 'proy',
+      label: 'Proyectos',
+      full: hasList(emp.projects) || (estadoProyectos.proyectos ?? []).length > 0,
+    },
     {
       value: 'mas',
       label: 'Más Info',
@@ -545,8 +555,14 @@ export default function FichaModal({
                       <ExperienciaEditor items={emp.experiencia} edit={edit} onChange={(v) => set('experiencia', v)} />
                     </TabsContent>
 
-                    <TabsContent value="proy" className="mt-0">
-                      <StringList title="Proyectos" items={emp.projects} edit={edit} onChange={(v) => set('projects', v)} />
+                    <TabsContent value="proy" className="mt-0 space-y-5">
+                      <div className="space-y-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          Proyectos asignados
+                        </p>
+                        <ProyectosDelEmpleado {...estadoProyectos} />
+                      </div>
+                      <StringList title="Otros proyectos (nota libre)" items={emp.projects} edit={edit} onChange={(v) => set('projects', v)} />
                     </TabsContent>
 
                     <TabsContent value="mas" className="mt-0">

@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { isAdmin } from '@/lib/admin-auth';
 import { getConfig, getProyectoById } from '@/lib/proyectos';
+import { getAllEmpleados } from '@/lib/organigrama';
 import ProyectoDetalle from '@/components/proyectos/ProyectoDetalle';
 
 export const dynamic = 'force-dynamic';
@@ -14,9 +15,10 @@ export default async function ProyectoDetallePage({
   const proyectoId = Number(id);
   if (Number.isNaN(proyectoId)) notFound();
 
-  const [proyecto, config, puedeEditar] = await Promise.all([
+  const [proyecto, config, empleados, puedeEditar] = await Promise.all([
     getProyectoById(proyectoId),
     getConfig(),
+    getAllEmpleados(),
     isAdmin(),
   ]);
   if (!proyecto) notFound();
@@ -25,6 +27,7 @@ export default async function ProyectoDetallePage({
     <ProyectoDetalle
       proyectoInicial={proyecto}
       configInicial={config}
+      empleados={empleados.map((e) => ({ id: e.id, nombre: e.nombre, rol: e.rol }))}
       puedeEditar={puedeEditar}
     />
   );

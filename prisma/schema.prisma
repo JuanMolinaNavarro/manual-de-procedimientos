@@ -364,6 +364,11 @@ model OrgEmpleado {
   manager      OrgEmpleado?  @relation("OrgJerarquia", fields: [manager_id], references: [id], onDelete: SetNull)
   subordinados OrgEmpleado[] @relation("OrgJerarquia")
 
+  // Proyectos y finanzas: de qué está a cargo esta persona. Alimenta la pestaña
+  // "Proyectos" de su ficha en el organigrama.
+  proyectos_a_cargo Proyecto[]      @relation("ProyectoResponsable")
+  etapas_a_cargo    ProyectoEtapa[] @relation("EtapaResponsable")
+
   created_by String?
   updated_by String?
   created_at DateTime @default(now())
@@ -412,7 +417,10 @@ model Proyecto {
   id           Int     @id @default(autoincrement())
   nombre       String
   descripcion  String?
-  responsable  String?
+  // Responsable: `responsable_id` apunta al organigrama y tiene precedencia;
+  // `responsable` es el texto libre de respaldo para gente que no está ahí.
+  responsable    String?
+  responsable_id Int?
   // planificado | en_curso | pausado | terminado | cancelado
   estado       String  @default("planificado")
   fecha_inicio String // ISO yyyy-mm-dd
@@ -431,9 +439,11 @@ model Proyecto {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  costos ProyectoCosto[]
-  etapas ProyectoEtapa[]
+  costos          ProyectoCosto[]
+  etapas          ProyectoEtapa[]
+  responsable_emp OrgEmpleado?    @relation("ProyectoResponsable", fields: [responsable_id], references: [id], onDelete: SetNull)
 
+  @@index([responsable_id])
   @@map("proyectos")
 }
 
@@ -462,7 +472,9 @@ model ProyectoEtapa {
   id            Int     @id @default(autoincrement())
   proyecto_id   Int
   nombre        String
-  responsable   String?
+  // Ídem Proyecto: el vínculo al organigrama tiene precedencia sobre el texto.
+  responsable    String?
+  responsable_id Int?
   fecha_inicio  String // ISO yyyy-mm-dd
   duracion_dias Int     @default(15)
   // Etapa de la que depende: moverla arrastra a sus dependientes en cascada.
@@ -471,12 +483,14 @@ model ProyectoEtapa {
   avance        Int     @default(0) // 0–100 %
   orden         Int     @default(0)
 
-  proyecto     Proyecto        @relation(fields: [proyecto_id], references: [id], onDelete: Cascade)
-  dep          ProyectoEtapa?  @relation("EtapaDep", fields: [dep_id], references: [id], onDelete: SetNull)
-  dependientes ProyectoEtapa[] @relation("EtapaDep")
-  costos       ProyectoCosto[]
+  proyecto        Proyecto        @relation(fields: [proyecto_id], references: [id], onDelete: Cascade)
+  dep             ProyectoEtapa?  @relation("EtapaDep", fields: [dep_id], references: [id], onDelete: SetNull)
+  dependientes    ProyectoEtapa[] @relation("EtapaDep")
+  costos          ProyectoCosto[]
+  responsable_emp OrgEmpleado?    @relation("EtapaResponsable", fields: [responsable_id], references: [id], onDelete: SetNull)
 
   @@index([proyecto_id])
+  @@index([responsable_id])
   @@map("proyecto_etapas")
 }
 

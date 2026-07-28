@@ -17,15 +17,17 @@ import {
   type Proyecto,
 } from '@/lib/proyectos-calc';
 import InfoHint from './InfoHint';
+import ResponsableSelect, { type EmpleadoOpcion } from './ResponsableSelect';
 import type { AccionesProyecto } from './ProyectoDetalle';
 
 interface Props {
   proyecto: Proyecto;
+  empleados: EmpleadoOpcion[];
   puedeEditar: boolean;
   acciones: AccionesProyecto;
 }
 
-export default function TabCronograma({ proyecto, puedeEditar, acciones }: Props) {
+export default function TabCronograma({ proyecto, empleados, puedeEditar, acciones }: Props) {
   const [selId, setSelId] = useState<number | null>(null);
   const seleccionada = proyecto.etapas.find((t) => t.id === selId) ?? null;
 
@@ -62,6 +64,7 @@ export default function TabCronograma({ proyecto, puedeEditar, acciones }: Props
       {seleccionada && (
         <EditorEtapa
           etapa={seleccionada}
+          empleados={empleados}
           puedeEditar={puedeEditar}
           acciones={acciones}
           onCerrar={() => setSelId(null)}
@@ -143,12 +146,6 @@ export default function TabCronograma({ proyecto, puedeEditar, acciones }: Props
                           borderBottomRightRadius: avance >= 100 ? '0.375rem' : 0,
                         }}
                       />
-                      <span
-                        className="absolute top-3 flex h-6 items-center overflow-hidden px-2 font-mono text-[10px] text-foreground"
-                        style={{ left: x(t.fecha_inicio), width: ancho }}
-                      >
-                        {ancho > 60 ? t.nombre : ''}
-                      </span>
                     </div>
                   </button>
                 );
@@ -190,17 +187,18 @@ export default function TabCronograma({ proyecto, puedeEditar, acciones }: Props
 
 function EditorEtapa({
   etapa,
+  empleados,
   puedeEditar,
   acciones,
   onCerrar,
 }: {
   etapa: EtapaProyecto;
+  empleados: EmpleadoOpcion[];
   puedeEditar: boolean;
   acciones: AccionesProyecto;
   onCerrar: () => void;
 }) {
   const [nombre, setNombre] = useState(etapa.nombre);
-  const [responsable, setResponsable] = useState(etapa.responsable ?? '');
   const fin = sumarDias(etapa.fecha_inicio, etapa.duracion_dias);
 
   return (
@@ -236,16 +234,13 @@ function EditorEtapa({
           </div>
           <div className="space-y-2">
             <Label htmlFor={`et-rs-${etapa.id}`}>Responsable</Label>
-            <Input
+            <ResponsableSelect
               id={`et-rs-${etapa.id}`}
-              value={responsable}
-              disabled={!puedeEditar}
-              onChange={(e) => setResponsable(e.target.value)}
-              onBlur={() => {
-                if (responsable !== (etapa.responsable ?? '')) {
-                  acciones.patchEtapa(etapa.id, { responsable });
-                }
-              }}
+              responsableId={etapa.responsable_id}
+              responsableTexto={etapa.responsable}
+              empleados={empleados}
+              disabled={!puedeEditar || acciones.guardando}
+              onChange={(v) => acciones.patchEtapa(etapa.id, { ...v })}
             />
           </div>
           <div className="space-y-2">

@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
       nombre: body.nombre.trim(),
       descripcion: body.descripcion?.trim() || null,
       responsable: body.responsable?.trim() || null,
+      responsable_id: body.responsable_id != null ? Number(body.responsable_id) || null : null,
       fecha_inicio: body.fecha_inicio,
       plantilla: body.plantilla,
       created_by: await getSessionUsername(),

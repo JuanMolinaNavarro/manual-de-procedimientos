@@ -23,17 +23,26 @@ import {
 } from '@/lib/proyectos-calc';
 import Kpi from './Kpi';
 import InfoHint from './InfoHint';
+import ResponsableSelect, { type EmpleadoOpcion } from './ResponsableSelect';
 import type { AccionesProyecto } from './ProyectoDetalle';
 
 interface Props {
   proyecto: Proyecto;
   resumen: ResumenFinanciero;
   config: ConfigProyectos;
+  empleados: EmpleadoOpcion[];
   puedeEditar: boolean;
   acciones: AccionesProyecto;
 }
 
-export default function TabResumen({ proyecto, resumen, config, puedeEditar, acciones }: Props) {
+export default function TabResumen({
+  proyecto,
+  resumen,
+  config,
+  empleados,
+  puedeEditar,
+  acciones,
+}: Props) {
   const [notas, setNotas] = useState(proyecto.notas ?? '');
   const hoy = hoyISO();
 
@@ -170,7 +179,7 @@ export default function TabResumen({ proyecto, resumen, config, puedeEditar, acc
                     <p className="text-sm font-medium">{t.nombre}</p>
                     <p className="font-mono text-[11px] text-muted-foreground">
                       {t.fecha_inicio} → {sumarDias(t.fecha_inicio, t.duracion_dias)} ·{' '}
-                      {t.duracion_dias} d{t.responsable ? ` · ${t.responsable}` : ''}
+                      {t.duracion_dias} d{t.responsable_nombre ? ` · ${t.responsable_nombre}` : ''}
                     </p>
                   </div>
                   <div className="w-28 shrink-0">
@@ -188,6 +197,25 @@ export default function TabResumen({ proyecto, resumen, config, puedeEditar, acc
               );
             })
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Responsable del proyecto</CardTitle>
+          <CardDescription>
+            Si elegís a alguien del organigrama, el proyecto aparece en la pestaña Proyectos de su
+            ficha.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="max-w-md">
+          <ResponsableSelect
+            responsableId={proyecto.responsable_id}
+            responsableTexto={proyecto.responsable}
+            empleados={empleados}
+            disabled={!puedeEditar || acciones.guardando}
+            onChange={(v) => acciones.patchProyecto({ ...v })}
+          />
         </CardContent>
       </Card>
 
