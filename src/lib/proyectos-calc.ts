@@ -24,7 +24,12 @@ export interface CostoProyecto {
 export interface EtapaProyecto {
   id: number;
   nombre: string;
+  /** Texto libre; solo se usa cuando no hay `responsable_id`. */
   responsable: string | null;
+  /** Vínculo al organigrama (OrgEmpleado). Tiene precedencia sobre el texto. */
+  responsable_id: number | null;
+  /** Derivado: nombre a mostrar, del empleado vinculado o del texto libre. */
+  responsable_nombre: string | null;
   fecha_inicio: string;
   duracion_dias: number;
   dep_id: number | null;
@@ -37,7 +42,12 @@ export interface Proyecto {
   id: number;
   nombre: string;
   descripcion: string | null;
+  /** Texto libre; solo se usa cuando no hay `responsable_id`. */
   responsable: string | null;
+  /** Vínculo al organigrama (OrgEmpleado). Tiene precedencia sobre el texto. */
+  responsable_id: number | null;
+  /** Derivado: nombre a mostrar, del empleado vinculado o del texto libre. */
+  responsable_nombre: string | null;
   estado: string;
   fecha_inicio: string;
   notas: string | null;
@@ -155,14 +165,29 @@ export function inflar(v: number, haciaAnio: number | null, cfg: ConfigProyectos
 }
 
 /** Avance ponderado por duración: una etapa larga pesa más que una corta. */
-export function avanceProyecto(p: Proyecto): number {
-  const totalDias = p.etapas.reduce((s, t) => s + Math.max(1, t.duracion_dias), 0);
+export function avanceEtapas(etapas: { duracion_dias: number; avance: number }[]): number {
+  const totalDias = etapas.reduce((s, t) => s + Math.max(1, t.duracion_dias), 0);
   if (totalDias === 0) return 0;
-  const ponderado = p.etapas.reduce(
+  const ponderado = etapas.reduce(
     (s, t) => s + Math.max(0, Math.min(100, t.avance)) * Math.max(1, t.duracion_dias),
     0,
   );
   return Math.round(ponderado / totalDias);
+}
+
+export function avanceProyecto(p: Proyecto): number {
+  return avanceEtapas(p.etapas);
+}
+
+/** Fin del cronograma: la última fecha de término entre todas las etapas. */
+export function finCronograma(
+  fechaInicio: string,
+  etapas: { fecha_inicio: string; duracion_dias: number }[],
+): string {
+  return etapas.reduce((max, t) => {
+    const e = sumarDias(t.fecha_inicio, t.duracion_dias);
+    return e > max ? e : max;
+  }, fechaInicio);
 }
 
 export interface ResumenFinanciero {
@@ -199,10 +224,7 @@ export function resumenFinanciero(p: Proyecto, cfg: ConfigProyectos): ResumenFin
 
   const etapasHechas = p.etapas.filter((t) => t.estado === 'hecho').length;
   const etapasAtrasadas = p.etapas.filter((t) => t.estado === 'atrasado').length;
-  const fin = p.etapas.reduce((max, t) => {
-    const e = sumarDias(t.fecha_inicio, t.duracion_dias);
-    return e > max ? e : max;
-  }, p.fecha_inicio);
+  const fin = finCronograma(p.fecha_inicio, p.etapas);
 
   return {
     costo,

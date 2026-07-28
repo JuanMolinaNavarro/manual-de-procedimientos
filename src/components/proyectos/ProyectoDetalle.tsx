@@ -19,6 +19,7 @@ import {
   type Proyecto,
 } from '@/lib/proyectos-calc';
 import ConfigDialog from './ConfigDialog';
+import type { EmpleadoOpcion } from './ResponsableSelect';
 import TabResumen from './TabResumen';
 import TabCronograma from './TabCronograma';
 import TabCostos from './TabCostos';
@@ -27,6 +28,7 @@ import TabFinanzas from './TabFinanzas';
 interface Props {
   proyectoInicial: Proyecto;
   configInicial: ConfigProyectos;
+  empleados: EmpleadoOpcion[];
   puedeEditar: boolean;
 }
 
@@ -46,6 +48,7 @@ export interface AccionesProyecto {
 export default function ProyectoDetalle({
   proyectoInicial,
   configInicial,
+  empleados,
   puedeEditar,
 }: Props) {
   const router = useRouter();
@@ -126,10 +129,10 @@ export default function ProyectoDetalle({
             <span className="font-mono">inicio {proyecto.fecha_inicio}</span>
             <span>·</span>
             <span className="font-mono">{proyecto.etapas.length} etapa(s)</span>
-            {proyecto.responsable && (
+            {proyecto.responsable_nombre && (
               <>
                 <span>·</span>
-                <span>{proyecto.responsable}</span>
+                <span>{proyecto.responsable_nombre}</span>
               </>
             )}
           </div>
@@ -190,12 +193,18 @@ export default function ProyectoDetalle({
             proyecto={proyecto}
             resumen={resumen}
             config={config}
+            empleados={empleados}
             puedeEditar={puedeEditar}
             acciones={acciones}
           />
         </TabsContent>
         <TabsContent value="cronograma">
-          <TabCronograma proyecto={proyecto} puedeEditar={puedeEditar} acciones={acciones} />
+          <TabCronograma
+            proyecto={proyecto}
+            empleados={empleados}
+            puedeEditar={puedeEditar}
+            acciones={acciones}
+          />
         </TabsContent>
         <TabsContent value="costos">
           <TabCostos

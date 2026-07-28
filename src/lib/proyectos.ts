@@ -9,8 +9,10 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 import { getPlantilla } from './proyectos-datos';
 import {
+  avanceEtapas,
   correrEnCascada,
   difDias,
+  finCronograma,
   sumarDias,
   type ConfigProyectos,
   type EtapaProyecto,
@@ -48,9 +50,16 @@ export async function updateConfig(
 
 // ─── Proyectos ───────────────────────────────────────────────────────────────
 
+/** Solo el nombre del empleado vinculado: alcanza para mostrarlo siempre fresco. */
+const SELECT_RESPONSABLE = { select: { id: true, nombre: true, rol: true } } as const;
+
 const INCLUDE_DETALLE = {
   costos: { orderBy: [{ orden: 'asc' }, { id: 'asc' }] },
-  etapas: { orderBy: [{ orden: 'asc' }, { id: 'asc' }] },
+  etapas: {
+    orderBy: [{ orden: 'asc' }, { id: 'asc' }],
+    include: { responsable_emp: SELECT_RESPONSABLE },
+  },
+  responsable_emp: SELECT_RESPONSABLE,
 } satisfies Prisma.ProyectoInclude;
 
 type ProyectoRow = Prisma.ProyectoGetPayload<{ include: typeof INCLUDE_DETALLE }>;
@@ -62,6 +71,8 @@ function mapProyecto(row: ProyectoRow): Proyecto {
     nombre: row.nombre,
     descripcion: row.descripcion,
     responsable: row.responsable,
+    responsable_id: row.responsable_id,
+    responsable_nombre: row.responsable_emp?.nombre ?? row.responsable,
     estado: row.estado,
     fecha_inicio: row.fecha_inicio,
     notas: row.notas,
@@ -86,6 +97,8 @@ function mapProyecto(row: ProyectoRow): Proyecto {
       id: t.id,
       nombre: t.nombre,
       responsable: t.responsable,
+      responsable_id: t.responsable_id,
+      responsable_nombre: t.responsable_emp?.nombre ?? t.responsable,
       fecha_inicio: t.fecha_inicio,
       duracion_dias: t.duracion_dias,
       dep_id: t.dep_id,
@@ -113,6 +126,7 @@ export interface CreateProyectoData {
   nombre: string;
   descripcion?: string | null;
   responsable?: string | null;
+  responsable_id?: number | null;
   fecha_inicio: string;
   /** Id de PLANTILLAS_CRONOGRAMA con el que se precarga el Gantt. */
   plantilla?: string;
@@ -130,6 +144,7 @@ export async function createProyecto(data: CreateProyectoData): Promise<Proyecto
         nombre: data.nombre,
         descripcion: data.descripcion ?? null,
         responsable: data.responsable ?? null,
+        responsable_id: data.responsable_id ?? null,
         fecha_inicio: data.fecha_inicio,
         anio_ingreso: cfg.anio_base,
         created_by: data.created_by ?? null,
@@ -167,6 +182,7 @@ export interface UpdateProyectoData {
   nombre?: string;
   descripcion?: string | null;
   responsable?: string | null;
+  responsable_id?: number | null;
   estado?: string;
   fecha_inicio?: string;
   notas?: string | null;
@@ -213,6 +229,71 @@ export async function updateProyecto(
 
 export async function deleteProyecto(id: number): Promise<void> {
   await prisma.proyecto.delete({ where: { id } });
+}
+
+// ─── Vista por persona (para la ficha del organigrama) ───────────────────────
+
+/** Una etapa del proyecto que tiene a cargo la persona consultada. */
+export interface EtapaACargo {
+  id: number;
+  nombre: string;
+  estado: string;
+  avance: number;
+  fecha_inicio: string;
+  fecha_fin: string;
+}
+
+export interface ProyectoDeEmpleado {
+  id: number;
+  nombre: string;
+  descripcion: string | null;
+  estado: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  /** Avance del proyecto completo, ponderado por duración de etapas. */
+  avance: number;
+  /** La persona es responsable del proyecto entero. */
+  es_responsable: boolean;
+  /** Etapas del cronograma a su cargo (puede estar vacío si solo es responsable). */
+  etapas_a_cargo: EtapaACargo[];
+}
+
+/**
+ * Proyectos en los que participa una persona del organigrama: los que tiene a
+ * cargo y aquellos donde es responsable de al menos una etapa del cronograma.
+ */
+export async function getProyectosDeEmpleado(empleadoId: number): Promise<ProyectoDeEmpleado[]> {
+  const rows = await prisma.proyecto.findMany({
+    where: {
+      OR: [
+        { responsable_id: empleadoId },
+        { etapas: { some: { responsable_id: empleadoId } } },
+      ],
+    },
+    include: { etapas: { orderBy: [{ orden: 'asc' }, { id: 'asc' }] } },
+    orderBy: { created_at: 'desc' },
+  });
+
+  return rows.map((p) => ({
+    id: p.id,
+    nombre: p.nombre,
+    descripcion: p.descripcion,
+    estado: p.estado,
+    fecha_inicio: p.fecha_inicio,
+    fecha_fin: finCronograma(p.fecha_inicio, p.etapas),
+    avance: avanceEtapas(p.etapas),
+    es_responsable: p.responsable_id === empleadoId,
+    etapas_a_cargo: p.etapas
+      .filter((t) => t.responsable_id === empleadoId)
+      .map((t) => ({
+        id: t.id,
+        nombre: t.nombre,
+        estado: t.estado,
+        avance: t.avance,
+        fecha_inicio: t.fecha_inicio,
+        fecha_fin: sumarDias(t.fecha_inicio, t.duracion_dias),
+      })),
+  }));
 }
 
 // ─── Costos ──────────────────────────────────────────────────────────────────
@@ -284,6 +365,7 @@ export async function updateEtapa(
   data: Partial<{
     nombre: string;
     responsable: string | null;
+    responsable_id: number | null;
     duracion_dias: number;
     estado: string;
     avance: number;

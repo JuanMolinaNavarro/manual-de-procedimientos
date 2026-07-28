@@ -39,6 +39,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (typeof body.nombre === 'string' && body.nombre.trim()) data.nombre = body.nombre.trim();
     if (typeof body.descripcion === 'string') data.descripcion = body.descripcion.trim() || null;
     if (typeof body.responsable === 'string') data.responsable = body.responsable.trim() || null;
+    // null desvincula del organigrama y deja solo el texto libre.
+    if ('responsable_id' in body) {
+      data.responsable_id = body.responsable_id == null ? null : Number(body.responsable_id) || null;
+    }
     if (typeof body.notas === 'string') data.notas = body.notas;
     if (typeof body.fecha_inicio === 'string' && body.fecha_inicio) {
       data.fecha_inicio = body.fecha_inicio;

@@ -21,6 +21,10 @@ export async function PUT(request: NextRequest, { params }: Params) {
     const data: Parameters<typeof updateEtapa>[1] = {};
     if (typeof body.nombre === 'string' && body.nombre.trim()) data.nombre = body.nombre.trim();
     if (typeof body.responsable === 'string') data.responsable = body.responsable.trim() || null;
+    // null desvincula del organigrama y deja solo el texto libre.
+    if ('responsable_id' in body) {
+      data.responsable_id = body.responsable_id == null ? null : Number(body.responsable_id) || null;
+    }
     if (body.duracion_dias != null) {
       data.duracion_dias = Math.max(1, Number(body.duracion_dias) || 1);
     }

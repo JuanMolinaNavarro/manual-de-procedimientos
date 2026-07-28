@@ -27,14 +27,16 @@ import {
   type Proyecto,
 } from '@/lib/proyectos-calc';
 import ConfigDialog from './ConfigDialog';
+import ResponsableSelect, { type EmpleadoOpcion } from './ResponsableSelect';
 
 interface Props {
   proyectos: Proyecto[];
   config: ConfigProyectos;
+  empleados: EmpleadoOpcion[];
   puedeEditar: boolean;
 }
 
-export default function ProyectosLista({ proyectos, config, puedeEditar }: Props) {
+export default function ProyectosLista({ proyectos, config, empleados, puedeEditar }: Props) {
   const router = useRouter();
   const [nuevoAbierto, setNuevoAbierto] = useState(false);
   const [configAbierto, setConfigAbierto] = useState(false);
@@ -42,7 +44,8 @@ export default function ProyectosLista({ proyectos, config, puedeEditar }: Props
 
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
-  const [responsable, setResponsable] = useState('');
+  const [responsable, setResponsable] = useState<string | null>(null);
+  const [responsableId, setResponsableId] = useState<number | null>(null);
   const [inicio, setInicio] = useState(hoyISO());
   const [plantilla, setPlantilla] = useState(PLANTILLAS_CRONOGRAMA[0].id);
   const [error, setError] = useState('');
@@ -65,7 +68,8 @@ export default function ProyectosLista({ proyectos, config, puedeEditar }: Props
   const abrirNuevo = () => {
     setNombre('');
     setDescripcion('');
-    setResponsable('');
+    setResponsable(null);
+    setResponsableId(null);
     setInicio(hoyISO());
     setPlantilla(PLANTILLAS_CRONOGRAMA[0].id);
     setError('');
@@ -87,6 +91,7 @@ export default function ProyectosLista({ proyectos, config, puedeEditar }: Props
           nombre: nombre.trim(),
           descripcion,
           responsable,
+          responsable_id: responsableId,
           fecha_inicio: inicio,
           plantilla,
         }),
@@ -210,7 +215,7 @@ export default function ProyectosLista({ proyectos, config, puedeEditar }: Props
                     </div>
                     <CardDescription className="font-mono text-xs">
                       {p.etapas.length} etapa(s) · inicio {p.fecha_inicio}
-                      {p.responsable && ` · ${p.responsable}`}
+                      {p.responsable_nombre && ` · ${p.responsable_nombre}`}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm">
@@ -292,10 +297,15 @@ export default function ProyectosLista({ proyectos, config, puedeEditar }: Props
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="np-resp">Responsable (opcional)</Label>
-                <Input
+                <ResponsableSelect
                   id="np-resp"
-                  value={responsable}
-                  onChange={(e) => setResponsable(e.target.value)}
+                  responsableId={responsableId}
+                  responsableTexto={responsable}
+                  empleados={empleados}
+                  onChange={(v) => {
+                    setResponsableId(v.responsable_id);
+                    setResponsable(v.responsable);
+                  }}
                 />
               </div>
               <div className="space-y-2">
