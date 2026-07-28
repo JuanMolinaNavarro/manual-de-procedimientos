@@ -403,3 +403,91 @@ model OrgLinea {
 
   @@map("org_lineas")
 }
+
+// ─── Proyectos y finanzas ───────────────────────────────────────────────────
+// Gestión genérica de proyectos: cronograma de etapas (Gantt con dependencias),
+// costos por categoría/etapa y análisis financiero en USD constantes.
+
+model Proyecto {
+  id           Int     @id @default(autoincrement())
+  nombre       String
+  descripcion  String?
+  responsable  String?
+  // planificado | en_curso | pausado | terminado | cancelado
+  estado       String  @default("planificado")
+  fecha_inicio String // ISO yyyy-mm-dd
+  notas        String?
+
+  // Supuestos de ingresos del análisis financiero. Los costos salen de las
+  // líneas de ProyectoCosto; acá va lo que el proyecto va a facturar o ahorrar.
+  ingreso_estimado Float  @default(0)
+  otros_ingresos   Float  @default(0)
+  moneda_ingreso   String @default("USD") // USD | ARS
+  // Año en que se cobra el ingreso: define el deflactado a USD constantes.
+  anio_ingreso     Int
+
+  created_by String?
+  updated_by String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  costos ProyectoCosto[]
+  etapas ProyectoEtapa[]
+
+  @@map("proyectos")
+}
+
+model ProyectoCosto {
+  id          Int    @id @default(autoincrement())
+  proyecto_id Int
+  // Rubro libre por el que se agrupa la tabla (Mano de obra, Materiales, …).
+  categoria   String @default("General")
+  concepto    String
+  unidad      String @default("unidad")
+  cantidad    Float  @default(1)
+  costo_unitario Float  @default(0)
+  moneda         String @default("USD") // USD | ARS
+  // Imputación opcional a una etapa del cronograma.
+  etapa_id       Int?
+  orden          Int    @default(0)
+
+  proyecto Proyecto       @relation(fields: [proyecto_id], references: [id], onDelete: Cascade)
+  etapa    ProyectoEtapa? @relation(fields: [etapa_id], references: [id], onDelete: SetNull)
+
+  @@index([proyecto_id])
+  @@map("proyecto_costos")
+}
+
+model ProyectoEtapa {
+  id            Int     @id @default(autoincrement())
+  proyecto_id   Int
+  nombre        String
+  responsable   String?
+  fecha_inicio  String // ISO yyyy-mm-dd
+  duracion_dias Int     @default(15)
+  // Etapa de la que depende: moverla arrastra a sus dependientes en cascada.
+  dep_id        Int?
+  estado        String  @default("pendiente") // pendiente | curso | hecho | atrasado
+  avance        Int     @default(0) // 0–100 %
+  orden         Int     @default(0)
+
+  proyecto     Proyecto        @relation(fields: [proyecto_id], references: [id], onDelete: Cascade)
+  dep          ProyectoEtapa?  @relation("EtapaDep", fields: [dep_id], references: [id], onDelete: SetNull)
+  dependientes ProyectoEtapa[] @relation("EtapaDep")
+  costos       ProyectoCosto[]
+
+  @@index([proyecto_id])
+  @@map("proyecto_etapas")
+}
+
+// Singleton (id = 1): parámetros de moneda e inflación comunes a todos los proyectos.
+model ProyectoConfig {
+  id         Int      @id @default(1)
+  fx_ars     Float    @default(1100) // ARS por USD
+  infl_usd   Float    @default(3) // inflación anual del dólar (CPI EE.UU.), %
+  anio_base  Int // año base para USD constantes
+  updated_by String?
+  updated_at DateTime @updatedAt
+
+  @@map("proyecto_config")
+}
