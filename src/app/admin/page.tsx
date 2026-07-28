@@ -13,6 +13,7 @@ import {
   Antenna,
   Network,
   Database,
+  FolderKanban,
 } from 'lucide-react';
 
 const MODULE_META: Record<
@@ -58,6 +59,10 @@ const MODULE_META: Record<
   padron: {
     icon: <Database className="h-8 w-8" />,
     description: 'Padrón de abonados por empresa: cargar Excel y buscar duplicados.',
+  },
+  proyectos: {
+    icon: <FolderKanban className="h-8 w-8" />,
+    description: 'Cronograma, costos y análisis financiero de cada proyecto.',
   },
 };
 
