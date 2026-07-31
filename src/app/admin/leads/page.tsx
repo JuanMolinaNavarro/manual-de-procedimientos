@@ -46,7 +46,14 @@ type SortKey =
   | "contactado"
   | "resultado";
 type SortDir = "asc" | "desc";
-type Resultado = "vendido" | "rechazado" | "repetido" | "ya_es_cliente" | "otro" | null;
+type Resultado =
+  | "vendido"
+  | "rechazado"
+  | "repetido"
+  | "ya_es_cliente"
+  | "fuera_de_zona"
+  | "otro"
+  | null;
 
 const PAGE_SIZE = 15;
 const TZ = "America/Argentina/Buenos_Aires";
@@ -70,6 +77,7 @@ const RESULTADO_OPTIONS: {
   { value: "rechazado", label: "Rechazado", className: "text-red-500" },
   { value: "repetido", label: "Repetido", className: "text-blue-500" },
   { value: "ya_es_cliente", label: "Ya es Cliente", className: "text-purple-900" },
+  { value: "fuera_de_zona", label: "Fuera de zona", className: "text-orange-500" },
   { value: "otro", label: "Otro", className: "text-pink-400" },
 ];
 
@@ -78,6 +86,7 @@ function resultadoColor(resultado: string | null): string {
   if (resultado === "rechazado") return "text-red-500";
   if (resultado === "repetido") return "text-blue-500";
   if (resultado === "ya_es_cliente") return "text-purple-900";
+  if (resultado === "fuera_de_zona") return "text-orange-500";
   if (resultado === "otro") return "text-pink-400";
   return "text-yellow-500";
 }
