@@ -1,70 +1,7 @@
-import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
-import { getModulosForUser, type AdminModuloSlug } from '@/lib/modulos';
-import {
-  Gift,
-  Users,
-  Film,
-  BookOpen,
-  Trophy,
-  TrendingUp,
-  CreditCard,
-  Antenna,
-  Network,
-  Database,
-  FolderKanban,
-} from 'lucide-react';
-
-const MODULE_META: Record<
-  AdminModuloSlug,
-  { icon: React.ReactNode; description: string }
-> = {
-  bonificaciones: {
-    icon: <Gift className="h-8 w-8" />,
-    description: 'Gestionar bonificaciones y promociones activas por empresa.',
-  },
-  usuarios: {
-    icon: <Users className="h-8 w-8" />,
-    description: 'Administrar cuentas, roles y permisos de los agentes.',
-  },
-  peliculas: {
-    icon: <Film className="h-8 w-8" />,
-    description: 'Gestionar el catálogo de películas disponibles on-demand.',
-  },
-  catalogo: {
-    icon: <BookOpen className="h-8 w-8" />,
-    description: 'Ver y sincronizar el catálogo de contenido del proveedor.',
-  },
-  deportes: {
-    icon: <Trophy className="h-8 w-8" />,
-    description: 'Configurar y destacar eventos deportivos en la plataforma.',
-  },
-  leads: {
-    icon: <TrendingUp className="h-8 w-8" />,
-    description: 'Ver y gestionar solicitudes de contratación recibidas.',
-  },
-  planes: {
-    icon: <CreditCard className="h-8 w-8" />,
-    description: 'Configurar precios y planes disponibles por empresa.',
-  },
-  'senales-ip': {
-    icon: <Antenna className="h-8 w-8" />,
-    description: 'Gestionar contratos de compradores y vendedores de señales IP.',
-  },
-  organigrama: {
-    icon: <Network className="h-8 w-8" />,
-    description: 'Visualizar y gestionar la estructura organizacional de la empresa.',
-  },
-  padron: {
-    icon: <Database className="h-8 w-8" />,
-    description: 'Padrón de abonados por empresa: cargar Excel y buscar duplicados.',
-  },
-  proyectos: {
-    icon: <FolderKanban className="h-8 w-8" />,
-    description: 'Cronograma, costos y análisis financiero de cada proyecto.',
-  },
-};
+import { getModulosForUser } from '@/lib/modulos';
+import AdminHomeModulos from '@/components/AdminHomeModulos';
 
 export default async function AdminHomePage() {
   const cookieStore = await cookies();
@@ -92,30 +29,11 @@ export default async function AdminHomePage() {
           Bienvenido{nombreCompleto ? `, ${nombreCompleto}` : ''}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Seleccioná un módulo para comenzar.
+          Seleccioná una categoría para comenzar.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {allowedModules.map((mod) => {
-          const meta = MODULE_META[mod.slug];
-          return (
-            <Link
-              key={mod.slug}
-              href={mod.href}
-              className="group flex flex-col gap-4 rounded-lg border border-border bg-card p-6 transition-colors hover:border-primary/50 hover:bg-accent"
-            >
-              <div className="text-muted-foreground transition-colors group-hover:text-primary">
-                {meta.icon}
-              </div>
-              <div className="space-y-1">
-                <h3 className="font-semibold text-foreground">{mod.label}</h3>
-                <p className="text-sm text-muted-foreground">{meta.description}</p>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
+      <AdminHomeModulos modulos={allowedModules.map((m) => ({ ...m }))} />
     </div>
   );
 }

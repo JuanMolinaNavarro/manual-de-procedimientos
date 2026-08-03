@@ -78,7 +78,8 @@ export default function ProyectosDelEmpleado({ proyectos, error }: EstadoProyect
   }
 
   return (
-    <div className="space-y-3">
+    // Altura fija para ~3 tarjetas: la lista scrollea sola en vez de estirar la ficha.
+    <div className="max-h-[350px] space-y-3 overflow-y-auto pr-1.5">
       {proyectos.map((p) => {
         const est = estadoProyecto(p.estado);
         return (
