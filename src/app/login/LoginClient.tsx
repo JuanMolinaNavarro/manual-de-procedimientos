@@ -53,8 +53,15 @@ export default function SiteLoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>CRM Comercial</CardTitle>
+        <CardHeader className="items-center text-center">
+          {/* El logo es blanco: en tema claro se invierte para que se vea. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.png"
+            alt="A.U.R.E.L.I.U.S."
+            className="mx-auto h-24 w-24 object-contain invert dark:invert-0"
+          />
+          <CardTitle className="text-center tracking-widest">A.U.R.E.L.I.U.S.</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-5">

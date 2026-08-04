@@ -36,8 +36,15 @@ export default async function RetencionLayout({
         <header className="border-b border-border bg-card/70">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
             <div className="flex items-center gap-3">
+              {/* El logo es blanco: en tema claro se invierte para que se vea. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo.png"
+                alt="A.U.R.E.L.I.U.S."
+                className="h-9 w-9 object-contain invert dark:invert-0"
+              />
               <span className="text-lg font-semibold tracking-wide">
-                Manual de Procedimientos - Callcenter
+                A.U.R.E.L.I.U.S.
               </span>
               <span className="rounded-full border border-border bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
                 Atencion y Retencion

@@ -27,6 +27,8 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/api/plans') ||
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico' ||
+    pathname === '/icon.png' ||
+    pathname === '/logo.png' ||
     pathname === '/robots.txt' ||
     pathname === '/sitemap.xml'
   ) {

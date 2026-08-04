@@ -9,7 +9,7 @@ import AdminSidebar from '@/components/AdminSidebar';
 import AdminModuleGuard from '@/components/AdminModuleGuard';
 
 export const metadata: Metadata = {
-  title: 'CRM Comercial',
+  title: 'A.U.R.E.L.I.U.S.',
 };
 
 export default async function AdminLayout({
@@ -48,8 +48,15 @@ export default async function AdminLayout({
         <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <AdminSidebar nombreCompleto={nombreCompleto} navLinks={allowedNavLinks} />
+            {/* El logo es blanco: en tema claro se invierte para que se vea. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.png"
+              alt="A.U.R.E.L.I.U.S."
+              className="h-9 w-9 object-contain invert dark:invert-0"
+            />
             <h1 className="text-xl font-semibold text-foreground">
-              CRM Comercial
+              A.U.R.E.L.I.U.S.
             </h1>
           </div>
           <div className="flex items-center gap-2">

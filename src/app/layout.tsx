@@ -22,7 +22,7 @@ const nunito = Nunito({
 });
 
 export const metadata: Metadata = {
-  title: "Manual de Atención y Retención",
+  title: "A.U.R.E.L.I.U.S.",
   description: "Manual operativo para agentes de call center ISP",
 };
 
