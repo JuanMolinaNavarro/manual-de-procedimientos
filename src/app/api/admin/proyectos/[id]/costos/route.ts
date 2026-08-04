@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdmin } from '@/lib/admin-auth';
-import { addCosto, getProyectoById } from '@/lib/proyectos';
+import { isAdmin, getScopeProyectos } from '@/lib/admin-auth';
+import { addCosto, getProyectoById, getProyectoVisible } from '@/lib/proyectos';
 
 /** Agrega una línea de costo en blanco y devuelve el proyecto actualizado. */
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -12,6 +12,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const proyectoId = Number(id);
     if (Number.isNaN(proyectoId)) {
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+    }
+    if (!(await getProyectoVisible(proyectoId, await getScopeProyectos()))) {
+      return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
     }
     await addCosto(proyectoId);
     return NextResponse.json(await getProyectoById(proyectoId), { status: 201 });

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdmin, getSessionUsername } from '@/lib/admin-auth';
+import { isAdmin, getSessionUsername, getScopeProyectos } from '@/lib/admin-auth';
 import {
   deleteProyecto,
-  getProyectoById,
+  getProyectoVisible,
   updateProyecto,
   type UpdateProyectoData,
 } from '@/lib/proyectos';
@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
     const { id } = await params;
-    const proyecto = await getProyectoById(Number(id));
+    const proyecto = await getProyectoVisible(Number(id), await getScopeProyectos());
     if (!proyecto) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
     return NextResponse.json(proyecto);
   } catch (error) {
@@ -33,9 +33,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (Number.isNaN(proyectoId)) {
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
     }
+    const scope = await getScopeProyectos();
+    if (!(await getProyectoVisible(proyectoId, scope))) {
+      return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+    }
     const body = (await request.json()) as Record<string, unknown>;
 
     const data: UpdateProyectoData = { updated_by: await getSessionUsername() };
+    // Cambiar el área: solo superadmin (scope 'todos'); un área con scope propio no
+    // puede mandar el proyecto a otra área ni "perderlo".
+    if ('area' in body && scope.tipo === 'todos') {
+      data.area = typeof body.area === 'string' && body.area ? body.area : null;
+    }
     if (typeof body.nombre === 'string' && body.nombre.trim()) data.nombre = body.nombre.trim();
     if (typeof body.descripcion === 'string') data.descripcion = body.descripcion.trim() || null;
     if (typeof body.responsable === 'string') data.responsable = body.responsable.trim() || null;
@@ -81,7 +90,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
     const { id } = await params;
-    await deleteProyecto(Number(id));
+    const proyectoId = Number(id);
+    if (!(await getProyectoVisible(proyectoId, await getScopeProyectos()))) {
+      return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+    }
+    await deleteProyecto(proyectoId);
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error('Error en DELETE /api/admin/proyectos/[id]:', error);

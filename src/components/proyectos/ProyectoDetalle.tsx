@@ -29,6 +29,10 @@ interface Props {
   proyectoInicial: Proyecto;
   configInicial: ConfigProyectos;
   empleados: EmpleadoOpcion[];
+  /** Nombres de las áreas del organigrama. */
+  areas: string[];
+  /** Solo superadmin puede mover el proyecto de área (la API también lo exige). */
+  puedeCambiarArea: boolean;
   puedeEditar: boolean;
 }
 
@@ -49,6 +53,8 @@ export default function ProyectoDetalle({
   proyectoInicial,
   configInicial,
   empleados,
+  areas,
+  puedeCambiarArea,
   puedeEditar,
 }: Props) {
   const router = useRouter();
@@ -135,9 +141,33 @@ export default function ProyectoDetalle({
                 <span>{proyecto.responsable_nombre}</span>
               </>
             )}
+            {proyecto.area && !puedeCambiarArea && (
+              <>
+                <span>·</span>
+                <Badge variant="outline" className="text-[10px]">{proyecto.area}</Badge>
+              </>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {puedeEditar && puedeCambiarArea && (
+            <Select
+              value={proyecto.area ?? 'sin-area'}
+              onValueChange={(v) => acciones.patchProyecto({ area: v === 'sin-area' ? null : v })}
+            >
+              <SelectTrigger className="w-40" aria-label="Área del proyecto">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sin-area">Sin área</SelectItem>
+                {areas.map((a) => (
+                  <SelectItem key={a} value={a}>
+                    {a}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           {puedeEditar && (
             <Select
               value={proyecto.estado}

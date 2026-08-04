@@ -2,12 +2,13 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getAlarmasActivas } from '@/lib/senales-ip';
 import { prisma } from '@/lib/prisma';
+import { isAdminRole } from '@/lib/roles';
 
 async function isAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
   const session = cookieStore.get('site_session');
   const role = session?.value?.split('|')[1];
-  return role === 'admin';
+  return isAdminRole(role);
 }
 
 export async function GET() {

@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import ThemeToggle from '@/components/ThemeToggle';
 import SiteLogoutButton from '@/components/SiteLogoutButton';
+import { isAdminRole } from '@/lib/roles';
 
 export default async function RetencionLayout({
   children,
@@ -14,7 +15,7 @@ export default async function RetencionLayout({
   const usuario = sessionValue ? sessionValue.split('|')[0] : null;
   const role = sessionValue ? sessionValue.split('|')[1] : null;
   const isAuthed = Boolean(sessionValue);
-  const isAdmin = role === 'admin';
+  const isAdmin = isAdminRole(role);
 
   const usuarioRecord = usuario
     ? await prisma.usuario.findUnique({
@@ -35,8 +36,15 @@ export default async function RetencionLayout({
         <header className="border-b border-border bg-card/70">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
             <div className="flex items-center gap-3">
-              <span className="text-lg font-semibold tracking-wide">
-                Manual de Procedimientos - Callcenter
+              {/* El logo es blanco: en tema claro se invierte para que se vea. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo.png"
+                alt="AURELIUS"
+                className="h-9 w-9 object-contain invert dark:invert-0"
+              />
+              <span className="font-[family-name:var(--font-playfair)] text-xl font-semibold tracking-wide">
+                AURELIUS
               </span>
               <span className="rounded-full border border-border bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
                 Atencion y Retencion

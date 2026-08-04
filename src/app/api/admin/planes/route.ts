@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getPlanConfig, upsertPlanConfig, type PlanConfigData } from '@/lib/planes';
 import { isEmpresa } from '@/lib/empresas';
+import { isAdminRole } from '@/lib/roles';
 
 function getRoleFromSession(value: string | undefined) {
   if (!value) return null;
@@ -12,7 +13,7 @@ function getRoleFromSession(value: string | undefined) {
 async function isAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
   const session = cookieStore.get('site_session');
-  return getRoleFromSession(session?.value) === 'admin';
+  return isAdminRole(getRoleFromSession(session?.value));
 }
 
 export async function GET(request: NextRequest) {

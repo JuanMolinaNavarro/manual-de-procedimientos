@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { isAdminRole } from '@/lib/roles';
 
 export default function SiteLoginPage() {
   const router = useRouter();
@@ -38,7 +39,7 @@ export default function SiteLoginPage() {
         throw new Error(data.error || 'No se pudo iniciar sesion');
       }
 
-      const isAdmin = data.rol === 'admin';
+      const isAdmin = isAdminRole(data.rol);
       const destination = isAdmin
         ? (from?.startsWith('/admin') ? from : '/admin')
         : (from ?? '/retencion/inicio');
@@ -52,8 +53,17 @@ export default function SiteLoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>CRM Comercial</CardTitle>
+        <CardHeader className="items-center text-center">
+          {/* El logo es blanco: en tema claro se invierte para que se vea. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.png"
+            alt="AURELIUS"
+            className="mx-auto h-24 w-24 object-contain invert dark:invert-0"
+          />
+          <CardTitle className="text-center font-[family-name:var(--font-playfair)] text-2xl font-semibold tracking-widest">
+            AURELIUS
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-5">

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getPlanConfig, upsertPlanConfig, type PlanConfigData } from '@/lib/planes';
 import { isEmpresa } from '@/lib/empresas';
+import { isAdminRole } from '@/lib/roles';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -14,7 +15,7 @@ async function isAdmin(): Promise<boolean> {
   const session = cookieStore.get('site_session');
   if (!session?.value) return false;
   const parts = session.value.split('|');
-  return parts.length > 1 && parts[1] === 'admin';
+  return parts.length > 1 && isAdminRole(parts[1]);
 }
 
 export async function OPTIONS() {

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateLead } from '@/lib/leads';
 import { cookies } from 'next/headers';
+import { isAdminRole } from '@/lib/roles';
 
 async function isAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
   const session = cookieStore.get('site_session');
   if (!session?.value) return false;
   const parts = session.value.split('|');
-  return parts.length > 1 && parts[1] === 'admin';
+  return parts.length > 1 && isAdminRole(parts[1]);
 }
 
 export async function PATCH(

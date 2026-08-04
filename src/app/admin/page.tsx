@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { getModulosForUser } from '@/lib/modulos';
 import AdminHomeModulos from '@/components/AdminHomeModulos';
+import CumplesBanner from '@/components/CumplesBanner';
 
 export default async function AdminHomePage() {
   const cookieStore = await cookies();
@@ -24,6 +25,7 @@ export default async function AdminHomePage() {
 
   return (
     <div className="space-y-8">
+      <CumplesBanner />
       <div>
         <h2 className="text-2xl font-bold text-foreground">
           Bienvenido{nombreCompleto ? `, ${nombreCompleto}` : ''}

@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { cargarPadronDesdeBuffer, contarPadronPorEmpresa } from '@/lib/padron';
 import { isEmpresa } from '@/lib/empresas';
+import { isAdminRole } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 600;
 
 async function isAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
-  return cookieStore.get('site_session')?.value?.split('|')[1] === 'admin';
+  return isAdminRole(cookieStore.get('site_session')?.value?.split('|')[1]);
 }
 
 /** GET: cantidad de abonados cargados por empresa. */

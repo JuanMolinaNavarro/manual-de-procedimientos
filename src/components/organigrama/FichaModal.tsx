@@ -84,6 +84,7 @@ function blankEmpleado(areaDefault: string): OrgEmpleado {
     formacion: null,
     seniority: null,
     especialidad: null,
+    fecha_nacimiento: null,
     experiencia: [],
     resp_primarias: [],
     resp_secundarias: [],
@@ -238,6 +239,7 @@ export default function FichaModal({
         formacion: form.formacion,
         seniority: form.seniority,
         especialidad: form.especialidad,
+        fecha_nacimiento: form.fecha_nacimiento || null,
         experiencia: form.experiencia ?? [],
         resp_primarias: form.resp_primarias ?? [],
         resp_secundarias: form.resp_secundarias ?? [],
@@ -361,6 +363,24 @@ export default function FichaModal({
               <Field label={SEDE_LABEL} value={emp.sede} edit={edit} onChange={(v) => set('sede', v)} />
               <Field label="Modalidad" value={emp.modalidad} edit={edit} onChange={(v) => set('modalidad', v)} />
               <Field label="Guardias" value={emp.guardias} edit={edit} onChange={(v) => set('guardias', v)} />
+
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">Fecha de nacimiento</Label>
+                {edit ? (
+                  <input
+                    type="date"
+                    value={emp.fecha_nacimiento ?? ''}
+                    onChange={(e) => set('fecha_nacimiento', e.target.value || null)}
+                    className="neu-field h-8 w-full rounded-lg px-2 text-xs text-foreground focus-visible:outline-none"
+                  />
+                ) : (
+                  <p className="text-foreground">
+                    {emp.fecha_nacimiento
+                      ? emp.fecha_nacimiento.split('-').reverse().join('/')
+                      : '—'}
+                  </p>
+                )}
+              </div>
 
               <div className="space-y-1">
                 <Label className="text-[11px] text-muted-foreground">Área</Label>

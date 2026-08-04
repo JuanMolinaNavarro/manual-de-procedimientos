@@ -49,6 +49,8 @@ export interface Proyecto {
   /** Derivado: nombre a mostrar, del empleado vinculado o del texto libre. */
   responsable_nombre: string | null;
   estado: string;
+  /** == OrgArea.nombre. Define qué usuarios ven el proyecto (scope por área). */
+  area: string | null;
   fecha_inicio: string;
   notas: string | null;
   ingreso_estimado: number;

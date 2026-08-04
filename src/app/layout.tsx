@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Nunito, Space_Grotesk } from "next/font/google";
+import { IBM_Plex_Mono, Nunito, Playfair_Display, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -21,8 +21,15 @@ const nunito = Nunito({
   weight: ["400", "600", "700", "800"],
 });
 
+// Fuente del nombre del sistema (AURELIUS) en headers y login.
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+});
+
 export const metadata: Metadata = {
-  title: "Manual de Atención y Retención",
+  title: "AURELIUS",
   description: "Manual operativo para agentes de call center ISP",
 };
 
@@ -34,7 +41,7 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body
-        className={`${spaceGrotesk.variable} ${plexMono.variable} ${nunito.variable} antialiased`}
+        className={`${spaceGrotesk.variable} ${plexMono.variable} ${nunito.variable} ${playfair.variable} antialiased`}
       >
         {children}
       </body>

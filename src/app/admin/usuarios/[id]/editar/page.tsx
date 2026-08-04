@@ -8,6 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { ADMIN_MODULOS } from '@/lib/modulos';
+import { isSuperadmin } from '@/lib/roles';
+
+interface EmpleadoVinculado {
+  id: number;
+  nombre: string;
+  area: string;
+}
 
 interface Usuario {
   id: number;
@@ -19,6 +26,14 @@ interface Usuario {
   isActive: boolean;
   modulos: string[];
   modulos_edit: string[];
+  empleado_id: number | null;
+  empleado: EmpleadoVinculado | null;
+}
+
+interface EmpleadoOpcion {
+  id: number;
+  nombre: string;
+  area: string;
 }
 
 export default function EditarUsuarioPage() {
@@ -38,6 +53,11 @@ export default function EditarUsuarioPage() {
   const [modulosRestricted, setModulosRestricted] = useState(false);
   // Permiso de edición del organigrama (parte de modulos_edit).
   const [puedeEditarOrg, setPuedeEditarOrg] = useState(false);
+  // Vínculo con la ficha del organigrama ('' = sin vincular).
+  const [empleadoSel, setEmpleadoSel] = useState('');
+  const [empleados, setEmpleados] = useState<EmpleadoOpcion[]>([]);
+  const [vinculados, setVinculados] = useState<Set<number>>(new Set());
+  const [soySuperadmin, setSoySuperadmin] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -58,6 +78,7 @@ export default function EditarUsuarioPage() {
         const data = (await usuarioRes.json()) as Usuario;
         setFormData(data);
         setPuedeEditarOrg((data.modulos_edit ?? []).includes('organigrama'));
+        setEmpleadoSel(data.empleado_id ? String(data.empleado_id) : '');
 
         // Initialise module state from saved modulos
         if (data.modulos && data.modulos.length > 0) {
@@ -69,8 +90,29 @@ export default function EditarUsuarioPage() {
         }
 
         if (meRes.ok) {
-          const me = (await meRes.json()) as { usuario: string };
+          const me = (await meRes.json()) as { usuario: string; rol: string };
           setCurrentUsuario(me.usuario);
+          setSoySuperadmin(isSuperadmin(me.rol));
+        }
+
+        // Fichas del organigrama y cuáles ya están vinculadas a otro usuario.
+        const [empRes, usersRes] = await Promise.all([
+          fetch('/api/admin/organigrama/empleados'),
+          fetch('/api/admin/usuarios'),
+        ]);
+        if (empRes.ok) {
+          const emps = (await empRes.json()) as EmpleadoOpcion[];
+          setEmpleados(emps.map((e) => ({ id: e.id, nombre: e.nombre, area: e.area })));
+        }
+        if (usersRes.ok) {
+          const users = (await usersRes.json()) as { id: number; empleado_id: number | null }[];
+          setVinculados(
+            new Set(
+              users
+                .filter((u) => u.id !== usuarioId && u.empleado_id != null)
+                .map((u) => u.empleado_id as number)
+            )
+          );
         }
       } catch (err) {
         console.error(err);
@@ -130,6 +172,7 @@ export default function EditarUsuarioPage() {
           isActive: formData.isActive,
           modulos: modulosToSave,
           modulos_edit: modulosEditToSave,
+          empleado_id: empleadoSel ? Number(empleadoSel) : null,
         }),
       });
 
@@ -220,8 +263,40 @@ export default function EditarUsuarioPage() {
               >
                 <option value="agente">Agente</option>
                 <option value="admin">Admin</option>
+                {(soySuperadmin || formData.rol === 'superadmin') && (
+                  <option value="superadmin">Superadmin</option>
+                )}
               </select>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="empleado">Ficha del organigrama</Label>
+              <select
+                id="empleado"
+                value={empleadoSel}
+                onChange={(event) => setEmpleadoSel(event.target.value)}
+                className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">Sin vincular</option>
+                {empleados
+                  .filter((e) => !vinculados.has(e.id) || e.id === formData.empleado_id)
+                  .map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.nombre} — {e.area}
+                    </option>
+                  ))}
+              </select>
+              <p className="text-sm text-muted-foreground">
+                Define el área del usuario (por ejemplo, qué proyectos puede ver).
+              </p>
+            </div>
+
+            {formData.rol === 'superadmin' && (
+              <div className="rounded-lg border border-border px-4 py-3 text-sm text-muted-foreground">
+                Acceso total: ve todos los módulos, puede editar el organigrama y ve todos los
+                proyectos.
+              </div>
+            )}
 
             {/* Module access — only for admin users */}
             {formData.rol === 'admin' && (

@@ -28,15 +28,27 @@ import {
 } from '@/lib/proyectos-calc';
 import ConfigDialog from './ConfigDialog';
 import ResponsableSelect, { type EmpleadoOpcion } from './ResponsableSelect';
+import type { ScopeProyectos } from '@/lib/admin-auth';
 
 interface Props {
   proyectos: Proyecto[];
   config: ConfigProyectos;
   empleados: EmpleadoOpcion[];
+  /** Nombres de las áreas del organigrama, para imputar el proyecto a una. */
+  areas: string[];
+  /** Scope de visibilidad del usuario: define si puede elegir área libremente. */
+  scope: ScopeProyectos;
   puedeEditar: boolean;
 }
 
-export default function ProyectosLista({ proyectos, config, empleados, puedeEditar }: Props) {
+export default function ProyectosLista({
+  proyectos,
+  config,
+  empleados,
+  areas,
+  scope,
+  puedeEditar,
+}: Props) {
   const router = useRouter();
   const [nuevoAbierto, setNuevoAbierto] = useState(false);
   const [configAbierto, setConfigAbierto] = useState(false);
@@ -48,8 +60,12 @@ export default function ProyectosLista({ proyectos, config, empleados, puedeEdit
   const [responsableId, setResponsableId] = useState<number | null>(null);
   const [inicio, setInicio] = useState(hoyISO());
   const [plantilla, setPlantilla] = useState(PLANTILLAS_CRONOGRAMA[0].id);
+  const [area, setArea] = useState('');
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
+
+  // Con scope de área el proyecto nace en esa área sí o sí (lo fuerza también la API).
+  const areaFija = scope.tipo === 'area' ? scope.area : null;
 
   const visibles = filtro === 'todos' ? proyectos : proyectos.filter((p) => p.estado === filtro);
 
@@ -72,6 +88,7 @@ export default function ProyectosLista({ proyectos, config, empleados, puedeEdit
     setResponsableId(null);
     setInicio(hoyISO());
     setPlantilla(PLANTILLAS_CRONOGRAMA[0].id);
+    setArea('');
     setError('');
     setNuevoAbierto(true);
   };
@@ -92,6 +109,7 @@ export default function ProyectosLista({ proyectos, config, empleados, puedeEdit
           descripcion,
           responsable,
           responsable_id: responsableId,
+          area: areaFija ?? (area || null),
           fecha_inicio: inicio,
           plantilla,
         }),
@@ -217,6 +235,11 @@ export default function ProyectosLista({ proyectos, config, empleados, puedeEdit
                       {p.etapas.length} etapa(s) · inicio {p.fecha_inicio}
                       {p.responsable_nombre && ` · ${p.responsable_nombre}`}
                     </CardDescription>
+                    {p.area && (
+                      <Badge variant="outline" className="mt-1 w-fit text-[10px]">
+                        {p.area}
+                      </Badge>
+                    )}
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm">
                     <div className="flex items-baseline justify-between gap-2">
@@ -317,6 +340,30 @@ export default function ProyectosLista({ proyectos, config, empleados, puedeEdit
                   onChange={(e) => setInicio(e.target.value)}
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="np-area">Área</Label>
+              {areaFija ? (
+                <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+                  {areaFija}
+                  <span className="ml-2 text-xs text-muted-foreground">(tu área)</span>
+                </p>
+              ) : (
+                <Select value={area || 'sin-area'} onValueChange={(v) => setArea(v === 'sin-area' ? '' : v)}>
+                  <SelectTrigger id="np-area" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sin-area">Sin área</SelectItem>
+                    {areas.map((a) => (
+                      <SelectItem key={a} value={a}>
+                        {a}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             <div className="space-y-2">

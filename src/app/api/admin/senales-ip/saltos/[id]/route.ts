@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { marcarSaltoNotificado, updateSaltoImporte, deleteSaltoImporte } from '@/lib/senales-ip';
+import { isAdminRole } from '@/lib/roles';
 
 async function isAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
   const session = cookieStore.get('site_session');
   const role = session?.value?.split('|')[1];
-  return role === 'admin';
+  return isAdminRole(role);
 }
 
 async function getUsername(): Promise<string | null> {

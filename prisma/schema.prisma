@@ -90,6 +90,10 @@ model Usuario {
   isActive   Boolean  @default(true)
   modulos    String[] @default([])
   modulos_edit String[] @default([])
+  // Vínculo con la ficha del organigrama (1 a 1). SetNull: borrar la ficha
+  // deja al usuario "sin vincular", nunca lo borra ni lo bloquea.
+  empleado_id Int?         @unique
+  empleado    OrgEmpleado? @relation("UsuarioEmpleado", fields: [empleado_id], references: [id], onDelete: SetNull)
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
@@ -344,6 +348,8 @@ model OrgEmpleado {
   formacion    String?
   seniority    String?
   especialidad String?
+  // ISO yyyy-mm-dd (string como todas las fechas de dominio; evita corrimientos UTC)
+  fecha_nacimiento String?
 
   // CV (Json) — espejo de las arrays del HTML
   experiencia        Json? // [{role,company,period,gray?}]
@@ -368,6 +374,9 @@ model OrgEmpleado {
   // "Proyectos" de su ficha en el organigrama.
   proyectos_a_cargo Proyecto[]      @relation("ProyectoResponsable")
   etapas_a_cargo    ProyectoEtapa[] @relation("EtapaResponsable")
+
+  // Cuenta de usuario vinculada a esta ficha (si la hay).
+  usuario Usuario? @relation("UsuarioEmpleado")
 
   created_by String?
   updated_by String?
@@ -423,6 +432,9 @@ model Proyecto {
   responsable_id Int?
   // planificado | en_curso | pausado | terminado | cancelado
   estado       String  @default("planificado")
+  // == OrgArea.nombre (string denormalizado, mismo criterio que OrgEmpleado.area).
+  // Define qué usuarios ven el proyecto: admin vinculado a un área solo ve la suya.
+  area         String?
   fecha_inicio String // ISO yyyy-mm-dd
   notas        String?
 

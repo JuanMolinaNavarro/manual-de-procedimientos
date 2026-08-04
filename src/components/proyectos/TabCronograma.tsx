@@ -276,7 +276,10 @@ function EditorEtapa({
           <>
             <div className="space-y-2">
               <Label htmlFor={`et-av-${etapa.id}`}>Avance: {etapa.avance}%</Label>
+              {/* key: al cambiar el avance desde afuera (ej. botón "Hecho" → 100) el
+                  input no controlado se remonta y la perilla queda sincronizada. */}
               <input
+                key={`av-${etapa.id}-${etapa.avance}`}
                 id={`et-av-${etapa.id}`}
                 type="range"
                 min={0}

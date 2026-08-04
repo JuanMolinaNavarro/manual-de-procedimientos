@@ -3,6 +3,7 @@
 import { memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { OrgEmpleado } from '@/lib/organigrama';
+import { esCumpleHoy } from '@/lib/cumples';
 import { CARD_W, CARD_H } from './layout';
 
 export const EMPLEADO_NODE_TYPE = 'empleado';
@@ -52,6 +53,14 @@ function EmpleadoNodeComp({ data, selected }: NodeProps) {
       {esJefe && (
         <div className="absolute -top-2 left-3 z-10 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-semibold text-amber-950 shadow">
           Jefe de área
+        </div>
+      )}
+      {esCumpleHoy(emp.fecha_nacimiento) && (
+        <div
+          title="¡Hoy es su cumpleaños!"
+          className="absolute -top-2 right-3 z-10 rounded-full bg-pink-400 px-2 py-0.5 text-[10px] font-semibold text-pink-950 shadow"
+        >
+          🎂 ¡Cumple!
         </div>
       )}
       <Handle type="target" position={Position.Top} className="!h-2 !w-2 !bg-muted-foreground" />

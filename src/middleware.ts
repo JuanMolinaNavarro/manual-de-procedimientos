@@ -7,6 +7,7 @@
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { isAdminRole } from '@/lib/roles';
 
 function getRoleFromSession(value: string | undefined) {
   if (!value) return null;
@@ -26,6 +27,8 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/api/plans') ||
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico' ||
+    pathname === '/icon.png' ||
+    pathname === '/logo.png' ||
     pathname === '/robots.txt' ||
     pathname === '/sitemap.xml'
   ) {
@@ -45,7 +48,7 @@ export function middleware(request: NextRequest) {
   }
 
   if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
-    if (role !== 'admin') {
+    if (!isAdminRole(role)) {
       if (pathname.startsWith('/api')) {
         return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
       }

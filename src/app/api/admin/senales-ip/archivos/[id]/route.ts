@@ -3,12 +3,13 @@ import { cookies } from 'next/headers';
 import { readFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { getArchivoById, deleteArchivoById } from '@/lib/senales-ip';
+import { isAdminRole } from '@/lib/roles';
 
 async function isAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
   const session = cookieStore.get('site_session');
   const role = session?.value?.split('|')[1];
-  return role === 'admin';
+  return isAdminRole(role);
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

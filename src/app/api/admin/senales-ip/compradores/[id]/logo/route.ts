@@ -5,6 +5,7 @@ import { writeFileSync, mkdirSync, unlinkSync } from 'fs';
 import { readFileSync } from 'fs';
 import { join, extname } from 'path';
 import { getContratoCompradorById, setLogoComprador } from '@/lib/senales-ip';
+import { isAdminRole } from '@/lib/roles';
 
 const LOGO_DIR = join(process.cwd(), 'uploads', 'senales-ip', 'logos');
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml', 'image/gif'];
@@ -13,7 +14,7 @@ async function isAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
   const session = cookieStore.get('site_session');
   const role = session?.value?.split('|')[1];
-  return role === 'admin';
+  return isAdminRole(role);
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
