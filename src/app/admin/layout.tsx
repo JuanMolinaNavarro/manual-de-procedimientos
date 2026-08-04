@@ -9,7 +9,7 @@ import AdminSidebar from '@/components/AdminSidebar';
 import AdminModuleGuard from '@/components/AdminModuleGuard';
 
 export const metadata: Metadata = {
-  title: 'A.U.R.E.L.I.U.S.',
+  title: 'AURELIUS',
 };
 
 export default async function AdminLayout({
@@ -52,11 +52,11 @@ export default async function AdminLayout({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/logo.png"
-              alt="A.U.R.E.L.I.U.S."
+              alt="AURELIUS"
               className="h-9 w-9 object-contain invert dark:invert-0"
             />
-            <h1 className="text-xl font-semibold text-foreground">
-              A.U.R.E.L.I.U.S.
+            <h1 className="font-[family-name:var(--font-playfair)] text-2xl font-semibold tracking-wide text-foreground">
+              AURELIUS
             </h1>
           </div>
           <div className="flex items-center gap-2">

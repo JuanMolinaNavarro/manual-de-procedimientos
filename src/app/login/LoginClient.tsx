@@ -58,10 +58,12 @@ export default function SiteLoginPage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo.png"
-            alt="A.U.R.E.L.I.U.S."
+            alt="AURELIUS"
             className="mx-auto h-24 w-24 object-contain invert dark:invert-0"
           />
-          <CardTitle className="text-center tracking-widest">A.U.R.E.L.I.U.S.</CardTitle>
+          <CardTitle className="text-center font-[family-name:var(--font-playfair)] text-2xl font-semibold tracking-widest">
+            AURELIUS
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-5">

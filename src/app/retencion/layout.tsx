@@ -40,11 +40,11 @@ export default async function RetencionLayout({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/logo.png"
-                alt="A.U.R.E.L.I.U.S."
+                alt="AURELIUS"
                 className="h-9 w-9 object-contain invert dark:invert-0"
               />
-              <span className="text-lg font-semibold tracking-wide">
-                A.U.R.E.L.I.U.S.
+              <span className="font-[family-name:var(--font-playfair)] text-xl font-semibold tracking-wide">
+                AURELIUS
               </span>
               <span className="rounded-full border border-border bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
                 Atencion y Retencion
