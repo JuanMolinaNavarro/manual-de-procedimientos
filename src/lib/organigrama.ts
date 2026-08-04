@@ -49,6 +49,7 @@ export interface OrgEmpleado {
   formacion: string | null;
   seniority: string | null;
   especialidad: string | null;
+  fecha_nacimiento: string | null; // ISO yyyy-mm-dd
   experiencia: Experiencia[] | null;
   resp_primarias: string[] | null;
   resp_secundarias: string[] | null;
@@ -87,6 +88,7 @@ export interface CreateOrgEmpleadoData {
   formacion?: string | null;
   seniority?: string | null;
   especialidad?: string | null;
+  fecha_nacimiento?: string | null;
   experiencia?: Experiencia[] | null;
   resp_primarias?: string[] | null;
   resp_secundarias?: string[] | null;
@@ -235,6 +237,7 @@ export async function createEmpleado(data: CreateOrgEmpleadoData): Promise<OrgEm
       formacion: data.formacion ?? null,
       seniority: data.seniority ?? null,
       especialidad: data.especialidad ?? null,
+      fecha_nacimiento: data.fecha_nacimiento ?? null,
       experiencia: (data.experiencia ?? undefined) as any,
       resp_primarias: (data.resp_primarias ?? undefined) as any,
       resp_secundarias: (data.resp_secundarias ?? undefined) as any,
@@ -282,6 +285,7 @@ export async function updateEmpleado(
       formacion: data.formacion,
       seniority: data.seniority,
       especialidad: data.especialidad,
+      fecha_nacimiento: data.fecha_nacimiento,
       experiencia: json(data.experiencia),
       resp_primarias: json(data.resp_primarias),
       resp_secundarias: json(data.resp_secundarias),
@@ -372,6 +376,7 @@ export async function createArea(data: CreateOrgAreaData): Promise<OrgArea> {
 /**
  * Actualiza un área. Si cambia el nombre, migra los empleados del área anterior al
  * nuevo nombre (en transacción), igual que el "renombrar (migra los empleados)" del HTML.
+ * También migra los proyectos imputados al área (Proyecto.area es el mismo string).
  */
 export async function updateArea(id: number, data: UpdateOrgAreaData): Promise<OrgArea | null> {
   const existing = await prisma.orgArea.findUnique({ where: { id } });
@@ -393,6 +398,10 @@ export async function updateArea(id: number, data: UpdateOrgAreaData): Promise<O
     const [row] = await prisma.$transaction([
       updateOp,
       prisma.orgEmpleado.updateMany({
+        where: { area: existing.nombre },
+        data: { area: data.nombre! },
+      }),
+      prisma.proyecto.updateMany({
         where: { area: existing.nombre },
         data: { area: data.nombre! },
       }),

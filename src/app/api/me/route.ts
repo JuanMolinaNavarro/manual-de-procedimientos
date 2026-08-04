@@ -30,6 +30,7 @@ export async function GET() {
         nombre: true,
         apellido: true,
         rol: true,
+        empleado: { select: { id: true, nombre: true, area: true } },
       },
     });
 

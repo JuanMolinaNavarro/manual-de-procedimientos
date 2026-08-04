@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdmin } from '@/lib/admin-auth';
-import { addEtapa, getProyectoById } from '@/lib/proyectos';
+import { isAdmin, getScopeProyectos } from '@/lib/admin-auth';
+import { addEtapa, getProyectoById, getProyectoVisible } from '@/lib/proyectos';
 
 /** Agrega una etapa manual al final del cronograma. */
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -12,6 +12,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const proyectoId = Number(id);
     if (Number.isNaN(proyectoId)) {
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+    }
+    if (!(await getProyectoVisible(proyectoId, await getScopeProyectos()))) {
+      return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
     }
     await addEtapa(proyectoId);
     return NextResponse.json(await getProyectoById(proyectoId), { status: 201 });

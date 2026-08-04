@@ -7,6 +7,7 @@
 
 import type { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
+import type { ScopeProyectos } from './admin-auth';
 import { getPlantilla } from './proyectos-datos';
 import {
   avanceEtapas,
@@ -74,6 +75,7 @@ function mapProyecto(row: ProyectoRow): Proyecto {
     responsable_id: row.responsable_id,
     responsable_nombre: row.responsable_emp?.nombre ?? row.responsable,
     estado: row.estado,
+    area: row.area,
     fecha_inicio: row.fecha_inicio,
     notas: row.notas,
     ingreso_estimado: row.ingreso_estimado,
@@ -109,8 +111,10 @@ function mapProyecto(row: ProyectoRow): Proyecto {
   };
 }
 
-export async function getProyectos(): Promise<Proyecto[]> {
+export async function getProyectos(scope?: ScopeProyectos): Promise<Proyecto[]> {
+  if (scope?.tipo === 'ninguno') return [];
   const rows = await prisma.proyecto.findMany({
+    where: scope?.tipo === 'area' ? { area: scope.area } : undefined,
     include: INCLUDE_DETALLE,
     orderBy: { created_at: 'desc' },
   });
@@ -122,11 +126,28 @@ export async function getProyectoById(id: number): Promise<Proyecto | null> {
   return row ? mapProyecto(row) : null;
 }
 
+/**
+ * Como `getProyectoById`, pero devuelve null si el scope del usuario no cubre
+ * el área del proyecto (para el detalle y sus rutas API: mismo 404 que si no
+ * existiera, sin filtrar la existencia del proyecto).
+ */
+export async function getProyectoVisible(
+  id: number,
+  scope: ScopeProyectos,
+): Promise<Proyecto | null> {
+  if (scope.tipo === 'ninguno') return null;
+  const proyecto = await getProyectoById(id);
+  if (!proyecto) return null;
+  if (scope.tipo === 'area' && proyecto.area !== scope.area) return null;
+  return proyecto;
+}
+
 export interface CreateProyectoData {
   nombre: string;
   descripcion?: string | null;
   responsable?: string | null;
   responsable_id?: number | null;
+  area?: string | null;
   fecha_inicio: string;
   /** Id de PLANTILLAS_CRONOGRAMA con el que se precarga el Gantt. */
   plantilla?: string;
@@ -145,6 +166,7 @@ export async function createProyecto(data: CreateProyectoData): Promise<Proyecto
         descripcion: data.descripcion ?? null,
         responsable: data.responsable ?? null,
         responsable_id: data.responsable_id ?? null,
+        area: data.area ?? null,
         fecha_inicio: data.fecha_inicio,
         anio_ingreso: cfg.anio_base,
         created_by: data.created_by ?? null,
@@ -183,6 +205,7 @@ export interface UpdateProyectoData {
   descripcion?: string | null;
   responsable?: string | null;
   responsable_id?: number | null;
+  area?: string | null;
   estado?: string;
   fecha_inicio?: string;
   notas?: string | null;

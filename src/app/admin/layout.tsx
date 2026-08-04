@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { getModulosForUser } from '@/lib/modulos';
+import { isSuperadmin } from '@/lib/roles';
 import AdminLogoutButton from '@/components/AdminLogoutButton';
 import ThemeToggle from '@/components/ThemeToggle';
 import AdminSidebar from '@/components/AdminSidebar';
@@ -23,11 +24,12 @@ export default async function AdminLayout({
   const usuarioRecord = usuario
     ? await prisma.usuario.findUnique({
         where: { usuario },
-        select: { nombre: true, apellido: true, usuario: true, modulos: true },
+        select: { nombre: true, apellido: true, usuario: true, modulos: true, rol: true },
       })
     : null;
 
-  const modulos = usuarioRecord?.modulos ?? [];
+  // Superadmin ve todos los módulos ([] = sin restricción).
+  const modulos = isSuperadmin(usuarioRecord?.rol) ? [] : usuarioRecord?.modulos ?? [];
   const allowedNavLinks = getModulosForUser(modulos);
   const fallbackHref = allowedNavLinks[0]?.href ?? '/admin';
 

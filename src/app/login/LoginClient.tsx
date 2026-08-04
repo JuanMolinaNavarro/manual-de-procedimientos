@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { isAdminRole } from '@/lib/roles';
 
 export default function SiteLoginPage() {
   const router = useRouter();
@@ -38,7 +39,7 @@ export default function SiteLoginPage() {
         throw new Error(data.error || 'No se pudo iniciar sesion');
       }
 
-      const isAdmin = data.rol === 'admin';
+      const isAdmin = isAdminRole(data.rol);
       const destination = isAdmin
         ? (from?.startsWith('/admin') ? from : '/admin')
         : (from ?? '/retencion/inicio');

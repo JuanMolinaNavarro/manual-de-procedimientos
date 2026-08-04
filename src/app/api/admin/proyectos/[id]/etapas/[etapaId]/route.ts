@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdmin } from '@/lib/admin-auth';
-import { deleteEtapa, getProyectoById, moverEtapa, updateEtapa } from '@/lib/proyectos';
+import { isAdmin, getScopeProyectos } from '@/lib/admin-auth';
+import { deleteEtapa, getProyectoById, getProyectoVisible, moverEtapa, updateEtapa } from '@/lib/proyectos';
 import { ESTADOS_ETAPA } from '@/lib/proyectos-datos';
 
 type Params = { params: Promise<{ id: string; etapaId: string }> };
@@ -11,6 +11,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
     const { id, etapaId } = await params;
+    if (!(await getProyectoVisible(Number(id), await getScopeProyectos()))) {
+      return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+    }
     const body = (await request.json()) as Record<string, unknown>;
 
     // `correr` mueve la etapa N días arrastrando a sus dependientes.
@@ -53,6 +56,9 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
     const { id, etapaId } = await params;
+    if (!(await getProyectoVisible(Number(id), await getScopeProyectos()))) {
+      return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+    }
     await deleteEtapa(Number(etapaId));
     return NextResponse.json(await getProyectoById(Number(id)));
   } catch (error) {

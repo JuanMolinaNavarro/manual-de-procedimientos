@@ -6,6 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { isAdminRole } from '@/lib/roles';
 import {
   createBonificacion,
   getAllBonificaciones,
@@ -39,7 +40,7 @@ async function isAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
   const session = cookieStore.get('site_session');
   const role = getRoleFromSession(session?.value);
-  return role === 'admin';
+  return isAdminRole(role);
 }
 
 export async function GET(request: NextRequest) {

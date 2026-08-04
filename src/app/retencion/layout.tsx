@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import ThemeToggle from '@/components/ThemeToggle';
 import SiteLogoutButton from '@/components/SiteLogoutButton';
+import { isAdminRole } from '@/lib/roles';
 
 export default async function RetencionLayout({
   children,
@@ -14,7 +15,7 @@ export default async function RetencionLayout({
   const usuario = sessionValue ? sessionValue.split('|')[0] : null;
   const role = sessionValue ? sessionValue.split('|')[1] : null;
   const isAuthed = Boolean(sessionValue);
-  const isAdmin = role === 'admin';
+  const isAdmin = isAdminRole(role);
 
   const usuarioRecord = usuario
     ? await prisma.usuario.findUnique({
