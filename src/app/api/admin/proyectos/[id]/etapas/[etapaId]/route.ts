@@ -40,6 +40,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     if (typeof body.fecha_inicio === 'string' && body.fecha_inicio) {
       data.fecha_inicio = body.fecha_inicio;
     }
+    if (typeof body.notas === 'string') data.notas = body.notas.trim() || null;
 
     if (Object.keys(data).length > 0) await updateEtapa(Number(etapaId), data);
 

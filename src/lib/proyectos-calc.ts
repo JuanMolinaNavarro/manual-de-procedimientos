@@ -36,6 +36,7 @@ export interface EtapaProyecto {
   estado: string;
   avance: number;
   orden: number;
+  notas: string | null;
 }
 
 export interface Proyecto {

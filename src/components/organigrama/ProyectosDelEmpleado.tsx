@@ -70,7 +70,7 @@ export default function ProyectosDelEmpleado({ proyectos, error }: EstadoProyect
       <p className="text-sm text-muted-foreground">
         No participa en ningún proyecto. Se asigna desde{' '}
         <Link href="/admin/proyectos" className="underline">
-          Proyectos y finanzas
+          Proyectos
         </Link>
         , eligiéndola como responsable del proyecto o de alguna etapa.
       </p>

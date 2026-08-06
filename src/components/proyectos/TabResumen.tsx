@@ -181,6 +181,9 @@ export default function TabResumen({
                       {t.fecha_inicio} → {sumarDias(t.fecha_inicio, t.duracion_dias)} ·{' '}
                       {t.duracion_dias} d{t.responsable_nombre ? ` · ${t.responsable_nombre}` : ''}
                     </p>
+                    {t.notas && (
+                      <p className="mt-0.5 text-xs italic text-muted-foreground">{t.notas}</p>
+                    )}
                   </div>
                   <div className="w-28 shrink-0">
                     <div className="h-1.5 overflow-hidden rounded-full bg-muted">

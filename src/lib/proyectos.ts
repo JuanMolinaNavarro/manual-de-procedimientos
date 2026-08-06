@@ -107,6 +107,7 @@ function mapProyecto(row: ProyectoRow): Proyecto {
       estado: t.estado,
       avance: t.avance,
       orden: t.orden,
+      notas: t.notas,
     })),
   };
 }
@@ -393,6 +394,7 @@ export async function updateEtapa(
     estado: string;
     avance: number;
     fecha_inicio: string;
+    notas: string | null;
   }>,
 ) {
   const etapa = await prisma.proyectoEtapa.findUnique({ where: { id } });

@@ -38,6 +38,8 @@ interface Props {
   areas: string[];
   /** Scope de visibilidad del usuario: define si puede elegir área libremente. */
   scope: ScopeProyectos;
+  /** Área del organigrama del usuario logueado (null si no está vinculado). */
+  miArea: string | null;
   puedeEditar: boolean;
 }
 
@@ -47,6 +49,7 @@ export default function ProyectosLista({
   empleados,
   areas,
   scope,
+  miArea,
   puedeEditar,
 }: Props) {
   const router = useRouter();
@@ -67,7 +70,16 @@ export default function ProyectosLista({
   // Con scope de área el proyecto nace en esa área sí o sí (lo fuerza también la API).
   const areaFija = scope.tipo === 'area' ? scope.area : null;
 
-  const visibles = filtro === 'todos' ? proyectos : proyectos.filter((p) => p.estado === filtro);
+  // "Mis proyectos" solo suma cuando el usuario ve más allá de su área: con scope
+  // de área la lista ya viene filtrada y el botón sería un duplicado de "Todos".
+  const mostrarMisProyectos = miArea != null && scope.tipo === 'todos';
+
+  const visibles =
+    filtro === 'todos'
+      ? proyectos
+      : filtro === 'mios'
+        ? proyectos.filter((p) => p.area === miArea)
+        : proyectos.filter((p) => p.estado === filtro);
 
   // Totales de cartera: lo que sirve para mirar de un vistazo.
   const totales = proyectos.reduce(
@@ -131,7 +143,7 @@ export default function ProyectosLista({
     <div className="mx-auto w-full max-w-6xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Proyectos y finanzas</h2>
+          <h2 className="text-2xl font-bold text-foreground">Proyectos</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Cronograma, costos y análisis financiero de cada proyecto.
           </p>
@@ -171,7 +183,11 @@ export default function ProyectosLista({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-1.5">
-          {[{ id: 'todos', label: 'Todos' }, ...ESTADOS_PROYECTO].map((e) => (
+          {[
+            { id: 'todos', label: 'Todos' },
+            ...(mostrarMisProyectos ? [{ id: 'mios', label: 'Mis proyectos' }] : []),
+            ...ESTADOS_PROYECTO,
+          ].map((e) => (
             <button
               key={e.id}
               type="button"
@@ -199,7 +215,11 @@ export default function ProyectosLista({
         <Card>
           <CardHeader>
             <CardTitle>
-              {proyectos.length === 0 ? 'Todavía no hay proyectos' : 'Ningún proyecto en este estado'}
+              {proyectos.length === 0
+                ? 'Todavía no hay proyectos'
+                : filtro === 'mios'
+                  ? 'No hay proyectos de tu área'
+                  : 'Ningún proyecto en este estado'}
             </CardTitle>
             <CardDescription>
               {proyectos.length === 0

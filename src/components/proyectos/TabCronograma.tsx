@@ -5,6 +5,7 @@ import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { ESTADOS_ETAPA, MESES_CORTOS, estadoEtapa } from '@/lib/proyectos-datos';
@@ -63,6 +64,8 @@ export default function TabCronograma({ proyecto, empleados, puedeEditar, accion
 
       {seleccionada && (
         <EditorEtapa
+          // key: al cambiar de etapa se remonta el editor y no arrastra estado local.
+          key={seleccionada.id}
           etapa={seleccionada}
           empleados={empleados}
           puedeEditar={puedeEditar}
@@ -118,6 +121,11 @@ export default function TabCronograma({ proyecto, empleados, puedeEditar, accion
                         <span className="block font-mono text-[10px] text-muted-foreground">
                           {t.fecha_inicio} · {t.duracion_dias}d · {avance}%
                         </span>
+                        {t.notas && (
+                          <span className="block truncate text-[10px] italic text-muted-foreground">
+                            {t.notas}
+                          </span>
+                        )}
                       </span>
                     </div>
                     <div className="relative h-12">
@@ -199,6 +207,7 @@ function EditorEtapa({
   onCerrar: () => void;
 }) {
   const [nombre, setNombre] = useState(etapa.nombre);
+  const [notas, setNotas] = useState(etapa.notas ?? '');
   const fin = sumarDias(etapa.fecha_inicio, etapa.duracion_dias);
 
   return (
@@ -270,6 +279,27 @@ function EditorEtapa({
               }}
             />
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor={`et-no-${etapa.id}`}>Notas</Label>
+          <Textarea
+            id={`et-no-${etapa.id}`}
+            rows={2}
+            value={notas}
+            disabled={!puedeEditar}
+            onChange={(e) => setNotas(e.target.value)}
+            placeholder="Contexto, pendientes o avisos de esta etapa…"
+          />
+          {puedeEditar && notas !== (etapa.notas ?? '') && (
+            <Button
+              size="sm"
+              disabled={acciones.guardando}
+              onClick={() => acciones.patchEtapa(etapa.id, { notas })}
+            >
+              Guardar notas
+            </Button>
+          )}
         </div>
 
         {puedeEditar && (

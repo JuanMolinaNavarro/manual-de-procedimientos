@@ -494,6 +494,7 @@ model ProyectoEtapa {
   estado        String  @default("pendiente") // pendiente | curso | hecho | atrasado
   avance        Int     @default(0) // 0–100 %
   orden         Int     @default(0)
+  notas         String?
 
   proyecto        Proyecto        @relation(fields: [proyecto_id], references: [id], onDelete: Cascade)
   dep             ProyectoEtapa?  @relation("EtapaDep", fields: [dep_id], references: [id], onDelete: SetNull)
