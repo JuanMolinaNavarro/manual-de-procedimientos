@@ -138,7 +138,7 @@ export default function FichaModal({
   // Se pide acá (y no en la pestaña) porque el resultado define si la pestaña
   // se muestra: en modo lectura las vacías se ocultan.
   const estadoProyectos = useProyectosDeEmpleado(empleado?.id ?? null, open && !creating);
-  // Documentación de procedimientos del rol: mismo criterio que proyectos.
+  // Documentación de procedimientos del rol (su pestaña se muestra siempre).
   const estadoDocs = useDocumentosDeEmpleado(empleado?.id ?? null, open && !creating);
 
   useEffect(() => {
@@ -200,11 +200,9 @@ export default function FichaModal({
       label: 'Proyectos',
       full: hasList(emp.projects) || (estadoProyectos.proyectos ?? []).length > 0,
     },
-    {
-      value: 'docs',
-      label: 'Documentación',
-      full: (estadoDocs.documentos ?? []).length > 0,
-    },
+    // Siempre visible (a diferencia del resto): la documentación del rol debe
+    // poder encontrarse aunque todavía no haya archivos cargados.
+    { value: 'docs', label: 'Documentación', full: true },
     {
       value: 'mas',
       label: 'Más Info',
