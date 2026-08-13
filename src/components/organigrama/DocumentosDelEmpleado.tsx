@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, Download, FileText, Pencil, Upload, X } from 'lucide-react';
+import { Check, Download, Eye, FileText, Pencil, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -61,6 +61,10 @@ export function useDocumentosDeEmpleado(
     error: fallo?.id === empleadoId ? fallo.msg : '',
     recargar,
   };
+}
+
+function esPdf(doc: OrgDocumento): boolean {
+  return doc.tipo_mime === 'application/pdf' || doc.nombre_archivo.toLowerCase().endsWith('.pdf');
 }
 
 function formatoTamano(bytes: number | null): string {
@@ -254,6 +258,19 @@ export default function DocumentosDelEmpleado({
                       <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
                         {formatoTamano(d.tamano)}
                       </span>
+                      {esPdf(d) && (
+                        // El endpoint sirve con Content-Disposition inline: el PDF
+                        // se abre en el lector del navegador, en pestaña nueva.
+                        <a
+                          href={`/api/admin/organigrama/documentos/${d.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
+                          aria-label={`Ver ${d.titulo}`}
+                        >
+                          <Eye className="h-3.5 w-3.5" /> Ver
+                        </a>
+                      )}
                       <a
                         href={`/api/admin/organigrama/documentos/${d.id}`}
                         download={d.nombre_original}
