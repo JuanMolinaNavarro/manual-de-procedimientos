@@ -23,9 +23,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
   // filename* (RFC 5987) para nombres con acentos/ñ; filename plano como fallback.
   const ascii = doc.nombre_original.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, "'");
+  // Para .pdf forzamos el MIME: si el browser que subió mandó otro tipo (u
+  // octet-stream), el lector de PDF del navegador no se activaría al "Ver".
+  const mime = doc.nombre_archivo.toLowerCase().endsWith('.pdf')
+    ? 'application/pdf'
+    : doc.tipo_mime || 'application/octet-stream';
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
-      'Content-Type': doc.tipo_mime || 'application/octet-stream',
+      'Content-Type': mime,
       'Content-Disposition': `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(doc.nombre_original)}`,
       'Cache-Control': 'private, max-age=3600',
     },
