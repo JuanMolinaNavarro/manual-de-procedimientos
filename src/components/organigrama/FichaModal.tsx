@@ -37,6 +37,7 @@ const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sáb
 import { fotoUrl, iniciales } from './EmpleadoNode';
 import { resizeImageTo } from './image';
 import ProyectosDelEmpleado, { useProyectosDeEmpleado } from './ProyectosDelEmpleado';
+import DocumentosDelEmpleado, { useDocumentosDeEmpleado } from './DocumentosDelEmpleado';
 
 interface FichaModalProps {
   empleado: OrgEmpleado | null;
@@ -137,6 +138,8 @@ export default function FichaModal({
   // Se pide acá (y no en la pestaña) porque el resultado define si la pestaña
   // se muestra: en modo lectura las vacías se ocultan.
   const estadoProyectos = useProyectosDeEmpleado(empleado?.id ?? null, open && !creating);
+  // Documentación de procedimientos del rol: mismo criterio que proyectos.
+  const estadoDocs = useDocumentosDeEmpleado(empleado?.id ?? null, open && !creating);
 
   useEffect(() => {
     setForm(creating ? blankEmpleado(defaultArea) : empleado);
@@ -196,6 +199,11 @@ export default function FichaModal({
       value: 'proy',
       label: 'Proyectos',
       full: hasList(emp.projects) || (estadoProyectos.proyectos ?? []).length > 0,
+    },
+    {
+      value: 'docs',
+      label: 'Documentación',
+      full: (estadoDocs.documentos ?? []).length > 0,
     },
     {
       value: 'mas',
@@ -583,6 +591,23 @@ export default function FichaModal({
                         <ProyectosDelEmpleado {...estadoProyectos} />
                       </div>
                       <StringList title="Otros proyectos (nota libre)" items={emp.projects} edit={edit} onChange={(v) => set('projects', v)} />
+                    </TabsContent>
+
+                    <TabsContent value="docs" className="mt-0 space-y-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Documentación de procedimientos del rol
+                      </p>
+                      {creating ? (
+                        <p className="text-sm text-muted-foreground">
+                          Creá el empleado primero: la documentación se sube desde su ficha.
+                        </p>
+                      ) : (
+                        <DocumentosDelEmpleado
+                          empleadoId={emp.id}
+                          edit={edit}
+                          {...estadoDocs}
+                        />
+                      )}
                     </TabsContent>
 
                     <TabsContent value="mas" className="mt-0">

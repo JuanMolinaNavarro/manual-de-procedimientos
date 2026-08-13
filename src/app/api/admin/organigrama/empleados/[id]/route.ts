@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { unlinkSync } from 'fs';
+import { join } from 'path';
 import { isAdmin, getSessionUsername, canEditModule } from '@/lib/admin-auth';
 import {
   getEmpleadoById,
+  getDocumentosDeEmpleado,
   updateEmpleado,
   deleteEmpleado,
   validateNoCycle,
   type UpdateOrgEmpleadoData,
 } from '@/lib/organigrama';
+
+const DOCS_DIR = join(process.cwd(), 'uploads', 'organigrama', 'documentos');
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAdmin())) {
@@ -54,8 +59,16 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Sin permiso de edición' }, { status: 403 });
     }
     const { id } = await params;
+    // Los OrgDocumento cascadean en DB al borrar el empleado; los archivos
+    // físicos hay que desvincularlos a mano (best-effort), antes de perder las filas.
+    const documentos = await getDocumentosDeEmpleado(Number(id));
     const ok = await deleteEmpleado(Number(id));
     if (!ok) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+    for (const doc of documentos) {
+      try {
+        unlinkSync(join(DOCS_DIR, doc.nombre_archivo));
+      } catch {}
+    }
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error('Error en DELETE /api/admin/organigrama/empleados/[id]:', error);

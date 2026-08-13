@@ -378,12 +378,36 @@ model OrgEmpleado {
   // Cuenta de usuario vinculada a esta ficha (si la hay).
   usuario Usuario? @relation("UsuarioEmpleado")
 
+  // Documentación de procedimientos del rol (pestaña "Documentación" de la ficha).
+  documentos OrgDocumento[]
+
   created_by String?
   updated_by String?
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   @@map("org_empleados")
+}
+
+// Documento de procedimientos de la ficha de un empleado. El archivo físico vive
+// en uploads/organigrama/documentos (mismo criterio que las fotos); acá va la
+// metadata. `categoria` es un rubro libre por el que se agrupa la lista.
+model OrgDocumento {
+  id              Int      @id @default(autoincrement())
+  empleado_id     Int
+  categoria       String   @default("General")
+  titulo          String
+  nombre_original String
+  nombre_archivo  String // filename (uuid) en uploads/organigrama/documentos
+  tipo_mime       String?
+  tamano          Int?
+  created_by      String?
+  created_at      DateTime @default(now())
+
+  empleado OrgEmpleado @relation(fields: [empleado_id], references: [id], onDelete: Cascade)
+
+  @@index([empleado_id])
+  @@map("org_documentos")
 }
 
 model OrgArea {

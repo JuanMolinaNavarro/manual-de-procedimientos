@@ -165,6 +165,32 @@ export interface UpdateOrgLineaData extends Partial<Omit<CreateOrgLineaData, 'fr
   to_id?: number;
 }
 
+// ─── Documento de la ficha ──────────────────────────────────────────────────
+
+export interface OrgDocumento {
+  id: number;
+  empleado_id: number;
+  categoria: string;
+  titulo: string;
+  nombre_original: string;
+  nombre_archivo: string;
+  tipo_mime: string | null;
+  tamano: number | null;
+  created_by: string | null;
+  created_at: Date;
+}
+
+export interface CreateOrgDocumentoData {
+  empleado_id: number;
+  categoria: string;
+  titulo: string;
+  nombre_original: string;
+  nombre_archivo: string;
+  tipo_mime?: string | null;
+  tamano?: number | null;
+  created_by?: string | null;
+}
+
 export interface OrganigramaCompleto {
   empleados: OrgEmpleado[];
   areas: OrgArea[];
@@ -346,6 +372,59 @@ export async function validateNoCycle(empleadoId: number, managerId: number | nu
     cur = byId.get(cur) ?? null;
   }
   return true;
+}
+
+// ─── Documentación CRUD ─────────────────────────────────────────────────────
+// Solo metadata: el manejo del archivo físico (escritura/unlink) queda en las
+// rutas API, igual que con las fotos.
+
+export async function getDocumentosDeEmpleado(empleadoId: number): Promise<OrgDocumento[]> {
+  return prisma.orgDocumento.findMany({
+    where: { empleado_id: empleadoId },
+    orderBy: [{ categoria: 'asc' }, { titulo: 'asc' }, { id: 'asc' }],
+  });
+}
+
+export async function getDocumentoById(id: number): Promise<OrgDocumento | null> {
+  return prisma.orgDocumento.findUnique({ where: { id } });
+}
+
+export async function createDocumento(data: CreateOrgDocumentoData): Promise<OrgDocumento> {
+  return prisma.orgDocumento.create({
+    data: {
+      empleado_id: data.empleado_id,
+      categoria: data.categoria,
+      titulo: data.titulo,
+      nombre_original: data.nombre_original,
+      nombre_archivo: data.nombre_archivo,
+      tipo_mime: data.tipo_mime ?? null,
+      tamano: data.tamano ?? null,
+      created_by: data.created_by ?? null,
+    },
+  });
+}
+
+export async function updateDocumento(
+  id: number,
+  data: { titulo?: string; categoria?: string },
+): Promise<OrgDocumento | null> {
+  const existing = await prisma.orgDocumento.findUnique({ where: { id } });
+  if (!existing) return null;
+  return prisma.orgDocumento.update({
+    where: { id },
+    data: {
+      titulo: data.titulo ?? undefined,
+      categoria: data.categoria ?? undefined,
+    },
+  });
+}
+
+/** Borra la fila y devuelve el registro para que la ruta pueda desvincular el archivo. */
+export async function deleteDocumento(id: number): Promise<OrgDocumento | null> {
+  const existing = await prisma.orgDocumento.findUnique({ where: { id } });
+  if (!existing) return null;
+  await prisma.orgDocumento.delete({ where: { id } });
+  return existing;
 }
 
 // ─── Área CRUD ──────────────────────────────────────────────────────────────
