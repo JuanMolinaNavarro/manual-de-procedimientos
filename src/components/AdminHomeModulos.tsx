@@ -82,6 +82,8 @@ const CATEGORIAS: {
   icon: React.ReactNode;
   description: string;
   slugs: AdminModuloSlug[];
+  /** Categoría de un solo módulo: la tarjeta entra directo, sin nivel intermedio. */
+  directo?: boolean;
 }[] = [
   {
     titulo: 'APIs',
@@ -104,8 +106,15 @@ const CATEGORIAS: {
   {
     titulo: 'Administración',
     icon: <Building2 className="h-8 w-8" />,
-    description: 'Señales IP, proyectos y finanzas, y depósito.',
-    slugs: ['senales-ip', 'proyectos', 'deposito'],
+    description: 'Señales IP y proyectos y finanzas.',
+    slugs: ['senales-ip', 'proyectos'],
+  },
+  {
+    titulo: 'Depósito',
+    icon: <Warehouse className="h-8 w-8" />,
+    description: 'Gestión de stock y movimientos del depósito.',
+    slugs: ['deposito'],
+    directo: true,
   },
 ];
 
@@ -161,24 +170,43 @@ export default function AdminHomeModulos({ modulos }: { modulos: AdminHomeModulo
     );
   }
 
+  const cardClassName =
+    'group flex flex-col gap-4 rounded-lg border border-border bg-card p-6 text-left transition-colors hover:border-primary/50 hover:bg-accent';
+
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {categorias.map((cat) => (
-        <button
-          key={cat.titulo}
-          type="button"
-          onClick={() => setCategoriaActiva(cat.titulo)}
-          className="group flex flex-col gap-4 rounded-lg border border-border bg-card p-6 text-left transition-colors hover:border-primary/50 hover:bg-accent"
-        >
-          <div className="text-muted-foreground transition-colors group-hover:text-primary">
-            {cat.icon}
-          </div>
-          <div className="space-y-1">
-            <h3 className="font-semibold text-foreground">{cat.titulo}</h3>
-            <p className="text-sm text-muted-foreground">{cat.description}</p>
-          </div>
-        </button>
-      ))}
+      {categorias.map((cat) => {
+        const contenido = (
+          <>
+            <div className="text-muted-foreground transition-colors group-hover:text-primary">
+              {cat.icon}
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-semibold text-foreground">{cat.titulo}</h3>
+              <p className="text-sm text-muted-foreground">{cat.description}</p>
+            </div>
+          </>
+        );
+
+        if (cat.directo) {
+          return (
+            <Link key={cat.titulo} href={cat.modulos[0].href} className={cardClassName}>
+              {contenido}
+            </Link>
+          );
+        }
+
+        return (
+          <button
+            key={cat.titulo}
+            type="button"
+            onClick={() => setCategoriaActiva(cat.titulo)}
+            className={cardClassName}
+          >
+            {contenido}
+          </button>
+        );
+      })}
     </div>
   );
 }
