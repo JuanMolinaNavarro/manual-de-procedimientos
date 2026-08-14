@@ -15,6 +15,7 @@ import {
   Network,
   Database,
   FolderKanban,
+  Warehouse,
   Plug,
   Briefcase,
   Building2,
@@ -70,6 +71,10 @@ const MODULE_META: Record<
     icon: <FolderKanban className="h-8 w-8" />,
     description: 'Cronograma, costos y análisis financiero de cada proyecto.',
   },
+  deposito: {
+    icon: <Warehouse className="h-8 w-8" />,
+    description: 'Gestión de stock y movimientos del depósito.',
+  },
 };
 
 const CATEGORIAS: {
@@ -99,8 +104,8 @@ const CATEGORIAS: {
   {
     titulo: 'Administración',
     icon: <Building2 className="h-8 w-8" />,
-    description: 'Señales IP y proyectos y finanzas.',
-    slugs: ['senales-ip', 'proyectos'],
+    description: 'Señales IP, proyectos y finanzas, y depósito.',
+    slugs: ['senales-ip', 'proyectos', 'deposito'],
   },
 ];
 

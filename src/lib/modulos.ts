@@ -10,7 +10,15 @@ export const ADMIN_MODULOS = [
   { slug: 'organigrama',   label: 'Organigrama',    href: '/admin/organigrama' },
   { slug: 'padron',        label: 'Padrón',         href: '/admin/padron' },
   { slug: 'proyectos',     label: 'Proyectos',      href: '/admin/proyectos' },
+  { slug: 'deposito',      label: 'Depósito',       href: '/admin/deposito' },
 ] as const;
+
+/**
+ * El módulo Depósito es una app externa: `/admin/deposito` solo verifica el
+ * permiso y redirige. El href interno mantiene el módulo dentro del esquema de
+ * permisos (sidebar, guard, checkboxes de usuarios) como cualquier otro.
+ */
+export const DEPOSITO_URL = 'http://192.168.100.108:3100/';
 
 export type AdminModulo = typeof ADMIN_MODULOS[number];
 export type AdminModuloSlug = AdminModulo['slug'];
