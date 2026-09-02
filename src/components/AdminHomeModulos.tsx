@@ -21,6 +21,13 @@ import {
   Building2,
   UsersRound,
   ArrowLeft,
+  LayoutDashboard,
+  ClipboardList,
+  CalendarPlus,
+  Calculator,
+  Archive,
+  FileSignature,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 const MODULE_META: Record<
@@ -75,6 +82,34 @@ const MODULE_META: Record<
     icon: <Warehouse className="h-8 w-8" />,
     description: 'Gestión de stock y movimientos del depósito.',
   },
+  'nomina-tablero': {
+    icon: <LayoutDashboard className="h-8 w-8" />,
+    description: 'Estado de la liquidación del mes, ciclo del período y reconocimientos.',
+  },
+  'nomina-maestro': {
+    icon: <ClipboardList className="h-8 w-8" />,
+    description: 'Datos estables de nómina por empleado: CUIL, básico, convenio, CBU.',
+  },
+  'nomina-novedades': {
+    icon: <CalendarPlus className="h-8 w-8" />,
+    description: 'Carga mensual: horas extra, faltas, vacaciones, comisiones y descuentos.',
+  },
+  'nomina-liquidacion': {
+    icon: <Calculator className="h-8 w-8" />,
+    description: 'Pre-liquidación con validaciones, recibos y cierre del período.',
+  },
+  'nomina-historico': {
+    icon: <Archive className="h-8 w-8" />,
+    description: 'Períodos cerrados: snapshots inmutables para consulta y auditoría.',
+  },
+  'nomina-recibos': {
+    icon: <FileSignature className="h-8 w-8" />,
+    description: 'Recibos digitales: adhesión, firma electrónica con PIN y constancias.',
+  },
+  'nomina-parametros': {
+    icon: <SlidersHorizontal className="h-8 w-8" />,
+    description: 'Datos del empleador, alícuotas, conceptos adicionales y bonos.',
+  },
 };
 
 const CATEGORIAS: {
@@ -100,8 +135,18 @@ const CATEGORIAS: {
   {
     titulo: 'RRHH',
     icon: <UsersRound className="h-8 w-8" />,
-    description: 'Usuarios y organigrama de la empresa.',
-    slugs: ['usuarios', 'organigrama'],
+    description: 'Usuarios, organigrama y nómina de la empresa.',
+    slugs: [
+      'usuarios',
+      'organigrama',
+      'nomina-tablero',
+      'nomina-maestro',
+      'nomina-novedades',
+      'nomina-liquidacion',
+      'nomina-historico',
+      'nomina-recibos',
+      'nomina-parametros',
+    ],
   },
   {
     titulo: 'Administración',

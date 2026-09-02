@@ -323,6 +323,15 @@ model Organigrama {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
+  // Nómina: cada organigrama (empresa/ubicación) liquida por separado.
+  nomina_config          NominaConfig?
+  nomina_conceptos       NominaConcepto[]
+  nomina_bonos           NominaBono[]
+  nomina_bonos_otorgados NominaBonoOtorgado[]
+  nomina_cierres         NominaCierre[]
+  nomina_adhesiones      NominaAdhesion[]
+  nomina_constancias     NominaConstancia[]
+
   @@map("organigramas")
 }
 
@@ -380,6 +389,16 @@ model OrgEmpleado {
 
   // Documentación de procedimientos del rol (pestaña "Documentación" de la ficha).
   documentos OrgDocumento[]
+
+  // Nómina: datos estables (maestro), novedades mensuales, liquidaciones cerradas,
+  // adhesión al recibo digital y constancias de firma. Liquidaciones, adhesión y
+  // constancias son Restrict: una ficha con historial de nómina no se borra.
+  nomina                 NominaEmpleado?
+  nomina_novedades       NominaNovedad[]
+  nomina_liquidaciones   NominaLiquidacion[]
+  nomina_adhesion        NominaAdhesion?
+  nomina_constancias     NominaConstancia[]
+  nomina_bonos_otorgados NominaBonoOtorgado[]
 
   created_by String?
   updated_by String?
@@ -541,4 +560,227 @@ model ProyectoConfig {
   updated_at DateTime @updatedAt
 
   @@map("proyecto_config")
+}
+
+// ─── Nómina (liquidación de sueldos) ─────────────────────────────────────────
+// Todo se escopea por organigrama (empresa/ubicación). Fechas de dominio como
+// String ISO; dinero como Float (criterio del repo); snapshots en Json. Los
+// hashes de recibo se calculan sobre JSON canónico (claves ordenadas) porque
+// jsonb no conserva el orden de las claves.
+
+// Parámetros del motor y datos del empleador (una fila por organigrama; se
+// crea sola al primer acceso y se mergea sobre los defaults al leer).
+model NominaConfig {
+  id             Int      @id @default(autoincrement())
+  organigrama_id Int      @unique
+  params         Json
+  empresa        Json
+  updated_by     String?
+  updated_at     DateTime @updatedAt
+
+  organigrama Organigrama @relation(fields: [organigrama_id], references: [id], onDelete: Cascade)
+
+  @@map("nomina_configs")
+}
+
+// Conceptos adicionales propios de la empresa: los activos aplican a todos los
+// empleados incluidos.
+model NominaConcepto {
+  id             Int     @id @default(autoincrement())
+  organigrama_id Int
+  nombre         String
+  tipo           String // rem | norem | ded
+  calculo        String // monto | pct_basico | pct_rem
+  valor          Float   @default(0)
+  activo         Boolean @default(false)
+  orden          Int     @default(0)
+
+  organigrama Organigrama @relation(fields: [organigrama_id], references: [id], onDelete: Cascade)
+
+  @@index([organigrama_id])
+  @@map("nomina_conceptos")
+}
+
+// Catálogo de bonos y reconocimientos (gamification del Tablero).
+model NominaBono {
+  id             Int     @id @default(autoincrement())
+  organigrama_id Int
+  nombre         String
+  ambito         String  @default("empresa") // 'empresa' | nombre de área
+  metrica        String // racha_presentismo | horas_extra | comisiones | premios
+  monto          Float   @default(0)
+  activo         Boolean @default(true)
+  orden          Int     @default(0)
+
+  organigrama Organigrama          @relation(fields: [organigrama_id], references: [id], onDelete: Cascade)
+  otorgados   NominaBonoOtorgado[]
+
+  @@index([organigrama_id])
+  @@map("nomina_bonos")
+}
+
+model NominaBonoOtorgado {
+  id             Int      @id @default(autoincrement())
+  organigrama_id Int
+  periodo        String // YYYY-MM
+  bono_id        Int? // SetNull: el medallero sobrevive al borrado del bono
+  bono_nombre    String
+  empleado_id    Int
+  monto          Float    @default(0)
+  fecha          String // ISO yyyy-mm-dd
+  created_by     String?
+  created_at     DateTime @default(now())
+
+  organigrama Organigrama @relation(fields: [organigrama_id], references: [id], onDelete: Cascade)
+  bono        NominaBono? @relation(fields: [bono_id], references: [id], onDelete: SetNull)
+  empleado    OrgEmpleado @relation(fields: [empleado_id], references: [id], onDelete: Cascade)
+
+  @@unique([organigrama_id, periodo, bono_id])
+  @@index([empleado_id])
+  @@map("nomina_bonos_otorgados")
+}
+
+// "Maestro": datos estables de nómina de una ficha del organigrama. Nombre, rol,
+// área y foto se leen del organigrama (fuente de verdad).
+model NominaEmpleado {
+  id            Int      @id @default(autoincrement())
+  empleado_id   Int      @unique
+  cuil          String   @default("")
+  fecha_ingreso String   @default("") // ISO yyyy-mm-dd o ''
+  basico        Float    @default(0)
+  categoria     String   @default("")
+  convenio      String   @default("Fuera de convenio")
+  cct           String   @default("")
+  afiliado      Boolean  @default(false)
+  obra_social   String   @default("")
+  cbu           String   @default("")
+  incluir       Boolean  @default(true)
+  updated_by    String?
+  updated_at    DateTime @updatedAt
+
+  empleado OrgEmpleado @relation(fields: [empleado_id], references: [id], onDelete: Cascade)
+
+  @@map("nomina_empleados")
+}
+
+// Novedades del mes por empleado (lo único que cambia mes a mes).
+model NominaNovedad {
+  id              Int      @id @default(autoincrement())
+  empleado_id     Int
+  periodo         String // YYYY-MM
+  he50            Float    @default(0)
+  he100           Float    @default(0)
+  faltas_inj      Float    @default(0)
+  dias_sin_goce   Float    @default(0)
+  dias_vacaciones Float    @default(0)
+  comisiones      Float    @default(0)
+  premios         Float    @default(0)
+  sac             Float    @default(0)
+  asig_familiares Float    @default(0)
+  ganancias       Float    @default(0)
+  adelantos       Float    @default(0)
+  embargos        Float    @default(0)
+  notas           String   @default("")
+  updated_by      String?
+  updated_at      DateTime @updatedAt
+
+  empleado OrgEmpleado @relation(fields: [empleado_id], references: [id], onDelete: Cascade)
+
+  @@unique([empleado_id, periodo])
+  @@index([periodo])
+  @@map("nomina_novedades")
+}
+
+// Cierre de un período: snapshot inmutable de parámetros, empleador y
+// liquidaciones. `fecha_cierre` entra en el hash de cada recibo.
+model NominaCierre {
+  id               Int      @id @default(autoincrement())
+  organigrama_id   Int
+  periodo          String // YYYY-MM
+  fecha_cierre     String // ISO datetime
+  params_snapshot  Json
+  empresa_snapshot Json
+  created_by       String?
+  created_at       DateTime @default(now())
+
+  organigrama   Organigrama         @relation(fields: [organigrama_id], references: [id], onDelete: Restrict)
+  liquidaciones NominaLiquidacion[]
+
+  @@unique([organigrama_id, periodo])
+  @@map("nomina_cierres")
+}
+
+model NominaLiquidacion {
+  id               Int    @id @default(autoincrement())
+  cierre_id        Int
+  empleado_id      Int
+  nombre           String
+  rol              String @default("")
+  area             String @default("")
+  maestro_snapshot Json // {cuil, categoria, convenio, cct, fechaIngreso, cbu}
+  liquidacion      Json // Liquidacion completa (rem/norem/ded/contribs/totales/flags/anios/basico)
+  neto             Float
+  costo_empresa    Float
+  hash             String // sha256(canonicalJson(reciboPayload)) al cerrar
+
+  cierre   NominaCierre @relation(fields: [cierre_id], references: [id], onDelete: Cascade)
+  empleado OrgEmpleado  @relation(fields: [empleado_id], references: [id], onDelete: Restrict)
+
+  @@unique([cierre_id, empleado_id])
+  @@index([empleado_id])
+  @@map("nomina_liquidaciones")
+}
+
+// Adhesión al recibo digital: acto único por persona. Se guarda solo el hash del
+// PIN. El acta firmada en papel se escanea y se adjunta como PDF
+// (uploads/nomina/actas).
+model NominaAdhesion {
+  id                   Int       @id @default(autoincrement())
+  empleado_id          Int       @unique
+  organigrama_id       Int
+  fecha                String // ISO yyyy-mm-dd
+  modo                 String // papel | electronica
+  cuil                 String // CUIL congelado al adherir (base del pinHash)
+  pin_hash             String
+  pin_cambiado         String? // ISO datetime
+  acta_archivo         String? // <uuid>.pdf en uploads/nomina/actas
+  acta_nombre_original String?
+  acta_tamano          Int?
+  acta_subida_en       DateTime?
+  created_by           String?
+  created_at           DateTime  @default(now())
+
+  empleado    OrgEmpleado @relation(fields: [empleado_id], references: [id], onDelete: Restrict)
+  organigrama Organigrama @relation(fields: [organigrama_id], references: [id], onDelete: Restrict)
+
+  @@map("nomina_adhesiones")
+}
+
+// Constancia de recepción y firma electrónica de un recibo. Encadenada con la
+// anterior del mismo organigrama (chain_hash). Sin FK a NominaLiquidacion a
+// propósito: reabrir un período (borra el cierre) conserva la constancia y al
+// re-cerrar se marca "hash no coincide".
+model NominaConstancia {
+  id             Int      @id @default(autoincrement())
+  organigrama_id Int
+  periodo        String
+  empleado_id    Int
+  hash           String
+  prev_hash      String
+  chain_hash     String
+  fecha          String // ISO datetime (generada dentro del lock de la cadena)
+  conformidad    String // conforme | disconforme
+  observaciones  String   @default("")
+  canal          String   @default("kiosco")
+  firmante       Json // {empId, nombre, cuil}
+  dispositivo    String   @default("")
+  leido          Boolean  @default(true)
+  created_at     DateTime @default(now())
+
+  organigrama Organigrama @relation(fields: [organigrama_id], references: [id], onDelete: Restrict)
+  empleado    OrgEmpleado @relation(fields: [empleado_id], references: [id], onDelete: Restrict)
+
+  @@unique([organigrama_id, periodo, empleado_id])
+  @@index([organigrama_id, fecha])
+  @@map("nomina_constancias")
 }

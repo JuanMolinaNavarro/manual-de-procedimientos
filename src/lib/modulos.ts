@@ -11,7 +11,22 @@ export const ADMIN_MODULOS = [
   { slug: 'padron',        label: 'Padrón',         href: '/admin/padron' },
   { slug: 'proyectos',     label: 'Proyectos',      href: '/admin/proyectos' },
   { slug: 'deposito',      label: 'Depósito',       href: '/admin/deposito' },
+  // Nómina (liquidación de sueldos): cada pestaña del módulo es un módulo propio
+  // con su permiso, dentro de la categoría RRHH.
+  { slug: 'nomina-tablero',     label: 'Nómina · Tablero',     href: '/admin/nomina/tablero' },
+  { slug: 'nomina-maestro',     label: 'Nómina · Maestro',     href: '/admin/nomina/maestro' },
+  { slug: 'nomina-novedades',   label: 'Nómina · Novedades',   href: '/admin/nomina/novedades' },
+  { slug: 'nomina-liquidacion', label: 'Nómina · Liquidación', href: '/admin/nomina/liquidacion' },
+  { slug: 'nomina-historico',   label: 'Nómina · Histórico',   href: '/admin/nomina/historico' },
+  { slug: 'nomina-recibos',     label: 'Nómina · Recibos',     href: '/admin/nomina/recibos' },
+  { slug: 'nomina-parametros',  label: 'Nómina · Parámetros',  href: '/admin/nomina/parametros' },
 ] as const;
+
+/** Slugs de los sub-módulos de nómina, en el orden de sus pestañas. */
+export const NOMINA_SLUGS = [
+  'nomina-tablero', 'nomina-maestro', 'nomina-novedades', 'nomina-liquidacion',
+  'nomina-historico', 'nomina-recibos', 'nomina-parametros',
+] as const satisfies readonly AdminModuloSlug[];
 
 /**
  * El módulo Depósito es una app externa: `/admin/deposito` solo verifica el
