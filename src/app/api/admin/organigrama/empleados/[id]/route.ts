@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { unlinkSync } from 'fs';
 import { join } from 'path';
 import { isAdmin, getSessionUsername, canEditModule } from '@/lib/admin-auth';
+import { NominaError } from '@/lib/nomina';
 import {
   getEmpleadoById,
   getDocumentosDeEmpleado,
@@ -71,6 +72,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (error instanceof NominaError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Error en DELETE /api/admin/organigrama/empleados/[id]:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }

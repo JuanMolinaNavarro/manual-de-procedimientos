@@ -5,6 +5,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { OrgEmpleado } from '@/lib/organigrama';
 import { esCumpleHoy } from '@/lib/cumples';
 import { CARD_W, CARD_H } from './layout';
+import { fotoUrl, iniciales } from './foto';
 
 export const EMPLEADO_NODE_TYPE = 'empleado';
 
@@ -16,20 +17,9 @@ export interface EmpleadoNodeData {
   [key: string]: unknown;
 }
 
-export function fotoUrl(emp: OrgEmpleado): string | null {
-  return emp.foto_archivo
-    ? `/api/admin/organigrama/empleados/${emp.id}/foto?n=${encodeURIComponent(emp.foto_archivo)}`
-    : null;
-}
-
-export function iniciales(nombre: string): string {
-  return nombre
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? '')
-    .join('');
-}
+// Los helpers de foto viven en ./foto (sin dependencia de xyflow); se
+// re-exportan para no tocar los imports existentes.
+export { fotoUrl, iniciales } from './foto';
 
 function EmpleadoNodeComp({ data, selected }: NodeProps) {
   const { empleado: emp, dimmed, areaColor, esJefe } = data as EmpleadoNodeData;

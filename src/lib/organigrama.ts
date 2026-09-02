@@ -1,4 +1,5 @@
 import { prisma } from './prisma';
+import { NominaError, tieneHistorialNomina } from './nomina';
 
 // ─── Sub-tipos del CV (columnas Json) ──────────────────────────────────────────
 
@@ -340,6 +341,11 @@ export async function updateEmpleado(
 export async function deleteEmpleado(id: number): Promise<boolean> {
   const existing = await prisma.orgEmpleado.findUnique({ where: { id } });
   if (!existing) return false;
+  // Una ficha con liquidaciones cerradas, adhesión o constancias de nómina no
+  // se borra (las FKs son Restrict): mejor un 409 claro que un error de DB.
+  if (await tieneHistorialNomina(id)) {
+    throw new NominaError('Tiene liquidaciones cerradas, adhesión o constancias de nómina; no se puede eliminar', 409);
+  }
   await prisma.$transaction([
     prisma.orgLinea.deleteMany({ where: { OR: [{ from_id: id }, { to_id: id }] } }),
     prisma.orgEmpleado.updateMany({ where: { manager_id: id }, data: { manager_id: null } }),

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { canEditModule } from '@/lib/admin-auth';
 import { seedOrganigrama } from '@/lib/organigrama-seed';
+import { NominaError } from '@/lib/nomina';
 
 // POST { reset?: boolean }
 //  - reset=true  → borra todo y carga los datos de ejemplo (usado por "Reiniciar").
@@ -20,6 +21,9 @@ export async function POST(request: NextRequest) {
     const result = await seedOrganigrama(reset);
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof NominaError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Error en POST /api/admin/organigrama/seed:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }

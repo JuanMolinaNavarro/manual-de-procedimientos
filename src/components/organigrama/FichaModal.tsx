@@ -38,6 +38,7 @@ import { fotoUrl, iniciales } from './EmpleadoNode';
 import { resizeImageTo } from './image';
 import ProyectosDelEmpleado, { useProyectosDeEmpleado } from './ProyectosDelEmpleado';
 import DocumentosDelEmpleado, { useDocumentosDeEmpleado } from './DocumentosDelEmpleado';
+import RecibosDelEmpleado, { useRecibosDeEmpleado } from './RecibosDelEmpleado';
 
 interface FichaModalProps {
   empleado: OrgEmpleado | null;
@@ -140,6 +141,8 @@ export default function FichaModal({
   const estadoProyectos = useProyectosDeEmpleado(empleado?.id ?? null, open && !creating);
   // Documentación de procedimientos del rol (su pestaña se muestra siempre).
   const estadoDocs = useDocumentosDeEmpleado(empleado?.id ?? null, open && !creating);
+  // Recibos de sueldo cerrados (módulo Nómina): la pestaña se muestra solo si hay.
+  const estadoRecibos = useRecibosDeEmpleado(empleado?.id ?? null, open && !creating);
 
   useEffect(() => {
     setForm(creating ? blankEmpleado(defaultArea) : empleado);
@@ -203,6 +206,7 @@ export default function FichaModal({
     // Siempre visible (a diferencia del resto): la documentación del rol debe
     // poder encontrarse aunque todavía no haya archivos cargados.
     { value: 'docs', label: 'Documentación', full: true },
+    { value: 'recibos', label: 'Recibos', full: (estadoRecibos.recibos ?? []).length > 0 },
     {
       value: 'mas',
       label: 'Más Info',
@@ -605,6 +609,17 @@ export default function FichaModal({
                           edit={edit}
                           {...estadoDocs}
                         />
+                      )}
+                    </TabsContent>
+
+                    <TabsContent value="recibos" className="mt-0 space-y-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Recibos de sueldo cerrados
+                      </p>
+                      {creating ? (
+                        <p className="text-sm text-muted-foreground">Creá el empleado primero.</p>
+                      ) : (
+                        <RecibosDelEmpleado empleadoId={emp.id} {...estadoRecibos} />
                       )}
                     </TabsContent>
 

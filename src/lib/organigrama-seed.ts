@@ -1,4 +1,5 @@
 import { prisma } from './prisma';
+import { NominaError, tieneHistorialNomina } from './nomina';
 import {
   createArea,
   createEmpleado,
@@ -296,6 +297,11 @@ export async function seedOrganigrama(reset: boolean): Promise<SeedResult> {
     };
   }
   if (reset) {
+    // Con historial de nómina (cierres, adhesiones, constancias) las FKs Restrict
+    // impiden borrar empleados y organigramas: se avisa antes de intentarlo.
+    if (await tieneHistorialNomina()) {
+      throw new NominaError('Hay liquidaciones cerradas, adhesiones o constancias de nómina; no se puede reiniciar el organigrama', 409);
+    }
     await prisma.$transaction([
       prisma.orgLinea.deleteMany({}),
       prisma.orgEmpleado.deleteMany({}),
