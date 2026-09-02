@@ -314,12 +314,22 @@ async function ensureConfig(orgId: number) {
   const existente = await prisma.nominaConfig.findUnique({ where: { organigrama_id: orgId } });
   if (existente) return existente;
   await assertOrganigrama(orgId);
-  return prisma.$transaction(async (tx) => {
-    const row = await tx.nominaConfig.create({ data: { organigrama_id: orgId, params: {}, empresa: {} } });
-    await tx.nominaConcepto.createMany({ data: DEFAULT_CONCEPTOS.map((c) => ({ ...c, organigrama_id: orgId })) });
-    await tx.nominaBono.createMany({ data: DEFAULT_BONOS.map((b) => ({ ...b, organigrama_id: orgId })) });
-    return row;
-  });
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const row = await tx.nominaConfig.create({ data: { organigrama_id: orgId, params: {}, empresa: {} } });
+      await tx.nominaConcepto.createMany({ data: DEFAULT_CONCEPTOS.map((c) => ({ ...c, organigrama_id: orgId })) });
+      await tx.nominaBono.createMany({ data: DEFAULT_BONOS.map((b) => ({ ...b, organigrama_id: orgId })) });
+      return row;
+    });
+  } catch (e) {
+    // Varias pantallas piden la config a la vez la primera vez: si otra request
+    // ganó la carrera, la fila ya existe y se reutiliza.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      const row = await prisma.nominaConfig.findUnique({ where: { organigrama_id: orgId } });
+      if (row) return row;
+    }
+    throw e;
+  }
 }
 
 export async function getConfig(orgId: number): Promise<Config> {
@@ -927,7 +937,10 @@ export async function firmarKiosco(orgId: number, periodo: string, empleadoId: n
   if (conformidad === 'disconforme' && !observaciones) throw new NominaError('Indicá qué observás para firmar en disconformidad');
 
   const row = await prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('nomina_cadena'), ${orgId})`;
+    // Prisma manda el número como bigint (la firma (int, int) exige el cast) y
+    // no sabe deserializar el `void` que devuelve la función: $executeRaw ignora
+    // el resultado.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('nomina_cadena'), ${orgId}::int)`;
     const last = await tx.nominaConstancia.findFirst({ where: { organigrama_id: orgId }, orderBy: [{ fecha: 'desc' }, { id: 'desc' }] });
     const fecha = new Date().toISOString();
     const prev = last?.chain_hash ?? GENESIS;

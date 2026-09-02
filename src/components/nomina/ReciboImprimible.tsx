@@ -26,13 +26,15 @@ export default function ReciboImprimible() {
   const vista = useNominaData<ReciboVista>(url);
   const v = vista.data;
   const impreso = useRef(false);
+  // `auto=0` muestra la vista sin abrir el diálogo de impresión (previsualizar).
+  const auto = sp.get('auto') !== '0';
 
   useEffect(() => {
-    if (!v || impreso.current) return;
+    if (!v || !auto || impreso.current) return;
     impreso.current = true;
     const id = setTimeout(() => window.print(), 300);
     return () => clearTimeout(id);
-  }, [v]);
+  }, [v, auto]);
 
   if (!url) return <p className="text-sm text-muted-foreground">Faltan parámetros (organigramaId, periodo, empleadoId).</p>;
   if (vista.error) return <p className="text-sm text-destructive">{vista.error}</p>;

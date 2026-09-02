@@ -21,13 +21,15 @@ export default function ActaAdhesion() {
   const datos = useNominaData<ActaDatos>(url);
   const d = datos.data;
   const impreso = useRef(false);
+  // `auto=0` muestra el acta sin abrir el diálogo de impresión (previsualizar).
+  const auto = sp.get('auto') !== '0';
 
   useEffect(() => {
-    if (!d || impreso.current) return;
+    if (!d || !auto || impreso.current) return;
     impreso.current = true;
     const id = setTimeout(() => window.print(), 300);
     return () => clearTimeout(id);
-  }, [d]);
+  }, [d, auto]);
 
   if (!url) return <p className="text-sm text-muted-foreground">Faltan parámetros (organigramaId, empleadoId).</p>;
   if (datos.error) return <p className="text-sm text-destructive">{datos.error}</p>;
