@@ -13,6 +13,7 @@ import {
   CreditCard,
   Antenna,
   Network,
+  Fingerprint,
   Database,
   FolderKanban,
   Warehouse,
@@ -69,6 +70,10 @@ const MODULE_META: Record<
   organigrama: {
     icon: <Network className="h-8 w-8" />,
     description: 'Visualizar y gestionar la estructura organizacional de la empresa.',
+  },
+  asistencia: {
+    icon: <Fingerprint className="h-8 w-8" />,
+    description: 'Fichadas de los relojes biométricos por empleado, sede y fecha.',
   },
   padron: {
     icon: <Database className="h-8 w-8" />,
@@ -139,6 +144,7 @@ const CATEGORIAS: {
     slugs: [
       'usuarios',
       'organigrama',
+      'asistencia',
       'nomina-tablero',
       'nomina-maestro',
       'nomina-novedades',

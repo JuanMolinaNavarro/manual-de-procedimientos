@@ -6,6 +6,7 @@ export async function register() {
   const { default: cron } = await import('node-cron');
   const { runPipeline, isPipelineRunning } = await import('@/lib/pipeline');
   const { syncSportsData, isSyncRunning } = await import('@/lib/deportes');
+  const { sincronizarTodos, isSyncAsistenciaRunning } = await import('@/lib/asistencia');
 
   // 03:10 UTC = 00:10 UTC-3
   cron.schedule('10 3 * * *', async () => {
@@ -44,4 +45,22 @@ export async function register() {
   cron.schedule('0 21 * * *', () => sportsCronHandler('18:00 UTC-3'), { timezone: 'UTC' });
 
   console.log('[Deportes] Cron scheduled: 03:00, 09:00, 21:00 UTC (00:00, 06:00, 18:00 UTC-3)');
+
+  // Asistencia: baja las fichadas nuevas de los relojes Anviz cada 10 minutos.
+  cron.schedule('*/10 * * * *', async () => {
+    if (isSyncAsistenciaRunning()) {
+      console.log('[Asistencia] Cron omitido: ya hay una sincronización en curso');
+      return;
+    }
+    try {
+      const res = await sincronizarTodos('nuevos');
+      const guardados = res.reduce((a, r) => a + r.guardados, 0);
+      const conError = res.filter((r) => r.error);
+      console.log(`[Asistencia] Cron: ${res.length} relojes, ${guardados} fichadas nuevas` + (conError.length ? `, ${conError.length} con error` : ''));
+    } catch (err) {
+      console.error('[Asistencia] Cron error:', err);
+    }
+  }, { timezone: 'UTC' });
+
+  console.log('[Asistencia] Cron scheduled: cada 10 min');
 }

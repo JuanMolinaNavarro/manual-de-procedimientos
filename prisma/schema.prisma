@@ -400,6 +400,9 @@ model OrgEmpleado {
   nomina_constancias     NominaConstancia[]
   nomina_bonos_otorgados NominaBonoOtorgado[]
 
+  // Asistencia: personas del reloj biométrico vinculadas a esta ficha.
+  asistencia_personas AsistenciaPersona[]
+
   created_by String?
   updated_by String?
   created_at DateTime @default(now())
@@ -783,4 +786,73 @@ model NominaConstancia {
   @@unique([organigrama_id, periodo, empleado_id])
   @@index([organigrama_id, fecha])
   @@map("nomina_constancias")
+}
+
+// ─── Asistencia (relojes biométricos Anviz) ────────────────────────────────
+
+// Un reloj de fichadas. `device_id` es el ID de dispositivo del protocolo TC-B
+// (= ClientNumber en CrossChex) y va en la cabecera de cada trama.
+model AsistenciaReloj {
+  id             Int       @id @default(autoincrement())
+  nombre         String
+  ip             String
+  puerto         Int       @default(5010)
+  device_id      Int       @unique
+  activo         Boolean   @default(true)
+  // Borrar la marca de "nuevos" en el reloj después de bajar (cmd 0x4E). Apagado
+  // mientras CrossChex siga descargando: si lo borramos nosotros, CrossChex no
+  // los ve más.
+  limpiar_nuevos Boolean   @default(false)
+  ultimo_sync    DateTime?
+  ultimo_error   String?
+  reg_total      Int?
+  reg_nuevos     Int?
+  usuarios       Int?
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  fichadas AsistenciaFichada[]
+
+  @@map("asistencia_relojes")
+}
+
+// Persona tal como existe en los relojes (`user_id` = ID en el reloj, casi
+// siempre el DNI). El nombre del reloj viene truncado a 10 caracteres; si está
+// vinculada a una ficha del organigrama se muestra el nombre de la ficha.
+model AsistenciaPersona {
+  id           Int      @id @default(autoincrement())
+  user_id      String   @unique
+  nombre_reloj String   @default("")
+  empleado_id  Int?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  empleado OrgEmpleado? @relation(fields: [empleado_id], references: [id], onDelete: SetNull)
+
+  @@map("asistencia_personas")
+}
+
+// Una marca en el reloj. `fecha_hora` es el instante real (UTC) calculado desde
+// la hora local del reloj (-03:00); `fecha` es el día local yyyy-mm-dd para
+// filtrar y agrupar sin corrimientos. `tipo`: 0 entrada, 1 salida, 2 descanso,
+// 3 horas extra (tabla Status de CrossChex). `origen`: 'reloj' (bajada directa)
+// o 'crosschex' (importada del .mdb).
+model AsistenciaFichada {
+  id         Int      @id @default(autoincrement())
+  reloj_id   Int
+  user_id    String
+  fecha_hora DateTime
+  fecha      String
+  tipo       Int      @default(0)
+  modo       Int?
+  work_type  Int?
+  origen     String   @default("reloj")
+  created_at DateTime @default(now())
+
+  reloj AsistenciaReloj @relation(fields: [reloj_id], references: [id], onDelete: Cascade)
+
+  @@unique([reloj_id, user_id, fecha_hora])
+  @@index([fecha])
+  @@index([user_id, fecha])
+  @@map("asistencia_fichadas")
 }
