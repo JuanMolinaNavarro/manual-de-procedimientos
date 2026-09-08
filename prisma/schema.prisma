@@ -824,6 +824,10 @@ model AsistenciaPersona {
   user_id      String   @unique
   nombre_reloj String   @default("")
   empleado_id  Int?
+  // Solo manda cuando la persona NO está vinculada: si tiene ficha, la
+  // actividad la decide `OrgEmpleado.estado` (ver `personaActiva`). Se apaga a
+  // mano o por silencio prolongado, y se vuelve a prender sola con una fichada.
+  activo       Boolean  @default(true)
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 

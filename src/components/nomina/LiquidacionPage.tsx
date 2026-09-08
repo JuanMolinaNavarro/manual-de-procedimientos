@@ -31,7 +31,7 @@ export function LiqCard({ l, onClick }: { l: LiquidacionView; onClick: () => voi
         hasErr ? 'border-red-500/60' : hasWarn ? 'border-amber-500/60' : 'border-border',
       )}
     >
-      <EmpleadoCell empleado={{ id: l.empId, nombre: l.nombre, rol: l.rol, area: l.dept, estado: 'active', foto_archivo: l.foto_archivo }} sub={l.rol} />
+      <EmpleadoCell empleado={{ id: l.empId, nombre: l.nombre, foto_archivo: l.foto_archivo }} sub={l.rol} />
       <div className="mt-3 space-y-1 text-sm">
         <div className="flex justify-between"><span className="text-muted-foreground">Bruto remunerativo</span><span className="tabular-nums">{money(l.totalRem)}</span></div>
         <div className="flex justify-between"><span className="text-muted-foreground">Deducciones</span><span className="tabular-nums text-red-600 dark:text-red-400">− {money(l.totalDed)}</span></div>

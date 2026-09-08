@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   armarTrama,
   crc16,
+  esRespuestaA,
+  extraerTramas,
   fechaReloj,
   largoRespuesta,
   parsearContadores,
@@ -83,5 +85,45 @@ describe('anviz-tcb: tramas', () => {
     const { fechaHora, fecha } = fechaReloj(0);
     expect(fecha).toBe('2000-01-02');
     expect(fechaHora.toISOString()).toBe('2000-01-02T03:00:00.000Z');
+  });
+});
+
+// Capturadas en GRAL PAZ CCC (device 20) el 8/9/2026 con una sonda de solo
+// lectura: al pedir contadores, el reloj empujó primero la fichada que alguien
+// acababa de marcar (cmd 0x5F, 14 bytes) y recién después contestó el 0x3C.
+describe('anviz-tcb: tramas que el reloj empuja sin que se las pidan', () => {
+  const conCrc = (s: string) => {
+    const b = hex(s);
+    const c = crc16(b);
+    return Buffer.concat([b, Buffer.from([c & 0xff, c >> 8])]);
+  };
+  const empujada = conCrc('A5 00000014 DF 00 000E 00000001AE 32315785 01 00 000000');
+  const contadores = conCrc('A5 00000014 BC 00 0012 0000F9 00017D 000014 000005 0027DC 000025');
+
+  it('extraerTramas separa dos tramas pegadas en un chunk y guarda el resto', () => {
+    const { tramas, resto } = extraerTramas(Buffer.concat([empujada, contadores, Buffer.from([0xa5, 0x00])]));
+    expect(tramas).toHaveLength(2);
+    expect(tramas[0]).toEqual(empujada);
+    expect(tramas[1]).toEqual(contadores);
+    expect(resto).toEqual(Buffer.from([0xa5, 0x00]));
+  });
+
+  it('la trama empujada no es respuesta al 0x3C; la de contadores sí', () => {
+    expect(esRespuestaA(empujada, 0x3c)).toBe(false);
+    expect(esRespuestaA(contadores, 0x3c)).toBe(true);
+    expect(parsearRespuesta(empujada)).toMatchObject({ deviceId: 20, cmd: 0x5f, ret: 0 });
+    expect(parsearRespuesta(empujada).data).toHaveLength(14);
+  });
+
+  it('con la empujada descartada, los contadores reales de GRAL PAZ parsean bien', () => {
+    expect(parsearContadores(parsearRespuesta(contadores).data)).toMatchObject({
+      usuarios: 249,
+      registrosTotales: 10204,
+      registrosNuevos: 37,
+    });
+  });
+
+  it('parsearContadores sigue rechazando 14 bytes: es lo que pasaba antes del fix', () => {
+    expect(() => parsearContadores(parsearRespuesta(empujada).data)).toThrow(/corta \(14 bytes\)/);
   });
 });

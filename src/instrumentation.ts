@@ -6,7 +6,8 @@ export async function register() {
   const { default: cron } = await import('node-cron');
   const { runPipeline, isPipelineRunning } = await import('@/lib/pipeline');
   const { syncSportsData, isSyncRunning } = await import('@/lib/deportes');
-  const { sincronizarTodos, isSyncAsistenciaRunning } = await import('@/lib/asistencia');
+  const { sincronizarTodos, isSyncAsistenciaRunning, archivarSilenciosas } = await import('@/lib/asistencia');
+  const { DIAS_SILENCIO_DEFAULT } = await import('@/lib/asistencia-datos');
 
   // 03:10 UTC = 00:10 UTC-3
   cron.schedule('10 3 * * *', async () => {
@@ -63,4 +64,20 @@ export async function register() {
   }, { timezone: 'UTC' });
 
   console.log('[Asistencia] Cron scheduled: cada 10 min');
+
+  // Asistencia: archiva a las personas sin vincular que llevan DIAS_SILENCIO_DEFAULT
+  // días sin fichar. Una sola vez por día (06:20 UTC = 03:20 UTC-3): es una limpieza
+  // de listas, no algo que tenga que reaccionar al minuto. No borra nada — quien
+  // vuelva a fichar se reactiva solo. A los vinculados al organigrama no los toca:
+  // la baja de un empleado la decide RRHH en su ficha.
+  cron.schedule('20 6 * * *', async () => {
+    try {
+      const r = await archivarSilenciosas(DIAS_SILENCIO_DEFAULT);
+      if (r.archivadas > 0) console.log(`[Asistencia] Archivado por silencio: ${r.archivadas} persona(s) sin fichar en ${r.dias} días`);
+    } catch (err) {
+      console.error('[Asistencia] Cron de archivado error:', err);
+    }
+  }, { timezone: 'UTC' });
+
+  console.log(`[Asistencia] Cron scheduled: archivado por silencio 06:20 UTC (${DIAS_SILENCIO_DEFAULT} días)`);
 }

@@ -7,6 +7,7 @@ import AdminLogoutButton from '@/components/AdminLogoutButton';
 import ThemeToggle from '@/components/ThemeToggle';
 import AdminSidebar from '@/components/AdminSidebar';
 import AdminModuleGuard from '@/components/AdminModuleGuard';
+import { Toaster } from '@/components/ui/sonner';
 
 export const metadata: Metadata = {
   title: 'AURELIUS',
@@ -69,6 +70,10 @@ export default async function AdminLayout({
       <main className="px-4 py-8 sm:px-6 lg:px-8">
         {children}
       </main>
+
+      {/* Único Toaster del panel: antes vivía dentro de NominaProvider y los
+          toasts de los demás módulos no se renderizaban. */}
+      <Toaster position="top-center" richColors />
     </div>
   );
 }

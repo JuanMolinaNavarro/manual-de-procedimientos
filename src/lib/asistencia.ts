@@ -7,14 +7,24 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 import { ClienteAnviz, conReloj, type RegistroReloj } from './anviz-tcb';
+import { updateEmpleado } from './organigrama';
 import {
   ORIGEN_CROSSCHEX,
   ORIGEN_RELOJ,
   OFFSET_RELOJ_MIN,
+  DIAS_REACTIVACION,
+  DIAS_SILENCIO_DEFAULT,
+  ESTADO_EMPLEADO_ACTIVO,
+  ESTADO_EMPLEADO_INACTIVO,
   esFechaImposible,
+  FILAS_POR_PAGINA,
   hoyLocal,
+  sumarDias,
+  armarResumen,
+  personaActiva,
   type FiltrosFichadas,
   type ModoDescarga,
+  type ResumenAsistencia,
 } from './asistencia-datos';
 
 /** Error con status HTTP para el wrapper de la API. */
@@ -199,6 +209,17 @@ async function guardarRegistros(relojId: number, lote: RegistroReloj[]): Promise
     })),
     skipDuplicates: true,
   });
+  // Una marca reciente reactiva sola a quien se archivó por silencio. Solo a
+  // las personas sin vincular: la baja de un empleado es del organigrama y una
+  // fichada no la revierte. Y solo si es reciente, por las descargas completas.
+  const corte = sumarDias(hoyLocal(), -DIAS_REACTIVACION);
+  const recientes = [...new Set(lote.filter((r) => r.fecha >= corte).map((r) => r.userId))];
+  if (recientes.length) {
+    await prisma.asistenciaPersona.updateMany({
+      where: { user_id: { in: recientes }, empleado_id: null, activo: false },
+      data: { activo: true },
+    });
+  }
   return res.count;
 }
 
@@ -335,13 +356,22 @@ export async function importarMdb(buffer: Buffer): Promise<ResultadoImport> {
 // ─── Personas ────────────────────────────────────────────────────────────────
 
 export async function listarPersonas() {
-  const [personas, empleados] = await Promise.all([
+  const hoy = hoyLocal();
+  const [personas, empleados, ultimas] = await Promise.all([
     prisma.asistenciaPersona.findMany({ orderBy: { user_id: 'asc' } }),
-    prisma.orgEmpleado.findMany({ select: { id: true, nombre: true, rol: true, area: true } }),
+    prisma.orgEmpleado.findMany({ select: { id: true, nombre: true, rol: true, area: true, estado: true } }),
+    // Última marca real por persona; las fechas imposibles no cuentan.
+    prisma.asistenciaFichada.groupBy({
+      by: ['user_id'],
+      where: { fecha: { gte: LIMITE_PASADO, lte: sumarDias(hoy, 1) } },
+      _max: { fecha_hora: true },
+    }),
   ]);
   const porId = new Map(empleados.map((e) => [e.id, e]));
+  const ultimaPor = new Map(ultimas.map((u) => [u.user_id, u._max.fecha_hora]));
   return personas.map((p) => {
     const emp = p.empleado_id != null ? porId.get(p.empleado_id) : undefined;
+    const empleadoEstado = emp?.estado ?? null;
     return {
       id: p.id,
       userId: p.user_id,
@@ -349,8 +379,56 @@ export async function listarPersonas() {
       empleadoId: p.empleado_id,
       empleado: emp ? { id: emp.id, nombre: emp.nombre, rol: emp.rol, area: emp.area } : null,
       nombre: emp?.nombre || p.nombre_reloj || p.user_id,
+      activoPropio: p.activo,
+      empleadoEstado,
+      activa: personaActiva({ empleadoId: p.empleado_id, activo: p.activo, empleadoEstado }),
+      ultimaFichada: ultimaPor.get(p.user_id)?.toISOString() ?? null,
     };
   });
+}
+
+/**
+ * Prende o apaga a una persona. Si está vinculada, la fuente de verdad es el
+ * organigrama y el cambio va ahí (`estado`); si no, a su propio `activo`. En
+ * los dos casos `activo` queda alineado, para que no asome un valor viejo si
+ * más adelante se la desvincula.
+ */
+export async function setPersonaActiva(id: number, activa: boolean) {
+  const persona = await prisma.asistenciaPersona.findUnique({ where: { id } });
+  if (!persona) throw new AsistenciaError('Persona no encontrada', 404);
+  if (persona.empleado_id != null) {
+    const emp = await updateEmpleado(persona.empleado_id, {
+      estado: activa ? ESTADO_EMPLEADO_ACTIVO : ESTADO_EMPLEADO_INACTIVO,
+    });
+    if (!emp) throw new AsistenciaError('Empleado no encontrado', 404);
+  }
+  return prisma.asistenciaPersona.update({ where: { id }, data: { activo: activa } });
+}
+
+/**
+ * Archiva (activo = false) a las personas SIN vincular que llevan más de `dias`
+ * sin fichar, o que nunca ficharon. Las vinculadas no se tocan: su baja es del
+ * organigrama. Con `simular` solo cuenta cuántas serían.
+ */
+export async function archivarSilenciosas(dias = DIAS_SILENCIO_DEFAULT, simular = false) {
+  const hoy = hoyLocal();
+  const [candidatas, conActividad] = await Promise.all([
+    prisma.asistenciaPersona.findMany({ where: { empleado_id: null, activo: true }, select: { id: true, user_id: true } }),
+    prisma.asistenciaFichada.findMany({
+      where: { fecha: { gte: sumarDias(hoy, -dias), lte: sumarDias(hoy, 1) } },
+      distinct: ['user_id'],
+      select: { user_id: true },
+    }),
+  ]);
+  const activas = new Set(conActividad.map((f) => f.user_id));
+  const silenciosas = candidatas.filter((p) => !activas.has(p.user_id));
+  if (!simular && silenciosas.length) {
+    await prisma.asistenciaPersona.updateMany({
+      where: { id: { in: silenciosas.map((p) => p.id) } },
+      data: { activo: false },
+    });
+  }
+  return { dias, candidatas: silenciosas.length, archivadas: simular ? 0 : silenciosas.length };
 }
 
 export async function vincularPersona(id: number, empleadoId: number | null) {
@@ -392,62 +470,107 @@ export async function vincularPorCuil(): Promise<{ vinculadas: number }> {
 
 // ─── Consultas de fichadas ───────────────────────────────────────────────────
 
-const PAGE_SIZE = 200;
+/** Fecha más vieja que consideramos real; antes de eso, el reloj estaba mal puesto. */
+const LIMITE_PASADO = '2010-01-01';
 
-function whereFichadas(f: FiltrosFichadas): Prisma.AsistenciaFichadaWhereInput {
-  const w: Prisma.AsistenciaFichadaWhereInput = { fecha: { gte: f.desde, lte: f.hasta } };
+/**
+ * `user_id`s cuyo nombre a mostrar (organigrama → nombre del reloj → id) matchea
+ * `q`. La búsqueda por nombre tiene que resolverse a ids **antes** del where: el
+ * nombre vive en otra tabla, y filtrarlo después de paginar hacía que `total` y
+ * la cantidad de páginas no tuvieran nada que ver con lo que se veía.
+ */
+async function userIdsQueMatchean(q: string): Promise<string[]> {
+  const needle = q.trim();
+  const personas = await prisma.asistenciaPersona.findMany({
+    where: {
+      OR: [
+        { user_id: { contains: needle, mode: 'insensitive' } },
+        { nombre_reloj: { contains: needle, mode: 'insensitive' } },
+        { empleado: { is: { nombre: { contains: needle, mode: 'insensitive' } } } },
+      ],
+    },
+    select: { user_id: true },
+  });
+  return personas.map((p) => p.user_id);
+}
+
+async function whereFichadas(f: FiltrosFichadas): Promise<Prisma.AsistenciaFichadaWhereInput> {
+  const w: Prisma.AsistenciaFichadaWhereInput = {};
+
+  if (f.soloSospechosas) {
+    // Una fichada con fecha imposible cae, por definición, fuera de cualquier
+    // rango razonable: acotar por `desde`/`hasta` acá daría siempre vacío.
+    w.OR = [{ fecha: { gt: sumarDias(hoyLocal(), 1) } }, { fecha: { lt: LIMITE_PASADO } }];
+  } else {
+    w.fecha = { gte: f.desde, lte: f.hasta };
+  }
+
   if (f.relojId) w.reloj_id = f.relojId;
   if (f.userId) w.user_id = f.userId;
+
+  if (f.q?.trim()) {
+    const ids = await userIdsQueMatchean(f.q);
+    // El `contains` es por si hay fichadas de un user_id sin fila en
+    // AsistenciaPersona (hoy `asegurarPersonas` lo evita, pero no dependemos).
+    w.AND = [{ OR: [{ user_id: { in: ids } }, { user_id: { contains: f.q.trim(), mode: 'insensitive' } }] }];
+  }
+
   return w;
 }
 
 /** Fichadas detalladas paginadas, con nombre resuelto por persona/organigrama. */
 export async function listarFichadas(f: FiltrosFichadas, page = 1) {
-  const where = whereFichadas(f);
+  const where = await whereFichadas(f);
   const [total, rows, relojes] = await Promise.all([
     prisma.asistenciaFichada.count({ where }),
     prisma.asistenciaFichada.findMany({
       where,
       orderBy: [{ fecha_hora: 'desc' }, { id: 'desc' }],
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
+      skip: (page - 1) * FILAS_POR_PAGINA,
+      take: FILAS_POR_PAGINA,
     }),
     prisma.asistenciaReloj.findMany({ select: { id: true, nombre: true } }),
   ]);
   const nombreReloj = new Map(relojes.map((r) => [r.id, r.nombre]));
-  const nombres = await nombresPorUserId(rows.map((r) => r.user_id), f.q);
-  const items = rows
-    .filter((r) => (f.q ? nombres.get(r.user_id)?.coincide : true))
-    .map((r) => ({
-      id: r.id,
-      userId: r.user_id,
-      nombre: nombres.get(r.user_id)?.nombre ?? r.user_id,
-      reloj: nombreReloj.get(r.reloj_id) ?? `#${r.reloj_id}`,
-      fechaHora: r.fecha_hora.toISOString(),
-      tipo: r.tipo,
-      modo: r.modo,
-      origen: r.origen,
-      sospechosa: esFechaImposible(r.fecha_hora.toISOString()),
-    }));
-  return { total, page, pageSize: PAGE_SIZE, items };
+  const nombres = await nombresPorUserId(rows.map((r) => r.user_id));
+  const items = rows.map((r) => ({
+    id: r.id,
+    userId: r.user_id,
+    nombre: nombres.get(r.user_id) ?? r.user_id,
+    reloj: nombreReloj.get(r.reloj_id) ?? `#${r.reloj_id}`,
+    fechaHora: r.fecha_hora.toISOString(),
+    tipo: r.tipo,
+    modo: r.modo,
+    origen: r.origen,
+    sospechosa: esFechaImposible(r.fecha_hora.toISOString()),
+  }));
+  return { total, page, pageSize: FILAS_POR_PAGINA, items };
 }
 
+/**
+ * Tope de fichadas que se agrupan en la vista "por día". Sin esto, un rango
+ * largo traía la tabla entera a memoria y la mandaba completa al navegador.
+ */
+const MAX_FILAS_DIA = 20_000;
+
 /** Resumen por persona y día: entrada, salida (por tipo de marca) y cantidad de marcas. */
-export async function resumenPorDia(f: FiltrosFichadas) {
+export async function resumenPorDia(f: FiltrosFichadas, page = 1) {
+  const hoy = hoyLocal();
   const rows = await prisma.asistenciaFichada.findMany({
-    where: whereFichadas(f),
+    where: await whereFichadas(f),
     orderBy: [{ fecha: 'desc' }, { fecha_hora: 'asc' }],
     select: { user_id: true, fecha: true, fecha_hora: true, tipo: true },
+    take: MAX_FILAS_DIA,
   });
-  const nombres = await nombresPorUserId(rows.map((r) => r.user_id), f.q);
+  const truncado = rows.length === MAX_FILAS_DIA;
+  const nombres = await nombresPorUserId(rows.map((r) => r.user_id));
   type Dia = { userId: string; nombre: string; fecha: string; entrada: string | null; salida: string | null; primera: string | null; marcas: number };
   const mapa = new Map<string, Dia>();
   for (const r of rows) {
-    if (f.q && !nombres.get(r.user_id)?.coincide) continue;
     const key = `${r.user_id}|${r.fecha}`;
     let acc = mapa.get(key);
     if (!acc) {
-      acc = { userId: r.user_id, nombre: nombres.get(r.user_id)?.nombre ?? r.user_id, fecha: r.fecha, entrada: null, salida: null, primera: null, marcas: 0 };
+      acc = { userId: r.user_id, nombre: nombres.get(r.user_id) ?? r.user_id, fecha: r.fecha, entrada: null, salida: null, primera: null, marcas: 0 };
       mapa.set(key, acc);
     }
     acc.marcas++;
@@ -461,26 +584,91 @@ export async function resumenPorDia(f: FiltrosFichadas) {
     if (r.tipo === 1) acc.salida = hora;
     else if (acc.entrada == null) acc.entrada = hora;
   }
-  return [...mapa.values()]
-    .map((d) => ({ userId: d.userId, nombre: d.nombre, fecha: d.fecha, entrada: d.entrada ?? d.primera, salida: d.salida, marcas: d.marcas }))
+  const todos = [...mapa.values()]
+    .map((d) => ({
+      userId: d.userId,
+      nombre: d.nombre,
+      fecha: d.fecha,
+      entrada: d.entrada ?? d.primera,
+      salida: d.salida,
+      marcas: d.marcas,
+      // Sin marca de salida: es la cola de trabajo de RRHH, no un error de datos.
+      incompleto: d.salida == null,
+    }))
+    // Mismo criterio que el KPI del Resumen: hoy no cuenta como día sin salida,
+    // la jornada todavía está abierta.
+    .filter((d) => (f.soloIncompletos ? d.incompleto && d.fecha !== hoy : true))
     .sort((a, b) => (a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : a.nombre.localeCompare(b.nombre)));
+
+  return {
+    items: todos.slice((page - 1) * FILAS_POR_PAGINA, page * FILAS_POR_PAGINA),
+    total: todos.length,
+    page,
+    pageSize: FILAS_POR_PAGINA,
+    truncado,
+  };
+}
+
+/**
+ * Números del Resumen para un rango. Una sola consulta agregada (groupBy) en vez
+ * de traer las fichadas: el JSON que sale de acá es chico aunque el mes tenga
+ * decenas de miles de marcas.
+ */
+export async function resumenAsistencia(f: FiltrosFichadas): Promise<ResumenAsistencia> {
+  const where: Prisma.AsistenciaFichadaWhereInput = { fecha: { gte: f.desde, lte: f.hasta } };
+  if (f.relojId) where.reloj_id = f.relojId;
+
+  const [grupos, personasRows, relojes, ultima] = await Promise.all([
+    prisma.asistenciaFichada.groupBy({
+      by: ['user_id', 'fecha', 'tipo'],
+      where,
+      _count: { _all: true },
+    }),
+    prisma.asistenciaPersona.findMany({
+      include: { empleado: { select: { nombre: true, estado: true } } },
+      orderBy: { user_id: 'asc' },
+    }),
+    listarRelojes(),
+    prisma.asistenciaFichada.findFirst({ where, orderBy: { fecha_hora: 'desc' }, select: { fecha_hora: true } }),
+  ]);
+
+  const base = armarResumen(
+    grupos.map((g) => ({ userId: g.user_id, fecha: g.fecha, tipo: g.tipo, marcas: g._count._all })),
+    // Solo las activas: una persona archivada no cuenta en los totales del Resumen.
+    personasRows
+      .filter((p) => personaActiva({ empleadoId: p.empleado_id, activo: p.activo, empleadoEstado: p.empleado?.estado ?? null }))
+      .map((p) => ({
+        userId: p.user_id,
+        nombre: p.empleado?.nombre || p.nombre_reloj || p.user_id,
+        empleadoId: p.empleado_id,
+      })),
+    { desde: f.desde, hasta: f.hasta },
+  );
+
+  const syncs = relojes.map((r) => r.ultimo_sync).filter((s): s is Date => !!s);
+
+  return {
+    ...base,
+    relojes: {
+      total: relojes.length,
+      activos: relojes.filter((r) => r.activo).length,
+      conError: relojes.filter((r) => r.activo && r.ultimo_error).length,
+      ultimoSync: syncs.length ? new Date(Math.max(...syncs.map((d) => d.getTime()))).toISOString() : null,
+    },
+    ultimaFichada: ultima?.fecha_hora.toISOString() ?? null,
+  };
 }
 
 /** Nombre a mostrar por user_id (organigrama si está vinculado; si no, nombre del reloj). */
-async function nombresPorUserId(userIds: string[], q?: string) {
+async function nombresPorUserId(userIds: string[]): Promise<Map<string, string>> {
   const unicos = [...new Set(userIds)];
   const personas = await prisma.asistenciaPersona.findMany({
     where: { user_id: { in: unicos } },
     include: { empleado: { select: { nombre: true } } },
   });
-  const needle = q?.trim().toLowerCase();
-  const out = new Map<string, { nombre: string; coincide: boolean }>();
-  for (const p of personas) {
-    const nombre = p.empleado?.nombre || p.nombre_reloj || p.user_id;
-    const coincide = !needle || nombre.toLowerCase().includes(needle) || p.user_id.toLowerCase().includes(needle);
-    out.set(p.user_id, { nombre, coincide });
-  }
-  for (const u of unicos) if (!out.has(u)) out.set(u, { nombre: u, coincide: !needle || u.toLowerCase().includes(needle) });
+  const out = new Map<string, string>();
+  for (const p of personas) out.set(p.user_id, p.empleado?.nombre || p.nombre_reloj || p.user_id);
+  for (const u of unicos) if (!out.has(u)) out.set(u, u);
   return out;
 }
 
@@ -501,17 +689,16 @@ export async function exportarXlsx(f: FiltrosFichadas): Promise<Buffer> {
   ];
   ws.getRow(1).font = { bold: true };
   const { TIPOS_MARCA } = await import('./asistencia-datos');
-  const rows = await prisma.asistenciaFichada.findMany({ where: whereFichadas(f), orderBy: [{ fecha_hora: 'asc' }] });
-  const nombres = await nombresPorUserId(rows.map((r) => r.user_id), f.q);
+  const rows = await prisma.asistenciaFichada.findMany({ where: await whereFichadas(f), orderBy: [{ fecha_hora: 'asc' }] });
+  const nombres = await nombresPorUserId(rows.map((r) => r.user_id));
   const relojes = new Map((await prisma.asistenciaReloj.findMany({ select: { id: true, nombre: true } })).map((r) => [r.id, r.nombre]));
   for (const r of rows) {
-    if (f.q && !nombres.get(r.user_id)?.coincide) continue;
     const local = new Date(r.fecha_hora.getTime() + OFFSET_RELOJ_MIN * 60_000);
     ws.addRow({
       fecha: r.fecha,
       hora: local.toISOString().slice(11, 19),
       userId: r.user_id,
-      nombre: nombres.get(r.user_id)?.nombre ?? r.user_id,
+      nombre: nombres.get(r.user_id) ?? r.user_id,
       reloj: relojes.get(r.reloj_id) ?? `#${r.reloj_id}`,
       tipo: TIPOS_MARCA[r.tipo] ?? `Tipo ${r.tipo}`,
       origen: r.origen,

@@ -10,7 +10,6 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { Toaster } from '@/components/ui/sonner';
 import { periodoActual } from '@/lib/nomina-calc';
 import { PERIODO_RE } from '@/lib/nomina-datos';
 import type { EstadoPeriodo } from '@/lib/nomina';
@@ -95,7 +94,6 @@ export function NominaProvider({ organigramas, links, children }: { organigramas
 
   return (
     <Ctx.Provider value={value}>
-      <Toaster position="top-center" richColors />
       {!esImpresion && <NominaBar />}
       {children}
     </Ctx.Provider>

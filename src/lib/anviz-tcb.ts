@@ -75,6 +75,34 @@ export function largoRespuesta(buf: Buffer): number | null {
   return HEADER_RESP + buf.readUInt16BE(7) + 2;
 }
 
+/** Separa las tramas completas al principio del buffer; lo que sobra queda en `resto`. */
+export function extraerTramas(buffer: Buffer): { tramas: Buffer[]; resto: Buffer } {
+  const tramas: Buffer[] = [];
+  let buf = buffer;
+  for (;;) {
+    const inicio = buf.indexOf(STX);
+    if (inicio < 0) return { tramas, resto: Buffer.alloc(0) };
+    if (inicio > 0) buf = buf.subarray(inicio);
+    const total = largoRespuesta(buf);
+    if (total == null || buf.length < total) return { tramas, resto: Buffer.from(buf) };
+    tramas.push(Buffer.from(buf.subarray(0, total)));
+    buf = buf.subarray(total);
+  }
+}
+
+/**
+ * ¿Esta trama responde al comando `cmd`? El reloj contesta con `cmd | 0x80`.
+ *
+ * Además de responder, el reloj **empuja** tramas que nadie pidió: al menos
+ * 0x5F, con la fichada que alguien acaba de marcar (14 bytes, misma disposición
+ * que un registro del 0x40). Se vio en GRAL PAZ CCC. Sin este chequeo, esa trama
+ * se tomaba como la respuesta al comando pendiente y los contadores llegaban
+ * "cortos (14 bytes)" cada vez que alguien fichaba durante el sync.
+ */
+export function esRespuestaA(trama: Buffer, cmd: number): boolean {
+  return (trama[5] & 0x7f) === (cmd & 0x7f);
+}
+
 /** Parsea una trama de respuesta completa. Lanza si el STX o el CRC no cierran. */
 export function parsearRespuesta(buf: Buffer): Respuesta {
   if (buf[0] !== STX) throw new Error(`Trama inválida: STX ${buf[0]?.toString(16)}`);
@@ -216,7 +244,7 @@ export interface OpcionesConexion {
 export class ClienteAnviz {
   private socket: Socket | null = null;
   private buffer: Buffer = Buffer.alloc(0);
-  private pendiente: { resolve: (r: Respuesta) => void; reject: (e: Error) => void; timer: NodeJS.Timeout } | null = null;
+  private pendiente: { cmd: number; resolve: (r: Respuesta) => void; reject: (e: Error) => void; timer: NodeJS.Timeout } | null = null;
   private cola: Promise<unknown> = Promise.resolve();
   readonly deviceId: number;
   readonly timeoutMs: number;
@@ -268,26 +296,21 @@ export class ClienteAnviz {
   }
 
   private onData(chunk: Buffer) {
-    this.buffer = Buffer.concat([this.buffer, chunk]);
-    // Descarta basura previa al STX.
-    const inicio = this.buffer.indexOf(STX);
-    if (inicio < 0) {
-      this.buffer = Buffer.alloc(0);
-      return;
-    }
-    if (inicio > 0) this.buffer = this.buffer.subarray(inicio);
-    const total = largoRespuesta(this.buffer);
-    if (total == null || this.buffer.length < total) return;
-    const trama = this.buffer.subarray(0, total);
-    this.buffer = Buffer.from(this.buffer.subarray(total));
-    const p = this.pendiente;
-    if (!p) return;
-    this.pendiente = null;
-    clearTimeout(p.timer);
-    try {
-      p.resolve(parsearRespuesta(trama));
-    } catch (e) {
-      p.reject(e instanceof Error ? e : new Error(String(e)));
+    const { tramas, resto } = extraerTramas(Buffer.concat([this.buffer, chunk]));
+    this.buffer = resto;
+    for (const trama of tramas) {
+      const p = this.pendiente;
+      // Trama que nadie pidió (ver `esRespuestaA`): se descarta y se sigue
+      // esperando la respuesta real. La fichada empujada no se pierde: el
+      // 0x40 de la misma pasada la baja como registro nuevo.
+      if (!p || !esRespuestaA(trama, p.cmd)) continue;
+      this.pendiente = null;
+      clearTimeout(p.timer);
+      try {
+        p.resolve(parsearRespuesta(trama));
+      } catch (e) {
+        p.reject(e instanceof Error ? e : new Error(String(e)));
+      }
     }
   }
 
@@ -301,7 +324,7 @@ export class ClienteAnviz {
           this.pendiente = null;
           reject(new AnvizError(`El reloj no respondió al comando 0x${cmd.toString(16)} (timeout)`));
         }, this.timeoutMs);
-        this.pendiente = { resolve, reject, timer };
+        this.pendiente = { cmd, resolve, reject, timer };
         this.socket.write(armarTrama(this.deviceId, cmd, data));
       });
     const p = this.cola.then(run, run);

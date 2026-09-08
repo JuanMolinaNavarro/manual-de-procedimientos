@@ -41,6 +41,11 @@ export interface Persona {
   empleadoId: number | null;
   empleado: { id: number; nombre: string; rol: string; area: string } | null;
   nombre: string;
+  /** Actividad efectiva: el organigrama si está vinculada, `activoPropio` si no. */
+  activa: boolean;
+  activoPropio: boolean;
+  empleadoEstado: string | null;
+  ultimaFichada: string | null;
 }
 
 export interface FichadaDetalle {
@@ -62,6 +67,8 @@ export interface FichadaDia {
   entrada: string | null;
   salida: string | null;
   marcas: number;
+  /** El día no tiene marca de salida. */
+  incompleto: boolean;
 }
 
 export interface ResultadoSync {

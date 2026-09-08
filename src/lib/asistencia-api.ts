@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server';
 import { isAdmin } from './admin-auth';
 import { AsistenciaError } from './asistencia';
 import { AnvizError } from './anviz-tcb';
-import { FECHA_RE, type FiltrosFichadas } from './asistencia-datos';
+import { FECHA_RE, hoyLocal, inicioDeMes, type FiltrosFichadas } from './asistencia-datos';
 
 export async function handle(where: string, fn: () => Promise<Response>): Promise<Response> {
   try {
@@ -45,11 +45,11 @@ export function parseId(v: unknown, nombre = 'id'): number {
 /** Lee los filtros de fichadas del query string, con defaults al mes actual. */
 export function parseFiltros(url: URL): FiltrosFichadas {
   const p = url.searchParams;
-  const hoy = new Date(Date.now() - 180 * 60_000).toISOString().slice(0, 10);
+  const hoy = hoyLocal();
   const desde = p.get('desde');
   const hasta = p.get('hasta');
   const f: FiltrosFichadas = {
-    desde: desde && FECHA_RE.test(desde) ? desde : hoy.slice(0, 7) + '-01',
+    desde: desde && FECHA_RE.test(desde) ? desde : inicioDeMes(hoy),
     hasta: hasta && FECHA_RE.test(hasta) ? hasta : hoy,
   };
   const relojId = p.get('relojId');
@@ -58,5 +58,7 @@ export function parseFiltros(url: URL): FiltrosFichadas {
   if (userId) f.userId = userId;
   const q = p.get('q');
   if (q) f.q = q;
+  if (p.get('soloSospechosas') === '1') f.soloSospechosas = true;
+  if (p.get('soloIncompletos') === '1') f.soloIncompletos = true;
   return f;
 }
