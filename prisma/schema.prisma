@@ -390,6 +390,9 @@ model OrgEmpleado {
   // Documentación de procedimientos del rol (pestaña "Documentación" de la ficha).
   documentos OrgDocumento[]
 
+  // Licencias de software asignadas (pestaña "Licencias" de la ficha).
+  licencias OrgLicencia[]
+
   // Nómina: datos estables (maestro), novedades mensuales, liquidaciones cerradas,
   // adhesión al recibo digital y constancias de firma. Liquidaciones, adhesión y
   // constancias son Restrict: una ficha con historial de nómina no se borra.
@@ -430,6 +433,34 @@ model OrgDocumento {
 
   @@index([empleado_id])
   @@map("org_documentos")
+}
+
+// Licencia de software asignada a un empleado (pestaña "Licencias" de la ficha).
+// Solo la ven/cargan quienes pueden editar el organigrama (superadmin o admin
+// con `modulos_edit`). El ícono físico vive en uploads/organigrama/licencias;
+// `icono_origen` dice si vino del favicon del sitio ('favicon') o lo subió
+// alguien ('subido'): un ícono subido nunca se pisa al cambiar la URL.
+model OrgLicencia {
+  id            Int      @id @default(autoincrement())
+  empleado_id   Int
+  titulo        String
+  cuenta        String // usuario o mail al que está vinculada
+  password      String? // clave de la cuenta (texto plano, como Usuario.password)
+  sitio_url     String? // URL/dominio del proveedor (origen del favicon)
+  icono_archivo String? // filename (uuid.ext) en uploads/organigrama/licencias
+  icono_origen  String? // 'favicon' | 'subido' | null
+  costo         Float?
+  moneda        String? // USD | ARS
+  periodicidad  String? // mensual | anual | unica
+  created_by    String?
+  updated_by    String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  empleado OrgEmpleado @relation(fields: [empleado_id], references: [id], onDelete: Cascade)
+
+  @@index([empleado_id])
+  @@map("org_licencias")
 }
 
 model OrgArea {

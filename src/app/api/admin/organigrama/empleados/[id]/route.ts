@@ -6,11 +6,13 @@ import { NominaError } from '@/lib/nomina';
 import {
   getEmpleadoById,
   getDocumentosDeEmpleado,
+  getLicenciasDeEmpleado,
   updateEmpleado,
   deleteEmpleado,
   validateNoCycle,
   type UpdateOrgEmpleadoData,
 } from '@/lib/organigrama';
+import { borrarIcono } from '@/lib/licencias-icono';
 
 const DOCS_DIR = join(process.cwd(), 'uploads', 'organigrama', 'documentos');
 
@@ -63,6 +65,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     // Los OrgDocumento cascadean en DB al borrar el empleado; los archivos
     // físicos hay que desvincularlos a mano (best-effort), antes de perder las filas.
     const documentos = await getDocumentosDeEmpleado(Number(id));
+    const licencias = await getLicenciasDeEmpleado(Number(id));
     const ok = await deleteEmpleado(Number(id));
     if (!ok) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
     for (const doc of documentos) {
@@ -70,6 +73,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
         unlinkSync(join(DOCS_DIR, doc.nombre_archivo));
       } catch {}
     }
+    for (const lic of licencias) borrarIcono(lic.icono_archivo);
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof NominaError) {

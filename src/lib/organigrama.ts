@@ -192,6 +192,49 @@ export interface CreateOrgDocumentoData {
   created_by?: string | null;
 }
 
+// ─── Licencia de software de la ficha ───────────────────────────────────────
+
+export const LICENCIA_MONEDAS = ['USD', 'ARS'] as const;
+export const LICENCIA_PERIODICIDADES = ['mensual', 'anual', 'unica'] as const;
+export type LicenciaMoneda = (typeof LICENCIA_MONEDAS)[number];
+export type LicenciaPeriodicidad = (typeof LICENCIA_PERIODICIDADES)[number];
+
+export interface OrgLicencia {
+  id: number;
+  empleado_id: number;
+  titulo: string;
+  cuenta: string;
+  password: string | null;
+  sitio_url: string | null;
+  icono_archivo: string | null;
+  icono_origen: string | null; // 'favicon' | 'subido'
+  costo: number | null;
+  moneda: string | null;
+  periodicidad: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface CreateOrgLicenciaData {
+  empleado_id: number;
+  titulo: string;
+  cuenta: string;
+  password?: string | null;
+  sitio_url?: string | null;
+  icono_archivo?: string | null;
+  icono_origen?: string | null;
+  costo?: number | null;
+  moneda?: string | null;
+  periodicidad?: string | null;
+  created_by?: string | null;
+}
+
+export type UpdateOrgLicenciaData = Partial<
+  Omit<CreateOrgLicenciaData, 'empleado_id' | 'created_by'>
+> & { updated_by?: string | null };
+
 export interface OrganigramaCompleto {
   empleados: OrgEmpleado[];
   areas: OrgArea[];
@@ -430,6 +473,56 @@ export async function deleteDocumento(id: number): Promise<OrgDocumento | null> 
   const existing = await prisma.orgDocumento.findUnique({ where: { id } });
   if (!existing) return null;
   await prisma.orgDocumento.delete({ where: { id } });
+  return existing;
+}
+
+// ─── Licencias CRUD ─────────────────────────────────────────────────────────
+// Igual que documentos: solo metadata; el ícono físico lo manejan las rutas.
+
+export async function getLicenciasDeEmpleado(empleadoId: number): Promise<OrgLicencia[]> {
+  return prisma.orgLicencia.findMany({
+    where: { empleado_id: empleadoId },
+    orderBy: [{ titulo: 'asc' }, { id: 'asc' }],
+  });
+}
+
+export async function getLicenciaById(id: number): Promise<OrgLicencia | null> {
+  return prisma.orgLicencia.findUnique({ where: { id } });
+}
+
+export async function createLicencia(data: CreateOrgLicenciaData): Promise<OrgLicencia> {
+  return prisma.orgLicencia.create({
+    data: {
+      empleado_id: data.empleado_id,
+      titulo: data.titulo,
+      cuenta: data.cuenta,
+      password: data.password ?? null,
+      sitio_url: data.sitio_url ?? null,
+      icono_archivo: data.icono_archivo ?? null,
+      icono_origen: data.icono_origen ?? null,
+      costo: data.costo ?? null,
+      moneda: data.moneda ?? null,
+      periodicidad: data.periodicidad ?? null,
+      created_by: data.created_by ?? null,
+    },
+  });
+}
+
+/** Campos `undefined` no se tocan; `null` limpia. Devuelve null si no existe. */
+export async function updateLicencia(
+  id: number,
+  data: UpdateOrgLicenciaData,
+): Promise<OrgLicencia | null> {
+  const existing = await prisma.orgLicencia.findUnique({ where: { id } });
+  if (!existing) return null;
+  return prisma.orgLicencia.update({ where: { id }, data });
+}
+
+/** Borra la fila y devuelve el registro para que la ruta pueda desvincular el ícono. */
+export async function deleteLicencia(id: number): Promise<OrgLicencia | null> {
+  const existing = await prisma.orgLicencia.findUnique({ where: { id } });
+  if (!existing) return null;
+  await prisma.orgLicencia.delete({ where: { id } });
   return existing;
 }
 

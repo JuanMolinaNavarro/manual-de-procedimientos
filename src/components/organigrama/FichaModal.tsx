@@ -39,6 +39,7 @@ import { resizeImageTo } from './image';
 import ProyectosDelEmpleado, { useProyectosDeEmpleado } from './ProyectosDelEmpleado';
 import DocumentosDelEmpleado, { useDocumentosDeEmpleado } from './DocumentosDelEmpleado';
 import RecibosDelEmpleado, { useRecibosDeEmpleado } from './RecibosDelEmpleado';
+import LicenciasDelEmpleado, { useLicenciasDeEmpleado } from './LicenciasDelEmpleado';
 
 interface FichaModalProps {
   empleado: OrgEmpleado | null;
@@ -143,6 +144,9 @@ export default function FichaModal({
   const estadoDocs = useDocumentosDeEmpleado(empleado?.id ?? null, open && !creating);
   // Recibos de sueldo cerrados (módulo Nómina): la pestaña se muestra solo si hay.
   const estadoRecibos = useRecibosDeEmpleado(empleado?.id ?? null, open && !creating);
+  // Licencias de software: solo para quien puede editar el organigrama (la API
+  // devuelve 403 al resto), así que sin `canEdit` ni se pide.
+  const estadoLicencias = useLicenciasDeEmpleado(empleado?.id ?? null, open && !creating && canEdit);
 
   useEffect(() => {
     setForm(creating ? blankEmpleado(defaultArea) : empleado);
@@ -206,6 +210,9 @@ export default function FichaModal({
     // Siempre visible (a diferencia del resto): la documentación del rol debe
     // poder encontrarse aunque todavía no haya archivos cargados.
     { value: 'docs', label: 'Documentación', full: true },
+    // Solo quien puede editar el organigrama ve las licencias (cuentas y claves);
+    // para ellos es siempre visible, como Documentación.
+    { value: 'lic', label: 'Licencias', full: canEdit },
     { value: 'recibos', label: 'Recibos', full: (estadoRecibos.recibos ?? []).length > 0 },
     {
       value: 'mas',
@@ -611,6 +618,21 @@ export default function FichaModal({
                         />
                       )}
                     </TabsContent>
+
+                    {canEdit && (
+                      <TabsContent value="lic" className="mt-0 space-y-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          Licencias de software
+                        </p>
+                        {creating ? (
+                          <p className="text-sm text-muted-foreground">
+                            Creá el empleado primero: las licencias se cargan desde su ficha.
+                          </p>
+                        ) : (
+                          <LicenciasDelEmpleado empleadoId={emp.id} edit={edit} {...estadoLicencias} />
+                        )}
+                      </TabsContent>
+                    )}
 
                     <TabsContent value="recibos" className="mt-0 space-y-2">
                       <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
