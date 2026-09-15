@@ -282,7 +282,9 @@ describe('validarHorarioInput', () => {
     expect(v.dias[1]).toBeUndefined();
     expect(v.cicloAncla).toBe('2026-09-14'); // lunes de la semana de aplicarDesde
     expect(v.toleranciaMin).toBeNull();
-    expect(v.versionEsperadaId).toBeNull();
+    expect(v.versionEsperadaId).toBeUndefined();
+    expect(validarHorarioInput({ ...base, versionEsperadaId: null }).versionEsperadaId).toBeNull();
+    expect(validarHorarioInput({ ...base, versionEsperadaId: 7 }).versionEsperadaId).toBe(7);
   });
 
   it('ciclo: normaliza el ancla al lunes y filtra semanas', () => {

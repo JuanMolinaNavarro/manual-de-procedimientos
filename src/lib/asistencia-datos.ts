@@ -240,10 +240,12 @@ const MAX_DIAS_SERIE = 366;
 /**
  * Agrega los grupos (persona, día, tipo) en los números del Resumen.
  *
- * Deliberadamente **no** calcula horas trabajadas ni tardanzas: no hay jornada
- * esperada en el modelo, y `salida − entrada` es falso apenas alguien ficha un
+ * Deliberadamente **no** calcula horas trabajadas ni tardanzas: acá no entra la
+ * jornada esperada, y `salida − entrada` es falso apenas alguien ficha un
  * descanso o se olvida de marcar la salida — que es justo el caso que el módulo
- * tiene que detectar. Un número inventado en la pantalla que se usa para
+ * tiene que detectar. Las tardanzas y ausencias viven en el Calendario
+ * (`asistencia-calendario.ts`), que las deriva solo para quien tiene una versión
+ * de horario vigente. Un número inventado en la pantalla que se usa para
  * liquidar es peor que ningún número.
  */
 export function armarResumen(

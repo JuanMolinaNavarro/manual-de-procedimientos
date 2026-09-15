@@ -32,17 +32,17 @@ model PadronAbonado {
 }
 
 model Bonificacion {
-  id             Int      @id @default(autoincrement())
-  empresa        String
-  titulo         String
-  descripcion    String?
+  id               Int      @id @default(autoincrement())
+  empresa          String
+  titulo           String
+  descripcion      String?
   mensaje_sugerido String?
-  condiciones    String?
-  activa         Boolean  @default(true)
-  vigencia_desde String?
-  vigencia_hasta String?
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+  condiciones      String?
+  activa           Boolean  @default(true)
+  vigencia_desde   String?
+  vigencia_hasta   String?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
 
   @@map("bonificaciones")
 }
@@ -81,21 +81,21 @@ model OnDemand {
 }
 
 model Usuario {
-  id         Int      @id @default(autoincrement())
-  usuario    String   @unique
-  password   String
-  nombre     String?
-  apellido   String?
-  rol        String   @default("agente")
-  isActive   Boolean  @default(true)
-  modulos    String[] @default([])
-  modulos_edit String[] @default([])
+  id           Int          @id @default(autoincrement())
+  usuario      String       @unique
+  password     String
+  nombre       String?
+  apellido     String?
+  rol          String       @default("agente")
+  isActive     Boolean      @default(true)
+  modulos      String[]     @default([])
+  modulos_edit String[]     @default([])
   // Vínculo con la ficha del organigrama (1 a 1). SetNull: borrar la ficha
   // deja al usuario "sin vincular", nunca lo borra ni lo bloquea.
-  empleado_id Int?         @unique
-  empleado    OrgEmpleado? @relation("UsuarioEmpleado", fields: [empleado_id], references: [id], onDelete: SetNull)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  empleado_id  Int?         @unique
+  empleado     OrgEmpleado? @relation("UsuarioEmpleado", fields: [empleado_id], references: [id], onDelete: SetNull)
+  created_at   DateTime     @default(now())
+  updated_at   DateTime     @updatedAt
 
   @@map("usuarios")
 }
@@ -147,19 +147,19 @@ model SportsFeatured {
 }
 
 model Lead {
-  id          Int      @id @default(autoincrement())
-  nombre      String?
-  apellido    String?
-  telefono    String
-  email       String?
-  direccion   String?
-  plan        String?
-  tv_pack     Boolean? @default(false)
-  origen      String
-  contactado  Boolean? @default(false)
-  resultado   String?
-  asignado    String?
-  created_at  DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  nombre     String?
+  apellido   String?
+  telefono   String
+  email      String?
+  direccion  String?
+  plan       String?
+  tv_pack    Boolean? @default(false)
+  origen     String
+  contactado Boolean? @default(false)
+  resultado  String?
+  asignado   String?
+  created_at DateTime @default(now())
 
   @@map("leads")
 }
@@ -176,7 +176,7 @@ model PlanConfig {
 }
 
 model ContratoComprador {
-  id                         Int               @id @default(autoincrement())
+  id                         Int      @id @default(autoincrement())
   nombre_empresa             String
   ejecutivo_a_cargo          String?
   mail_comercial             String?
@@ -188,27 +188,27 @@ model ContratoComprador {
   precio_tipo                String?
   precio_valor               String?
   subs_minimo_garantizado    String?
-  reportar_subs              Boolean           @default(false)
+  reportar_subs              Boolean  @default(false)
   plazas_reportadas          String?
   condiciones_pago_contrato  String?
   condiciones_pago_acordadas String?
   tnb_aplicada               String?
-  tecnologias_autorizadas    String[]          @default([])
+  tecnologias_autorizadas    String[] @default([])
   logo_nombre_archivo        String?
-  activa                     Boolean           @default(true)
+  activa                     Boolean  @default(true)
   created_by                 String?
   updated_by                 String?
-  created_at                 DateTime          @default(now())
-  updated_at                 DateTime          @updatedAt
+  created_at                 DateTime @default(now())
+  updated_at                 DateTime @updatedAt
 
-  saltos_importe             SaltoImporte[]
-  archivos                   ArchivoContrato[]
+  saltos_importe SaltoImporte[]
+  archivos       ArchivoContrato[]
 
   @@map("contratos_comprador")
 }
 
 model ContratoVendedor {
-  id                               Int               @id @default(autoincrement())
+  id                               Int      @id @default(autoincrement())
   nombre_empresa                   String
   documentacion_empresa            String?
   ejecutivo_cargo                  String?
@@ -231,41 +231,41 @@ model ContratoVendedor {
   equipos_por_senal                Json?
   condiciones_entrega_equipamiento String?
   logo_nombre_archivo              String?
-  activa                           Boolean           @default(true)
+  activa                           Boolean  @default(true)
   created_by                       String?
   updated_by                       String?
-  created_at                       DateTime          @default(now())
-  updated_at                       DateTime          @updatedAt
+  created_at                       DateTime @default(now())
+  updated_at                       DateTime @updatedAt
 
-  saltos_importe                   SaltoImporte[]
-  archivos                         ArchivoContrato[]
+  saltos_importe SaltoImporte[]
+  archivos       ArchivoContrato[]
 
   @@map("contratos_vendedor")
 }
 
 model SaltoImporte {
-  id                    Int                @id @default(autoincrement())
+  id                    Int       @id @default(autoincrement())
   contrato_comprador_id Int?
   contrato_vendedor_id  Int?
   descripcion           String
   fecha_efectiva        String
-  dias_aviso_previo     Int                @default(30)
+  dias_aviso_previo     Int       @default(30)
   nuevo_precio          String?
   notificado_at         DateTime?
-  activa                Boolean            @default(true)
+  activa                Boolean   @default(true)
   created_by            String?
   updated_by            String?
-  created_at            DateTime           @default(now())
-  updated_at            DateTime           @updatedAt
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @updatedAt
 
-  contrato_comprador    ContratoComprador? @relation(fields: [contrato_comprador_id], references: [id])
-  contrato_vendedor     ContratoVendedor?  @relation(fields: [contrato_vendedor_id], references: [id])
+  contrato_comprador ContratoComprador? @relation(fields: [contrato_comprador_id], references: [id])
+  contrato_vendedor  ContratoVendedor?  @relation(fields: [contrato_vendedor_id], references: [id])
 
   @@map("saltos_importe")
 }
 
 model ArchivoContrato {
-  id                    Int                @id @default(autoincrement())
+  id                    Int      @id @default(autoincrement())
   contrato_comprador_id Int?
   contrato_vendedor_id  Int?
   nombre_original       String
@@ -273,16 +273,16 @@ model ArchivoContrato {
   tipo_mime             String?
   tamano                Int?
   created_by            String?
-  created_at            DateTime           @default(now())
+  created_at            DateTime @default(now())
 
-  contrato_comprador    ContratoComprador? @relation(fields: [contrato_comprador_id], references: [id], onDelete: Cascade)
-  contrato_vendedor     ContratoVendedor?  @relation(fields: [contrato_vendedor_id], references: [id], onDelete: Cascade)
+  contrato_comprador ContratoComprador? @relation(fields: [contrato_comprador_id], references: [id], onDelete: Cascade)
+  contrato_vendedor  ContratoVendedor?  @relation(fields: [contrato_vendedor_id], references: [id], onDelete: Cascade)
 
   @@map("archivos_contrato")
 }
 
 model Factura {
-  id                Int       @id @default(autoincrement())
+  id                Int      @id @default(autoincrement())
   nombre_original   String
   nombre_archivo    String
   tipo_mime         String?
@@ -297,8 +297,8 @@ model Factura {
   periodo           String?
   error_mensaje     String?
   created_by        String?
-  created_at        DateTime  @default(now())
-  updated_at        DateTime  @updatedAt
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
 
   tipo_flujo               String?
   empresa_destino          String?
@@ -336,27 +336,27 @@ model Organigrama {
 }
 
 model OrgEmpleado {
-  id             Int     @id @default(autoincrement())
-  organigrama_id Int? // empresa/ubicación a la que pertenece
-  nombre         String
-  rol            String
-  area           String // == OrgArea.nombre
-  manager_id   Int?
-  email        String?
-  telefono     String? // interno ("phone")
-  foto_archivo String? // filename en uploads/organigrama/fotos
-  estado       String  @default("active") // active | inactive
-  sede         String?
-  horario      String?
-  modalidad    String?
-  guardias     String?
-  horarios     Json? // [{dia, valor}] horario por día de la semana
-  actualizado  String?
-  summary      String?
-  antiguedad   String?
-  formacion    String?
-  seniority    String?
-  especialidad String?
+  id               Int     @id @default(autoincrement())
+  organigrama_id   Int? // empresa/ubicación a la que pertenece
+  nombre           String
+  rol              String
+  area             String // == OrgArea.nombre
+  manager_id       Int?
+  email            String?
+  telefono         String? // interno ("phone")
+  foto_archivo     String? // filename en uploads/organigrama/fotos
+  estado           String  @default("active") // active | inactive
+  sede             String?
+  horario          String?
+  modalidad        String?
+  guardias         String?
+  horarios         Json? // [{dia, valor}] horario por día de la semana
+  actualizado      String?
+  summary          String?
+  antiguedad       String?
+  formacion        String?
+  seniority        String?
+  especialidad     String?
   // ISO yyyy-mm-dd (string como todas las fechas de dominio; evita corrimientos UTC)
   fecha_nacimiento String?
 
@@ -403,8 +403,10 @@ model OrgEmpleado {
   nomina_constancias     NominaConstancia[]
   nomina_bonos_otorgados NominaBonoOtorgado[]
 
-  // Asistencia: personas del reloj biométrico vinculadas a esta ficha.
+  // Asistencia: personas del reloj biométrico vinculadas a esta ficha y el
+  // horario esperado (versionado por vigencia) contra el que se mide.
   asistencia_personas AsistenciaPersona[]
+  asistencia_horarios AsistenciaHorario[]
 
   created_by String?
   updated_by String?
@@ -487,10 +489,10 @@ model OrgLinea {
   from_id        Int
   to_id          Int
   tipo           String   @default("special") // special | report-override
-  estilo     String   @default("solid") // solid | dashed | dotted
-  color      String   @default("#86868b")
-  etiqueta   String?
-  created_at DateTime @default(now())
+  estilo         String   @default("solid") // solid | dashed | dotted
+  color          String   @default("#86868b")
+  etiqueta       String?
+  created_at     DateTime @default(now())
 
   @@map("org_lineas")
 }
@@ -500,20 +502,20 @@ model OrgLinea {
 // costos por categoría/etapa y análisis financiero en USD constantes.
 
 model Proyecto {
-  id           Int     @id @default(autoincrement())
-  nombre       String
-  descripcion  String?
+  id             Int     @id @default(autoincrement())
+  nombre         String
+  descripcion    String?
   // Responsable: `responsable_id` apunta al organigrama y tiene precedencia;
   // `responsable` es el texto libre de respaldo para gente que no está ahí.
   responsable    String?
   responsable_id Int?
   // planificado | en_curso | pausado | terminado | cancelado
-  estado       String  @default("planificado")
+  estado         String  @default("planificado")
   // == OrgArea.nombre (string denormalizado, mismo criterio que OrgEmpleado.area).
   // Define qué usuarios ven el proyecto: admin vinculado a un área solo ve la suya.
-  area         String?
-  fecha_inicio String // ISO yyyy-mm-dd
-  notas        String?
+  area           String?
+  fecha_inicio   String // ISO yyyy-mm-dd
+  notas          String?
 
   // Supuestos de ingresos del análisis financiero. Los costos salen de las
   // líneas de ProyectoCosto; acá va lo que el proyecto va a facturar o ahorrar.
@@ -537,13 +539,13 @@ model Proyecto {
 }
 
 model ProyectoCosto {
-  id          Int    @id @default(autoincrement())
-  proyecto_id Int
+  id             Int    @id @default(autoincrement())
+  proyecto_id    Int
   // Rubro libre por el que se agrupa la tabla (Mano de obra, Materiales, …).
-  categoria   String @default("General")
-  concepto    String
-  unidad      String @default("unidad")
-  cantidad    Float  @default(1)
+  categoria      String @default("General")
+  concepto       String
+  unidad         String @default("unidad")
+  cantidad       Float  @default(1)
   costo_unitario Float  @default(0)
   moneda         String @default("USD") // USD | ARS
   // Imputación opcional a una etapa del cronograma.
@@ -558,20 +560,20 @@ model ProyectoCosto {
 }
 
 model ProyectoEtapa {
-  id            Int     @id @default(autoincrement())
-  proyecto_id   Int
-  nombre        String
+  id             Int     @id @default(autoincrement())
+  proyecto_id    Int
+  nombre         String
   // Ídem Proyecto: el vínculo al organigrama tiene precedencia sobre el texto.
   responsable    String?
   responsable_id Int?
-  fecha_inicio  String // ISO yyyy-mm-dd
-  duracion_dias Int     @default(15)
+  fecha_inicio   String // ISO yyyy-mm-dd
+  duracion_dias  Int     @default(15)
   // Etapa de la que depende: moverla arrastra a sus dependientes en cascada.
-  dep_id        Int?
-  estado        String  @default("pendiente") // pendiente | curso | hecho | atrasado
-  avance        Int     @default(0) // 0–100 %
-  orden         Int     @default(0)
-  notas         String?
+  dep_id         Int?
+  estado         String  @default("pendiente") // pendiente | curso | hecho | atrasado
+  avance         Int     @default(0) // 0–100 %
+  orden          Int     @default(0)
+  notas          String?
 
   proyecto        Proyecto        @relation(fields: [proyecto_id], references: [id], onDelete: Cascade)
   dep             ProyectoEtapa?  @relation("EtapaDep", fields: [dep_id], references: [id], onDelete: SetNull)
@@ -890,4 +892,46 @@ model AsistenciaFichada {
   @@index([fecha])
   @@index([user_id, fecha])
   @@map("asistencia_fichadas")
+}
+
+// Horario esperado de una ficha del organigrama, versionado por vigencia: una
+// fila por versión, `vigente_desde`/`vigente_hasta` (inclusive, null = abierta).
+// Editar desde la UI nunca pisa el pasado: "aplicar desde" cierra la versión
+// vigente y crea otra. El estado de cada día se deriva al vuelo (nunca se
+// guarda), así cambiar un horario no deja nada desactualizado.
+// `dias`: { "0": { semanas:[0], entrada:"08:00", salida:"17:00" }, ... } con
+// 0 = lunes … 6 = domingo; `semanas` son las del ciclo (0-based) en que aplica.
+model AsistenciaHorario {
+  id             Int      @id @default(autoincrement())
+  empleado_id    Int
+  vigente_desde  String // yyyy-mm-dd
+  vigente_hasta  String? // yyyy-mm-dd inclusive; null = abierta
+  incluir        Boolean  @default(true)
+  ciclo_semanas  Int      @default(1) // 1..4
+  ciclo_ancla    String // lunes yyyy-mm-dd: "semana 1" del ciclo
+  tolerancia_min Int? // null = usa AsistenciaConfig
+  dias           Json
+  created_by     String?
+  updated_by     String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  empleado OrgEmpleado @relation(fields: [empleado_id], references: [id], onDelete: Cascade)
+
+  @@unique([empleado_id, vigente_desde])
+  @@index([empleado_id, vigente_hasta])
+  @@map("asistencia_horarios")
+}
+
+// Singleton (id = 1): parámetros generales del control de asistencia.
+// La tolerancia se aplica a la entrada; "tarde grave" se mide desde la hora
+// pactada (no desde el fin de la tolerancia).
+model AsistenciaConfig {
+  id              Int      @id @default(1)
+  tolerancia_min  Int      @default(10)
+  tarde_grave_min Int      @default(30)
+  updated_by      String?
+  updated_at      DateTime @updatedAt
+
+  @@map("asistencia_config")
 }

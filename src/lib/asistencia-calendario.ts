@@ -400,8 +400,11 @@ export interface HorarioInput {
   cicloAncla: string;
   toleranciaMin: number | null;
   dias: DiasHorario;
-  /** Última versión que vio el editor; si cambió, el server rechaza con 409. */
-  versionEsperadaId: number | null;
+  /**
+   * Última versión que vio el editor (null = "no había ninguna"); si cambió, el
+   * server rechaza con 409. `undefined` = no verificar (seed, migración).
+   */
+  versionEsperadaId?: number | null;
 }
 
 function esObjeto(v: unknown): v is Record<string, unknown> {
@@ -434,7 +437,7 @@ export function validarHorarioInput(raw: unknown): HorarioInput {
     toleranciaMin = Number(raw.toleranciaMin);
     if (!Number.isInteger(toleranciaMin) || toleranciaMin < 0 || toleranciaMin > TOLERANCIA_MAX) throw new Error(`La tolerancia va de 0 a ${TOLERANCIA_MAX} minutos`);
   }
-  const versionEsperadaId = raw.versionEsperadaId == null ? null : Number(raw.versionEsperadaId);
+  const versionEsperadaId = raw.versionEsperadaId === undefined ? undefined : raw.versionEsperadaId === null ? null : Number(raw.versionEsperadaId);
   if (versionEsperadaId != null && (!Number.isInteger(versionEsperadaId) || versionEsperadaId <= 0)) throw new Error('Versión esperada inválida');
 
   const dias: DiasHorario = {};

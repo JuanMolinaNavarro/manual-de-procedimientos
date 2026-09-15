@@ -26,6 +26,7 @@ import {
   type ModoDescarga,
   type ResumenAsistencia,
 } from './asistencia-datos';
+import { resumirFichadas, type FichadaDia } from './asistencia-calendario';
 
 /** Error con status HTTP para el wrapper de la API. */
 export class AsistenciaError extends Error {
@@ -564,37 +565,33 @@ export async function resumenPorDia(f: FiltrosFichadas, page = 1) {
   });
   const truncado = rows.length === MAX_FILAS_DIA;
   const nombres = await nombresPorUserId(rows.map((r) => r.user_id));
-  type Dia = { userId: string; nombre: string; fecha: string; entrada: string | null; salida: string | null; primera: string | null; marcas: number };
+  type Dia = { userId: string; nombre: string; fecha: string; marcas: FichadaDia[] };
   const mapa = new Map<string, Dia>();
   for (const r of rows) {
     const key = `${r.user_id}|${r.fecha}`;
     let acc = mapa.get(key);
     if (!acc) {
-      acc = { userId: r.user_id, nombre: nombres.get(r.user_id) ?? r.user_id, fecha: r.fecha, entrada: null, salida: null, primera: null, marcas: 0 };
+      acc = { userId: r.user_id, nombre: nombres.get(r.user_id) ?? r.user_id, fecha: r.fecha, marcas: [] };
       mapa.set(key, acc);
     }
-    acc.marcas++;
-    const hora = r.fecha_hora.toISOString();
-    // El reloj marca el tipo cuando la persona ficha con la tecla de entrada/salida:
-    // entrada = primera marca de tipo Entrada (0); salida = última de tipo Salida (1).
-    // Si un día solo tiene entradas (nunca se fichó la salida), no inventamos salida:
-    // queda en null y la UI muestra "—". `primera` es respaldo por si no hubo ninguna
-    // marca de tipo 0 (usamos la primera marca cualquiera como entrada).
-    if (acc.primera == null) acc.primera = hora;
-    if (r.tipo === 1) acc.salida = hora;
-    else if (acc.entrada == null) acc.entrada = hora;
+    acc.marcas.push({ fechaHora: r.fecha_hora.toISOString(), tipo: r.tipo });
   }
+  // Entrada = primera marca de tipo Entrada, salida = última de tipo Salida; la
+  // salida nunca se inventa (mismo criterio que el calendario: `resumirFichadas`).
   const todos = [...mapa.values()]
-    .map((d) => ({
-      userId: d.userId,
-      nombre: d.nombre,
-      fecha: d.fecha,
-      entrada: d.entrada ?? d.primera,
-      salida: d.salida,
-      marcas: d.marcas,
-      // Sin marca de salida: es la cola de trabajo de RRHH, no un error de datos.
-      incompleto: d.salida == null,
-    }))
+    .map((d) => {
+      const r = resumirFichadas(d.marcas);
+      return {
+        userId: d.userId,
+        nombre: d.nombre,
+        fecha: d.fecha,
+        entrada: r.entrada,
+        salida: r.salida,
+        marcas: r.marcas,
+        // Sin marca de salida: es la cola de trabajo de RRHH, no un error de datos.
+        incompleto: r.salida == null,
+      };
+    })
     // Mismo criterio que el KPI del Resumen: hoy no cuenta como día sin salida,
     // la jornada todavía está abierta.
     .filter((d) => (f.soloIncompletos ? d.incompleto && d.fecha !== hoy : true))

@@ -9,6 +9,7 @@ import { isAdmin } from './admin-auth';
 import { AsistenciaError } from './asistencia';
 import { AnvizError } from './anviz-tcb';
 import { FECHA_RE, hoyLocal, inicioDeMes, type FiltrosFichadas } from './asistencia-datos';
+import { MES_RE } from './asistencia-calendario';
 
 export async function handle(where: string, fn: () => Promise<Response>): Promise<Response> {
   try {
@@ -61,4 +62,11 @@ export function parseFiltros(url: URL): FiltrosFichadas {
   if (p.get('soloSospechosas') === '1') f.soloSospechosas = true;
   if (p.get('soloIncompletos') === '1') f.soloIncompletos = true;
   return f;
+}
+
+/** `yyyy-mm` del query string; default el mes actual. */
+export function parseMes(v: string | null): string {
+  if (!v) return hoyLocal().slice(0, 7);
+  if (!MES_RE.test(v)) throw new AsistenciaError('mes inválido (yyyy-mm)');
+  return v;
 }

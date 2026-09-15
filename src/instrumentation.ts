@@ -80,4 +80,17 @@ export async function register() {
   }, { timezone: 'UTC' });
 
   console.log(`[Asistencia] Cron scheduled: archivado por silencio 06:20 UTC (${DIAS_SILENCIO_DEFAULT} días)`);
+
+  // Release A (calendario de asistencia): convierte los horarios viejos de la ficha
+  // del organigrama (`horario` / `horarios`) en versiones de horario. Idempotente;
+  // un fallo no frena el arranque. Se borra junto con esas columnas en el Release B,
+  // una vez que en prod el log diga "pendientes: 0".
+  try {
+    const { migrarHorariosLegacy } = await import('@/lib/asistencia-horarios');
+    const r = await migrarHorariosLegacy(false);
+    console.log(`[Asistencia] Migración de horarios legacy: ${r.migrados} migrados, ${r.noParseables.length} no parseables, pendientes: ${r.pendientes}`);
+    for (const n of r.noParseables) console.log(`[Asistencia]   sin parsear: #${n.empleadoId} ${n.nombre}: ${JSON.stringify(n.horario ?? n.horarios)}`);
+  } catch (err) {
+    console.error('[Asistencia] Migración de horarios legacy error:', err);
+  }
 }
