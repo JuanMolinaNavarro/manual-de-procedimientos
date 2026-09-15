@@ -163,6 +163,10 @@ describe('evaluarDia', () => {
 
   it('futuro, pendiente y ausente', () => {
     expect(ev('2026-09-16', []).estado).toBe('futuro');
+    // El futuro trae la jornada planificada (para dibujar qué días le tocan) pero sin estado.
+    expect(ev('2026-09-16', []).jornada).toEqual({ entrada: '08:00', salida: '17:00' });
+    expect(ev('2026-09-19', []).jornada).toBeNull(); // sábado
+    expect(ev('2026-09-16', [], { version: null }).jornada).toBeNull();
     expect(ev(HOY, []).estado).toBe('pendiente');
     expect(ev('2026-09-14', []).estado).toBe('ausente');
     expect(ev('2026-09-14', []).jornada).toEqual({ entrada: '08:00', salida: '17:00' });

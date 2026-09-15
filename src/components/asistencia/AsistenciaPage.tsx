@@ -6,6 +6,7 @@ import { PageTitle } from '@/components/comunes/ui';
 import { fmtRelativo } from '@/lib/asistencia-datos';
 import { AsistenciaProvider, useAsistencia, type EmpleadoOpt, type TabAsistencia } from './AsistenciaContext';
 import ResumenTab from './ResumenTab';
+import CalendarioTab from './CalendarioTab';
 import FichadasTab from './FichadasTab';
 import PersonasTab from './PersonasTab';
 import RelojesTab from './RelojesTab';
@@ -36,6 +37,7 @@ function Contenido() {
       <Tabs value={f.tab} onValueChange={(v) => set({ tab: v as TabAsistencia })} className="gap-6">
         <TabsList variant="line" className="w-full justify-start overflow-x-auto border-b">
           <TabsTrigger value="resumen">Resumen</TabsTrigger>
+          <TabsTrigger value="calendario">Calendario</TabsTrigger>
           <TabsTrigger value="fichadas">Fichadas</TabsTrigger>
           <TabsTrigger value="personas">Personas</TabsTrigger>
           <TabsTrigger value="relojes">Relojes</TabsTrigger>
@@ -43,6 +45,9 @@ function Contenido() {
 
         <TabsContent value="resumen">
           <ResumenTab />
+        </TabsContent>
+        <TabsContent value="calendario">
+          <CalendarioTab />
         </TabsContent>
         <TabsContent value="fichadas">
           <FichadasTab />

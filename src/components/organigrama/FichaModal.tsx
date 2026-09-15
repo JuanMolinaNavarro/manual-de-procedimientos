@@ -30,16 +30,15 @@ import type {
   Experiencia,
   HardSkill,
   SoftSkill,
-  HorarioDia,
 } from '@/lib/organigrama';
 
-const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 import { fotoUrl, iniciales } from './EmpleadoNode';
 import { resizeImageTo } from './image';
 import ProyectosDelEmpleado, { useProyectosDeEmpleado } from './ProyectosDelEmpleado';
 import DocumentosDelEmpleado, { useDocumentosDeEmpleado } from './DocumentosDelEmpleado';
 import RecibosDelEmpleado, { useRecibosDeEmpleado } from './RecibosDelEmpleado';
 import LicenciasDelEmpleado, { useLicenciasDeEmpleado } from './LicenciasDelEmpleado';
+import { HorarioDelEmpleado, useHorarioDeEmpleado } from './HorarioDelEmpleado';
 
 interface FichaModalProps {
   empleado: OrgEmpleado | null;
@@ -147,6 +146,8 @@ export default function FichaModal({
   // Licencias de software: solo para quien puede editar el organigrama (la API
   // devuelve 403 al resto), así que sin `canEdit` ni se pide.
   const estadoLicencias = useLicenciasDeEmpleado(empleado?.id ?? null, open && !creating && canEdit);
+  // Horario de asistencia (módulo Asistencia): solo lectura acá; decide si Resumen se muestra.
+  const estadoHorario = useHorarioDeEmpleado(empleado?.id ?? null, open && !creating);
 
   useEffect(() => {
     setForm(creating ? blankEmpleado(defaultArea) : empleado);
@@ -186,10 +187,9 @@ export default function FichaModal({
   const hasList = (a?: (string | null)[] | null) =>
     (a ?? []).some((s) => s != null && String(s).trim() !== '');
   const hasItems = (a?: unknown[] | null) => (a ?? []).length > 0;
-  const tieneHorarios = (emp.horarios ?? []).some((h) => h.valor && h.valor.trim() !== '');
 
   const TABS: { value: string; label: string; full: boolean }[] = [
-    { value: 'resumen', label: 'Resumen', full: hasText(emp.summary) || tieneHorarios },
+    { value: 'resumen', label: 'Resumen', full: hasText(emp.summary) || (estadoHorario.versiones ?? []).length > 0 },
     {
       value: 'resp',
       label: 'Responsabilidades',
@@ -569,7 +569,7 @@ export default function FichaModal({
                       ) : (
                         <p className="whitespace-pre-wrap text-sm text-foreground">{emp.summary || 'Sin resumen.'}</p>
                       )}
-                      <HorariosEditor horarios={emp.horarios} edit={edit} onChange={(v) => set('horarios', v)} />
+                      <HorarioDelEmpleado estado={estadoHorario} creating={!!creating} />
                     </TabsContent>
 
                     <TabsContent value="resp" className="mt-0 space-y-4">
@@ -696,45 +696,6 @@ function Field({
   );
 }
 
-function HorariosEditor({
-  horarios,
-  edit,
-  onChange,
-}: {
-  horarios: HorarioDia[] | null;
-  edit: boolean;
-  onChange: (v: HorarioDia[]) => void;
-}) {
-  const valorDe = (dia: string) => (horarios ?? []).find((h) => h.dia === dia)?.valor ?? '';
-  const setDia = (dia: string, valor: string) =>
-    onChange(DIAS_SEMANA.map((d) => ({ dia: d, valor: d === dia ? valor : valorDe(d) })));
-  // En lectura solo se listan los días con horario cargado; si no hay ninguno, la
-  // sección no se renderiza (mantiene limpia la pestaña Resumen).
-  const dias = edit ? DIAS_SEMANA : DIAS_SEMANA.filter((d) => valorDe(d).trim() !== '');
-  if (!edit && dias.length === 0) return null;
-  return (
-    <div className="space-y-2">
-      <h4 className="text-sm font-semibold text-foreground">Horarios</h4>
-      <div className="space-y-1.5">
-        {dias.map((d) => (
-          <div key={d} className="flex items-center gap-3">
-            <span className="w-24 shrink-0 text-xs text-[var(--neu-fg-soft)]">{d}</span>
-            {edit ? (
-              <Input
-                className="neu-field h-8 flex-1 rounded-lg focus-visible:ring-0"
-                value={valorDe(d)}
-                placeholder="—"
-                onChange={(e) => setDia(d, e.target.value)}
-              />
-            ) : (
-              <span className="text-sm text-foreground">{valorDe(d)}</span>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function StringList({
   title,

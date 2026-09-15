@@ -305,23 +305,26 @@ export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDi
     entradaInferida: false,
     marcas: 0,
   };
-  if (e.fecha > e.hoy) return base;
+  const antesDelIngreso = !!e.fechaIngreso && FECHA_RE.test(e.fechaIngreso) && e.fecha < e.fechaIngreso;
+  const version = e.version != null && e.version.incluir && !antesDelIngreso ? e.version : null;
+  const jornada = version ? jornadaDelDia(version, e.fecha) : null;
+
+  // Futuro: sin estado, pero con la jornada planificada para que el calendario
+  // muestre qué días le tocan (p. ej. qué sábados del ciclo).
+  if (e.fecha > e.hoy) return jornada ? { ...base, jornada: { entrada: jornada.entrada, salida: jornada.salida } } : base;
 
   const r = resumirFichadas(e.fichadas);
   const conMarcas: CeldaDia = { ...base, entrada: r.entrada, salida: r.salida, entradaInferida: r.entradaInferida, marcas: r.marcas };
   // Hoy la jornada sigue abierta: no es "sin salida" todavía.
   conMarcas.sinSalida = r.marcas > 0 && r.salida == null && e.fecha !== e.hoy;
 
-  const antesDelIngreso = !!e.fechaIngreso && FECHA_RE.test(e.fechaIngreso) && e.fecha < e.fechaIngreso;
-  if (!e.version || !e.version.incluir || antesDelIngreso) return { ...conMarcas, estado: 'sin_horario' };
-
-  const jornada = jornadaDelDia(e.version, e.fecha);
+  if (!version) return { ...conMarcas, estado: 'sin_horario' };
   if (!jornada) return { ...conMarcas, estado: r.marcas > 0 ? 'trabajo_no_laborable' : 'no_laborable' };
 
   const conJornada: CeldaDia = { ...conMarcas, jornada: { entrada: jornada.entrada, salida: jornada.salida } };
   if (r.marcas === 0 || r.entrada == null) return { ...conJornada, estado: e.fecha === e.hoy ? 'pendiente' : 'ausente' };
 
-  const tolerancia = e.version.toleranciaMin ?? cfg.toleranciaMin;
+  const tolerancia = version.toleranciaMin ?? cfg.toleranciaMin;
   const minutosTarde = Math.max(0, minutoLocalDe(r.entrada) - minutosDe(jornada.entrada));
   // "Grave" se mide desde la hora pactada, no desde el fin de la tolerancia:
   // con tolerancia 10 y umbral 30, entrar 08:31 a un turno de 08:00 es grave.
@@ -332,7 +335,7 @@ export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDi
 export function totalesDe(celdas: readonly CeldaDia[]): TotalesFila {
   const t: TotalesFila = { laborables: 0, aHorario: 0, tarde: 0, tardeGrave: 0, ausente: 0, trabajoNoLaborable: 0, sinSalida: 0, minutosTarde: 0, conMarcas: 0 };
   for (const c of celdas) {
-    if (c.jornada && c.estado !== 'pendiente') t.laborables++;
+    if (c.jornada && c.estado !== 'pendiente' && c.estado !== 'futuro') t.laborables++;
     if (c.marcas > 0) t.conMarcas++;
     if (c.sinSalida) t.sinSalida++;
     t.minutosTarde += c.minutosTarde ?? 0;

@@ -79,3 +79,6 @@ export interface ResultadoSync {
   contadores?: { registrosTotales: number; registrosNuevos: number; usuarios: number };
   error?: string;
 }
+
+export type { HorarioVersion, ConfigAsistencia, CeldaDia, TotalesFila, DiaCalendario } from '@/lib/asistencia-calendario';
+export type { CalendarioMes, FilaCalendarioMes, ResultadoGuardar, ResultadoMigracionLegacy } from '@/lib/asistencia-horarios';

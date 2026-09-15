@@ -14,6 +14,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { FECHA_RE, hoyLocal, inicioDeMes } from '@/lib/asistencia-datos';
+import { MES_RE, type HorarioVersion } from '@/lib/asistencia-calendario';
 import { asistFetch, mensajeError, type Persona, type Reloj } from './api';
 
 export interface EmpleadoOpt {
@@ -24,7 +25,7 @@ export interface EmpleadoOpt {
   foto_archivo: string | null;
 }
 
-export const TABS = ['resumen', 'fichadas', 'personas', 'relojes'] as const;
+export const TABS = ['resumen', 'calendario', 'fichadas', 'personas', 'relojes'] as const;
 export type TabAsistencia = (typeof TABS)[number];
 export type VistaFichadas = 'detalle' | 'dia';
 
@@ -39,6 +40,9 @@ export interface FiltrosUI {
   soloSospechosas: boolean;
   soloIncompletos: boolean;
   page: number;
+  /** Calendario: mes yyyy-mm y si se listan también las personas sin horario. */
+  mes: string;
+  sinHorario: boolean;
 }
 
 const TAB_DEFAULT: TabAsistencia = 'resumen';
@@ -64,6 +68,8 @@ function leerFiltros(sp: URLSearchParams): FiltrosUI {
     soloSospechosas: sp.get('dudosas') === '1',
     soloIncompletos: sp.get('incompletos') === '1',
     page: Math.max(1, Number(sp.get('page')) || 1),
+    mes: MES_RE.test(sp.get('mes') ?? '') ? (sp.get('mes') as string) : def.desde.slice(0, 7),
+    sinHorario: sp.get('sinhorario') === '1',
   };
 }
 
@@ -81,6 +87,8 @@ function serializar(f: FiltrosUI): string {
   if (f.soloSospechosas) p.set('dudosas', '1');
   if (f.soloIncompletos) p.set('incompletos', '1');
   if (f.page > 1) p.set('page', String(f.page));
+  if (f.mes !== def.desde.slice(0, 7)) p.set('mes', f.mes);
+  if (f.sinHorario) p.set('sinhorario', '1');
   return p.toString();
 }
 
@@ -150,6 +158,10 @@ interface AsistenciaCtx {
   personaPorUserId: Map<string, Persona>;
   relojes: Reloj[] | null;
   relojesError: string | null;
+  /** Versiones de horario de todos los empleados (la más reciente primero por empleado). */
+  horarios: HorarioVersion[] | null;
+  horariosError: string | null;
+  horariosPorEmpleado: Map<number, HorarioVersion[]>;
   version: number;
   refrescar: () => void;
 }
@@ -186,9 +198,19 @@ export function AsistenciaProvider({ empleados, children }: { empleados: Emplead
 
   const personasRes = useRecurso<{ personas: Persona[] }>('/api/admin/asistencia/personas', version);
   const relojesRes = useRecurso<{ relojes: Reloj[] }>('/api/admin/asistencia/relojes', version);
+  const horariosRes = useRecurso<{ horarios: HorarioVersion[] }>('/api/admin/asistencia/horarios', version);
 
   const personas = personasRes.data?.personas ?? null;
   const relojes = relojesRes.data?.relojes ?? null;
+  const horarios = horariosRes.data?.horarios ?? null;
+  const horariosPorEmpleado = useMemo(() => {
+    const m = new Map<number, HorarioVersion[]>();
+    for (const h of horarios ?? []) {
+      if (!m.has(h.empleadoId)) m.set(h.empleadoId, []);
+      m.get(h.empleadoId)!.push(h);
+    }
+    return m;
+  }, [horarios]);
 
   const empleadoPorId = useMemo(() => new Map(empleados.map((e) => [e.id, e])), [empleados]);
   const personaPorUserId = useMemo(() => new Map((personas ?? []).map((p) => [p.userId, p])), [personas]);
@@ -206,10 +228,13 @@ export function AsistenciaProvider({ empleados, children }: { empleados: Emplead
       personaPorUserId,
       relojes,
       relojesError: relojesRes.error,
+      horarios,
+      horariosError: horariosRes.error,
+      horariosPorEmpleado,
       version,
       refrescar,
     }),
-    [f, set, limpiarFiltros, empleados, empleadoPorId, personas, personasRes.error, personaPorUserId, relojes, relojesRes.error, version, refrescar],
+    [f, set, limpiarFiltros, empleados, empleadoPorId, personas, personasRes.error, personaPorUserId, relojes, relojesRes.error, horarios, horariosRes.error, horariosPorEmpleado, version, refrescar],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

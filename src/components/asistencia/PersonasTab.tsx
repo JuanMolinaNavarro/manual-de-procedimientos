@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Search, X, ListChecks, Archive } from 'lucide-react';
+import { Search, X, ListChecks, Archive, CalendarClock, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -16,13 +16,19 @@ import {
 import { Banner, ColHelp, Empty, EmpleadoCell } from '@/components/comunes/ui';
 import { usePaginaLocal } from '@/hooks/usePaginaLocal';
 import { cn } from '@/lib/utils';
-import { DIAS_SILENCIO_DEFAULT, FILAS_POR_PAGINA, fmtFechaHora, fmtRelativo, hoyLocal, sumarDias } from '@/lib/asistencia-datos';
-import { asistFetch, mensajeError, type Persona } from './api';
+import { DIAS_SILENCIO_DEFAULT, FILAS_POR_PAGINA, fmtFechaDia, fmtFechaHora, fmtRelativo, hoyLocal, sumarDias } from '@/lib/asistencia-datos';
+import { describirHorario, versionVigente, type HorarioVersion } from '@/lib/asistencia-calendario';
+import { asistFetch, mensajeError, type Persona, type ResultadoMigracionLegacy } from './api';
 import { useAsistencia } from './AsistenciaContext';
 import EmpleadoPicker from './EmpleadoPicker';
 import { Chip, Paginacion } from './piezas';
+import HorarioDialog from './HorarioDialog';
 
-type Filtro = 'todas' | 'sinVincular' | 'vinculadas';
+type Filtro = 'todas' | 'sinVincular' | 'vinculadas' | 'sinHorario';
+
+const AYUDA_HORARIO =
+  'Días y horas en que se espera que la persona fiche. Se edita por versiones: cambiarlo "aplica desde" una fecha y ' +
+  'los días anteriores se siguen evaluando con el horario que tenían. Solo se puede cargar a quien está vinculado a una ficha.';
 
 const AYUDA_ACTIVA =
   'Si la persona está vinculada, manda el estado de su ficha en el organigrama y el switch lo cambia ahí. ' +
@@ -30,7 +36,13 @@ const AYUDA_ACTIVA =
   'y, si no está vinculada, se reactiva sola con la próxima fichada.';
 
 export default function PersonasTab() {
-  const { personas, personasError, empleados, empleadoPorId, refrescar, set } = useAsistencia();
+  const { personas, personasError, empleados, empleadoPorId, refrescar, set, horariosPorEmpleado, horarios } = useAsistencia();
+  const [hoy] = useState(() => hoyLocal());
+  const [editando, setEditando] = useState<{ id: number; nombre: string } | null>(null);
+  const vigenteDe = useCallback(
+    (empleadoId: number | null) => (empleadoId == null ? null : versionVigente(horariosPorEmpleado.get(empleadoId) ?? [], hoy)),
+    [horariosPorEmpleado, hoy],
+  );
   const [q, setQ] = useState('');
   const [filtro, setFiltro] = useState<Filtro>('todas');
   const [verInactivas, setVerInactivas] = useState(false);
@@ -47,10 +59,11 @@ export default function PersonasTab() {
     return visibles.filter((p) => {
       if (filtro === 'sinVincular' && p.empleadoId != null) return false;
       if (filtro === 'vinculadas' && p.empleadoId == null) return false;
+      if (filtro === 'sinHorario' && (p.empleadoId == null || vigenteDe(p.empleadoId)?.incluir)) return false;
       if (!needle) return true;
       return p.nombre.toLowerCase().includes(needle) || p.userId.toLowerCase().includes(needle);
     });
-  }, [visibles, q, filtro]);
+  }, [visibles, q, filtro, vigenteDe]);
 
   // La lista viene entera del server (son cientos de personas): se pagina acá.
   // La clave son los filtros aplicados; al cambiarlos se vuelve a la página 1.
@@ -115,6 +128,7 @@ export default function PersonasTab() {
   const inactivas = (personas?.length ?? 0) - activas;
   const vinculadas = visibles.filter((p) => p.empleadoId != null).length;
   const sinVincular = visibles.length - vinculadas;
+  const sinHorario = visibles.filter((p) => p.empleadoId != null && !vigenteDe(p.empleadoId)?.incluir).length;
 
   return (
     <div className="space-y-4">
@@ -143,6 +157,7 @@ export default function PersonasTab() {
           <Chip activo={filtro === 'todas'} onClick={() => setFiltro('todas')}>Todas ({visibles.length})</Chip>
           <Chip activo={filtro === 'sinVincular'} onClick={() => setFiltro('sinVincular')}>Sin vincular ({sinVincular})</Chip>
           <Chip activo={filtro === 'vinculadas'} onClick={() => setFiltro('vinculadas')}>Vinculadas ({vinculadas})</Chip>
+          <Chip activo={filtro === 'sinHorario'} onClick={() => setFiltro('sinHorario')}>Sin horario ({sinHorario})</Chip>
         </div>
 
         <Chip activo={verInactivas} onClick={() => setVerInactivas((v) => !v)}>
@@ -150,6 +165,7 @@ export default function PersonasTab() {
         </Chip>
 
         <div className="ml-auto flex items-center gap-2">
+          <DialogMigrarLegacy onListo={refrescar} />
           <DialogArchivar onListo={refrescar} />
 
           <AlertDialog>
@@ -206,6 +222,7 @@ export default function PersonasTab() {
                 <TableHead className="hidden lg:table-cell">Nombre en el reloj</TableHead>
                 <TableHead>Última fichada</TableHead>
                 <TableHead>Empleado del organigrama</TableHead>
+                <TableHead><ColHelp label="Horario" desc={AYUDA_HORARIO} /></TableHead>
                 <TableHead className="text-center"><ColHelp label="Activa" desc={AYUDA_ACTIVA} /></TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
@@ -235,6 +252,15 @@ export default function PersonasTab() {
                         disabled={guardando === p.id}
                         onCambio={(id) => vincular(p, id)}
                         className="w-64"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <HorarioCell
+                        version={vigenteDe(p.empleadoId)}
+                        versiones={p.empleadoId != null ? horariosPorEmpleado.get(p.empleadoId) ?? [] : []}
+                        cargando={horarios == null}
+                        vinculada={p.empleadoId != null}
+                        onEditar={emp ? () => setEditando({ id: emp.id, nombre: emp.nombre }) : undefined}
                       />
                     </TableCell>
                     <TableCell className="text-center">
@@ -272,6 +298,15 @@ export default function PersonasTab() {
         </div>
       )}
 
+      {editando && (
+        <HorarioDialog
+          empleado={editando}
+          versiones={horariosPorEmpleado.get(editando.id) ?? []}
+          open
+          onOpenChange={(o) => { if (!o) setEditando(null); }}
+        />
+      )}
+
       {personas != null && sinVincular > 0 && (
         <p className="text-xs text-muted-foreground">
           Hay <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400">{sinVincular}</Badge>{' '}
@@ -279,6 +314,117 @@ export default function PersonasTab() {
         </p>
       )}
     </div>
+  );
+}
+
+/** Horario vigente hoy en una línea + botón para editarlo. */
+function HorarioCell({
+  version, versiones, cargando, vinculada, onEditar,
+}: {
+  version: HorarioVersion | null; versiones: HorarioVersion[]; cargando: boolean; vinculada: boolean; onEditar?: () => void;
+}) {
+  if (!vinculada) return <span className="text-xs text-muted-foreground">Vinculá la ficha primero</span>;
+  if (cargando) return <Skeleton className="h-4 w-32" />;
+  return (
+    <div className="flex items-center gap-2">
+      <span className="min-w-0 text-sm">
+        {version ? (
+          version.incluir ? (
+            <span className="tabular-nums" title={`Vigente desde el ${fmtFechaDia(version.vigenteDesde)}${version.toleranciaMin != null ? ` · tolerancia ${version.toleranciaMin} min` : ''}`}>{describirHorario(version)}</span>
+          ) : (
+            <Badge variant="secondary">No incluido</Badge>
+          )
+        ) : (
+          <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400">{versiones.length ? 'Sin horario vigente' : 'Sin horario'}</Badge>
+        )}
+      </span>
+      {onEditar && (
+        <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2" onClick={onEditar} aria-label="Editar horario">
+          <CalendarClock className="h-3.5 w-3.5" /> {version ? 'Editar' : 'Cargar'}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Release A: convierte los horarios viejos de la ficha (texto libre) en versiones.
+ * Primero simula y muestra lo que no se pudo interpretar. Se saca en el Release B.
+ */
+function DialogMigrarLegacy({ onListo }: { onListo: () => void }) {
+  const [abierto, setAbierto] = useState(false);
+  const [sim, setSim] = useState<ResultadoMigracionLegacy | null>(null);
+  const [corriendo, setCorriendo] = useState(false);
+
+  useEffect(() => {
+    if (!abierto) return;
+    let vivo = true;
+    asistFetch<ResultadoMigracionLegacy>('/api/admin/asistencia/horarios/migrar-legacy', { method: 'POST', body: JSON.stringify({ dryRun: true }) })
+      .then((r) => { if (vivo) setSim(r); })
+      .catch((e) => { if (vivo) toast.error(mensajeError(e)); });
+    return () => { vivo = false; };
+  }, [abierto]);
+
+  async function migrar() {
+    setCorriendo(true);
+    try {
+      const r = await asistFetch<ResultadoMigracionLegacy>('/api/admin/asistencia/horarios/migrar-legacy', { method: 'POST', body: JSON.stringify({ dryRun: false }) });
+      toast.success(`${r.migrados} horario(s) migrados${r.noParseables.length ? `; ${r.noParseables.length} para cargar a mano` : ''}.`);
+      setAbierto(false);
+      onListo();
+    } catch (e) {
+      toast.error(mensajeError(e));
+    } finally {
+      setCorriendo(false);
+    }
+  }
+
+  return (
+    <AlertDialog open={abierto} onOpenChange={(o) => { setAbierto(o); if (!o) setSim(null); }}>
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" className="h-9">
+          <Wand2 className="h-4 w-4" />
+          Migrar horarios viejos
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Migrar los horarios de la ficha</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2 text-sm">
+              <p>
+                Convierte el horario en texto que tenía cada ficha del organigrama en una primera versión de horario.
+                Solo toca a quien todavía no tiene ninguna versión; correrlo dos veces no duplica nada.
+              </p>
+              {sim == null ? (
+                <p className="font-semibold">Revisando…</p>
+              ) : (
+                <>
+                  <p className="font-semibold">
+                    {sim.migrados === 0 && sim.noParseables.length === 0
+                      ? 'No queda nada por migrar.'
+                      : `${sim.migrados} se migran solos; ${sim.noParseables.length} no se pudieron interpretar.`}
+                  </p>
+                  {sim.noParseables.length > 0 && (
+                    <ul className="max-h-40 list-disc space-y-0.5 overflow-y-auto pl-5 text-xs">
+                      {sim.noParseables.map((n) => (
+                        <li key={n.empleadoId}><strong>{n.nombre}</strong>: {n.horario ?? JSON.stringify(n.horarios)}</li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction disabled={corriendo || !sim || sim.migrados === 0} onClick={(e) => { e.preventDefault(); migrar(); }}>
+            {corriendo ? 'Migrando…' : 'Migrar'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
