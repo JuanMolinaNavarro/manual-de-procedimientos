@@ -334,29 +334,30 @@ export function armarResumen(
 // Todo el módulo muestra la hora del reloj, que es hora de Argentina. Se fija la
 // zona a mano en vez de dejar la del navegador: si alguien abre el panel desde
 // otro huso, las fichadas tienen que seguir leyéndose como las marcó la persona.
+// `hour12: false` porque algunos navegadores con es-AR muestran "10:49 a. m.".
 
 export const TZ_RELOJ = 'America/Argentina/Buenos_Aires';
 
 /** 08:32:11 */
 export function fmtHora(iso: string): string {
-  return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: TZ_RELOJ });
+  return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: TZ_RELOJ });
 }
 
 /** 08:32 */
 export function fmtHoraCorta(iso: string): string {
-  return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', timeZone: TZ_RELOJ });
+  return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ_RELOJ });
 }
 
 /** 05/09/2026 08:32 */
 export function fmtFechaHora(iso: string | null): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: TZ_RELOJ });
+  return new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ_RELOJ });
 }
 
 /** 05/09 08:32 — para las tarjetas de relojes, donde el año sobra. */
 export function fmtFechaCorta(iso: string | null): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: TZ_RELOJ });
+  return new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ_RELOJ });
 }
 
 /**
