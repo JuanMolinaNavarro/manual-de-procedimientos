@@ -7,10 +7,9 @@
 import { Prisma, type AsistenciaHorario as HorarioRow } from '@prisma/client';
 import { prisma } from './prisma';
 import { AsistenciaError } from './asistencia';
-import { ESTADO_EMPLEADO_ACTIVO, hoyLocal, inicioDeMes, personaActiva, sumarDias } from './asistencia-datos';
+import { ESTADO_EMPLEADO_ACTIVO, hoyLocal, personaActiva, sumarDias } from './asistencia-datos';
 import {
   armarCalendario,
-  lunesDe,
   rangoMes,
   resumenLiquidacion,
   ultimaVersion,
@@ -21,7 +20,6 @@ import {
   type HorarioInput,
   type HorarioVersion,
 } from './asistencia-calendario';
-import { parsearHorarioLegacy } from './asistencia-horarios-legacy';
 
 function aVersion(r: HorarioRow): HorarioVersion {
   return {
@@ -349,53 +347,5 @@ export async function perfilPersona(personaId: number, mes: string): Promise<Per
   };
 }
 
-// ─── Migración de los horarios viejos de la ficha (Release A) ────────────────
-
-export interface ResultadoMigracionLegacy {
-  migrados: number;
-  /** Empleados con texto/JSON viejo que no se pudo interpretar: cargar a mano. */
-  noParseables: { empleadoId: number; nombre: string; horario: string | null; horarios: unknown }[];
-  /** Empleados con datos viejos y todavía sin versión (0 = listo para el Release B). */
-  pendientes: number;
-  dryRun: boolean;
-}
-
-/**
- * Crea la primera versión de horario a partir de `OrgEmpleado.horario` /
- * `horarios` para quien tenga datos viejos y ninguna versión. Idempotente:
- * quien ya tiene versión no se toca. La vigencia arranca en la primera fichada
- * conocida de sus personas (o el inicio del mes actual, lo que sea anterior)
- * para que el histórico se lea con horario.
- */
-export async function migrarHorariosLegacy(dryRun: boolean): Promise<ResultadoMigracionLegacy> {
-  const hoy = hoyLocal();
-  const empleados = await prisma.orgEmpleado.findMany({
-    where: { OR: [{ horario: { not: null } }, { horarios: { not: Prisma.DbNull } }] },
-    select: { id: true, nombre: true, horario: true, horarios: true, asistencia_horarios: { select: { id: true }, take: 1 }, asistencia_personas: { select: { user_id: true } } },
-  });
-  const candidatos = empleados.filter((e) => e.asistencia_horarios.length === 0 && (e.horario?.trim() || (Array.isArray(e.horarios) && e.horarios.length > 0)));
-  const res: ResultadoMigracionLegacy = { migrados: 0, noParseables: [], pendientes: 0, dryRun };
-  for (const e of candidatos) {
-    const dias = parsearHorarioLegacy(e.horario, Array.isArray(e.horarios) ? (e.horarios as { dia?: unknown; valor?: unknown }[]) : null);
-    if (!dias) {
-      res.noParseables.push({ empleadoId: e.id, nombre: e.nombre, horario: e.horario, horarios: e.horarios });
-      continue;
-    }
-    if (!dryRun) {
-      const userIds = e.asistencia_personas.map((p) => p.user_id);
-      const primera = userIds.length
-        ? await prisma.asistenciaFichada.findFirst({ where: { user_id: { in: userIds }, fecha: { gte: '2010-01-01' } }, orderBy: { fecha: 'asc' }, select: { fecha: true } })
-        : null;
-      const desde = primera && primera.fecha < inicioDeMes(hoy) ? primera.fecha : inicioDeMes(hoy);
-      await guardarVersionHorario(
-        { empleadoId: e.id, aplicarDesde: desde, incluir: true, cicloSemanas: 1, cicloAncla: lunesDe(desde), toleranciaMin: null, dias },
-        'migracion-legacy',
-      );
-    }
-    res.migrados++;
-  }
-  res.pendientes = dryRun ? candidatos.length : res.noParseables.length;
-  return res;
-}
 
 export { ultimaVersion };

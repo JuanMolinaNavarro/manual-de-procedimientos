@@ -27,7 +27,6 @@ import {
   type FichadaDia,
   type FilaEntrada,
 } from './asistencia-calendario';
-import { parsearHorarioLegacy, parsearDias, parsearRango } from './asistencia-horarios-legacy';
 
 // Septiembre 2026: el 1 es martes, el 7 lunes, el 15 martes (hoy en los tests).
 const HOY = '2026-09-15';
@@ -375,35 +374,3 @@ describe('describirHorario', () => {
   });
 });
 
-describe('parsearHorarioLegacy', () => {
-  it('rangos horarios en varios formatos', () => {
-    expect(parsearRango('08:00 - 17:00')).toEqual({ entrada: '08:00', salida: '17:00' });
-    expect(parsearRango('9 a 18 hs')).toEqual({ entrada: '09:00', salida: '18:00' });
-    expect(parsearRango('08.30 – 12.30')).toEqual({ entrada: '08:30', salida: '12:30' });
-    expect(parsearRango('22:00 - 06:00')).toBeNull(); // nocturno
-    expect(parsearRango('libre')).toBeNull();
-  });
-
-  it('días sueltos y rangos', () => {
-    expect(parsearDias('Lun - Vie, 08:00 - 17:00')).toEqual([0, 1, 2, 3, 4]);
-    expect(parsearDias('lunes a sábado')).toEqual([0, 1, 2, 3, 4, 5]);
-    expect(parsearDias('Lunes, Miércoles y Viernes')).toEqual([0, 2, 4]);
-    expect(parsearDias('08:00 - 17:00')).toEqual([]);
-  });
-
-  it('prioriza el Json por día y cae al texto', () => {
-    const json = parsearHorarioLegacy('Lun - Vie, 08:00 - 17:00', [
-      { dia: 'Lunes', valor: '09:00 - 18:00' },
-      { dia: 'Sábado', valor: '09:00 - 13:00' },
-      { dia: 'Domingo', valor: '' },
-    ]);
-    expect(json).toEqual({ 0: { semanas: [0], entrada: '09:00', salida: '18:00' }, 5: { semanas: [0], entrada: '09:00', salida: '13:00' } });
-    const texto = parsearHorarioLegacy('Lun - Vie, 08:00 - 16:00', null);
-    expect(Object.keys(texto ?? {})).toEqual(['0', '1', '2', '3', '4']);
-    expect(texto?.[4]).toEqual({ semanas: [0], entrada: '08:00', salida: '16:00' });
-    expect(parsearHorarioLegacy('9 a 18', [{ dia: 'Marte', valor: 'x' }])?.[2]?.entrada).toBe('09:00');
-    expect(parsearHorarioLegacy('Horario rotativo', null)).toBeNull();
-    expect(parsearHorarioLegacy(null, [])).toBeNull();
-    expect(parsearHorarioLegacy('', undefined)).toBeNull();
-  });
-});

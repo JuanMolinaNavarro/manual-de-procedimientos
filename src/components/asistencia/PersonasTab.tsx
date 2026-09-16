@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Search, X, ListChecks, CalendarClock, Wand2 } from 'lucide-react';
+import { Search, X, ListChecks, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -18,7 +18,7 @@ import { usePaginaLocal } from '@/hooks/usePaginaLocal';
 import { cn } from '@/lib/utils';
 import { FILAS_POR_PAGINA, fmtFechaHora, fmtRelativo, hoyLocal } from '@/lib/asistencia-datos';
 import { versionVigente } from '@/lib/asistencia-calendario';
-import { asistFetch, mensajeError, type Persona, type ResultadoMigracionLegacy } from './api';
+import { asistFetch, mensajeError, type Persona } from './api';
 import { useAsistencia } from './AsistenciaContext';
 import EmpleadoPicker from './EmpleadoPicker';
 import { Chip, Paginacion } from './piezas';
@@ -165,7 +165,6 @@ export default function PersonasTab() {
         </Chip>
 
         <div className="ml-auto flex items-center gap-2">
-          <DialogMigrarLegacy onListo={refrescar} />
 
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -334,87 +333,6 @@ export default function PersonasTab() {
         </p>
       )}
     </div>
-  );
-}
-
-/**
- * Release A: convierte los horarios viejos de la ficha (texto libre) en versiones.
- * Primero simula y muestra lo que no se pudo interpretar. Se saca en el Release B.
- */
-function DialogMigrarLegacy({ onListo }: { onListo: () => void }) {
-  const [abierto, setAbierto] = useState(false);
-  const [sim, setSim] = useState<ResultadoMigracionLegacy | null>(null);
-  const [corriendo, setCorriendo] = useState(false);
-
-  useEffect(() => {
-    if (!abierto) return;
-    let vivo = true;
-    asistFetch<ResultadoMigracionLegacy>('/api/admin/asistencia/horarios/migrar-legacy', { method: 'POST', body: JSON.stringify({ dryRun: true }) })
-      .then((r) => { if (vivo) setSim(r); })
-      .catch((e) => { if (vivo) toast.error(mensajeError(e)); });
-    return () => { vivo = false; };
-  }, [abierto]);
-
-  async function migrar() {
-    setCorriendo(true);
-    try {
-      const r = await asistFetch<ResultadoMigracionLegacy>('/api/admin/asistencia/horarios/migrar-legacy', { method: 'POST', body: JSON.stringify({ dryRun: false }) });
-      toast.success(`${r.migrados} horario(s) migrados${r.noParseables.length ? `; ${r.noParseables.length} para cargar a mano` : ''}.`);
-      setAbierto(false);
-      onListo();
-    } catch (e) {
-      toast.error(mensajeError(e));
-    } finally {
-      setCorriendo(false);
-    }
-  }
-
-  return (
-    <AlertDialog open={abierto} onOpenChange={(o) => { setAbierto(o); if (!o) setSim(null); }}>
-      <AlertDialogTrigger asChild>
-        <Button variant="outline" className="h-9">
-          <Wand2 className="h-4 w-4" />
-          Migrar horarios viejos
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Migrar los horarios de la ficha</AlertDialogTitle>
-          <AlertDialogDescription asChild>
-            <div className="space-y-2 text-sm">
-              <p>
-                Convierte el horario en texto que tenía cada ficha del organigrama en una primera versión de horario.
-                Solo toca a quien todavía no tiene ninguna versión; correrlo dos veces no duplica nada.
-              </p>
-              {sim == null ? (
-                <p className="font-semibold">Revisando…</p>
-              ) : (
-                <>
-                  <p className="font-semibold">
-                    {sim.migrados === 0 && sim.noParseables.length === 0
-                      ? 'No queda nada por migrar.'
-                      : `${sim.migrados} se migran solos; ${sim.noParseables.length} no se pudieron interpretar.`}
-                  </p>
-                  {sim.noParseables.length > 0 && (
-                    <ul className="max-h-40 list-disc space-y-0.5 overflow-y-auto pl-5 text-xs">
-                      {sim.noParseables.map((n) => (
-                        <li key={n.empleadoId}><strong>{n.nombre}</strong>: {n.horario ?? JSON.stringify(n.horarios)}</li>
-                      ))}
-                    </ul>
-                  )}
-                </>
-              )}
-            </div>
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction disabled={corriendo || !sim || sim.migrados === 0} onClick={(e) => { e.preventDefault(); migrar(); }}>
-            {corriendo ? 'Migrando…' : 'Migrar'}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   );
 }
 
