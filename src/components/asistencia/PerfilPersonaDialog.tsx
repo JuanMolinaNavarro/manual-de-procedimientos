@@ -137,7 +137,7 @@ function Resumen({ r, hoyEnMes }: { r: NonNullable<PerfilPersona['resumen']>; ho
   const pct = esperadas > 0 ? Math.min(100, Math.round((r.minutosTrabajados / esperadas) * 100)) : 0;
   const lista = (fechas: string[]) => (fechas.length ? fechas.map(ddmm).join(', ') : undefined);
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
       <StatCard label="Ausencias" value={r.ausentes.length} tone={r.ausentes.length ? 'red' : 'green'} detail={lista(r.ausentes) ?? `Sin ausencias en ${r.laborables} día(s) laborable(s).`} />
       <StatCard
         label="Llegadas tarde"
@@ -170,8 +170,18 @@ function Resumen({ r, hoyEnMes }: { r: NonNullable<PerfilPersona['resumen']>; ho
               : 'Todos los días con entrada tienen salida.'
         }
       />
+      <StatCard
+        label="Horas extra (control)"
+        value={r.horasExtra50 + r.horasExtra100 ? `${r.horasExtra50 + r.horasExtra100} h` : '0 h'}
+        tone={r.horasExtra50 + r.horasExtra100 ? 'violet' : undefined}
+        detail={
+          r.diasConExtra.length
+            ? `${r.horasExtra50} h al 50 % · ${r.horasExtra100} h al 100 % · ${r.diasConExtra.length} día(s). Solo salida tardía, horas enteras; para contrastar con el Excel del área.`
+            : 'Sin salidas tardías de una hora o más.'
+        }
+      />
       {r.sinSalida.length > 0 && r.trabajoNoLaborable.length > 0 && (
-        <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-4">Trabajó en día no laborable: {lista(r.trabajoNoLaborable)}.</p>
+        <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-5">Trabajó en día no laborable: {lista(r.trabajoNoLaborable)}.</p>
       )}
     </div>
   );
@@ -195,6 +205,7 @@ function Detalle({ celdas, dias }: { celdas: CeldaDia[]; dias: PerfilPersona['di
             <TableHead>Salida</TableHead>
             <TableHead className="text-right">Horas</TableHead>
             <TableHead className="text-right">Tarde</TableHead>
+            <TableHead className="text-right">Extra</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -216,6 +227,15 @@ function Detalle({ celdas, dias }: { celdas: CeldaDia[]; dias: PerfilPersona['di
               <TableCell className="text-right text-sm tabular-nums">{c.minutosTrabajados != null ? fmtHorasMin(c.minutosTrabajados) : '—'}</TableCell>
               <TableCell className={cn('text-right text-sm tabular-nums', c.minutosTarde ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground')}>
                 {c.minutosTarde ? `${c.minutosTarde} min` : '—'}
+              </TableCell>
+              <TableCell className="text-right text-sm tabular-nums">
+                {c.extra && (c.extra.horas50 || c.extra.horas100) ? (
+                  <span className="text-violet-700 dark:text-violet-400" title={`${c.extra.minutos50 + c.extra.minutos100} min de exceso`}>
+                    {c.extra.horas50 ? `${c.extra.horas50} h 50 %` : ''}{c.extra.horas50 && c.extra.horas100 ? ' + ' : ''}{c.extra.horas100 ? `${c.extra.horas100} h 100 %` : ''}
+                  </span>
+                ) : c.extra && c.extra.minutos50 + c.extra.minutos100 > 0 ? (
+                  <span className="text-muted-foreground" title="Menos de una hora completa: no cuenta">{c.extra.minutos50 + c.extra.minutos100} min</span>
+                ) : '—'}
               </TableCell>
             </TableRow>
           ))}

@@ -114,11 +114,31 @@ export interface CeldaDia {
    * la jornada esperada, no una liquidación de horas.
    */
   minutosTrabajados: number | null;
+  /**
+   * Horas extra derivadas (control contra el Excel de cada área, no una
+   * liquidación): exceso después de la salida esperada, o toda la jornada en
+   * un día no laborable. Null si falta entrada o salida. Ver `horasExtraDe`.
+   */
+  extra: HorasExtraDia | null;
   sinSalida: boolean;
   /** La entrada no vino de una marca de tipo Entrada (reloj sin tipos, etc.). */
   entradaInferida: boolean;
   marcas: number;
 }
+
+/** Exceso de un día partido en 50 % / 100 %, en minutos crudos y en horas completas. */
+export interface HorasExtraDia {
+  minutos50: number;
+  minutos100: number;
+  /** `Math.floor(minutos / HE_BLOQUE_MIN)`: una hora extra cuenta solo si está completa. */
+  horas50: number;
+  horas100: number;
+}
+
+/** Tamaño del bloque de hora extra: solo se cuentan bloques completos (60 = horas enteras). */
+export const HE_BLOQUE_MIN = 60;
+/** Sábado: hasta esta hora el exceso paga 50 %, después 100 %. Domingo paga 100 % todo el día. */
+export const HE_SABADO_CORTE = '13:00';
 
 export interface TotalesFila {
   laborables: number;
@@ -308,6 +328,7 @@ export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDi
     salida: null,
     minutosTarde: null,
     minutosTrabajados: null,
+    extra: null,
     sinSalida: false,
     entradaInferida: false,
     marcas: 0,
@@ -327,7 +348,10 @@ export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDi
   conMarcas.sinSalida = r.marcas > 0 && r.salida == null && e.fecha !== e.hoy;
 
   if (!version) return { ...conMarcas, estado: 'sin_horario' };
-  if (!jornada) return { ...conMarcas, estado: r.marcas > 0 ? 'trabajo_no_laborable' : 'no_laborable' };
+  if (!jornada) {
+    if (r.marcas > 0 && r.entrada && r.salida) conMarcas.extra = horasExtraDe(e.fecha, minutoLocalDe(r.entrada), minutoLocalDe(r.salida));
+    return { ...conMarcas, estado: r.marcas > 0 ? 'trabajo_no_laborable' : 'no_laborable' };
+  }
 
   const conJornada: CeldaDia = { ...conMarcas, jornada: { entrada: jornada.entrada, salida: jornada.salida } };
   if (r.marcas === 0 || r.entrada == null) return { ...conJornada, estado: e.fecha === e.hoy ? 'pendiente' : 'ausente' };
@@ -337,7 +361,31 @@ export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDi
   // "Grave" se mide desde la hora pactada, no desde el fin de la tolerancia:
   // con tolerancia 10 y umbral 30, entrar 08:31 a un turno de 08:00 es grave.
   const estado: EstadoDia = minutosTarde >= cfg.tardeGraveMin ? 'tarde_grave' : minutosTarde > tolerancia ? 'tarde' : 'a_horario';
-  return { ...conJornada, estado, minutosTarde };
+  // Solo la salida tardía cuenta como extra: llegar antes no (decisión de negocio).
+  const extra = r.salida ? horasExtraDe(e.fecha, minutosDe(jornada.salida), minutoLocalDe(r.salida)) : null;
+  return { ...conJornada, estado, minutosTarde, extra };
+}
+
+/**
+ * Exceso trabajado entre dos minutos del día (`desde` = salida esperada o
+ * entrada real en día no laborable; `hasta` = salida real), partido en 50 % /
+ * 100 % según el día: lunes a viernes 50 %; sábado 50 % hasta `HE_SABADO_CORTE`
+ * y 100 % después; domingo 100 %. Los feriados no están modelados todavía: un
+ * feriado entre semana sale como 50 %. Las horas se cuentan enteras por tipo.
+ */
+export function horasExtraDe(fecha: string, desde: number, hasta: number): HorasExtraDia {
+  const out: HorasExtraDia = { minutos50: 0, minutos100: 0, horas50: 0, horas100: 0 };
+  if (hasta <= desde) return out;
+  const ds = diaSemanaDe(fecha);
+  if (ds === 6) out.minutos100 = hasta - desde;
+  else if (ds === 5) {
+    const corte = minutosDe(HE_SABADO_CORTE);
+    out.minutos50 = Math.max(0, Math.min(hasta, corte) - desde);
+    out.minutos100 = Math.max(0, hasta - Math.max(desde, corte));
+  } else out.minutos50 = hasta - desde;
+  out.horas50 = Math.floor(out.minutos50 / HE_BLOQUE_MIN);
+  out.horas100 = Math.floor(out.minutos100 / HE_BLOQUE_MIN);
+  return out;
 }
 
 /** Minutos de la jornada esperada de una celda (0 si no laborable). */
@@ -364,12 +412,17 @@ export interface ResumenLiquidacion {
   /** Suma de `minutosTrabajados` de los días con entrada y salida. */
   minutosTrabajados: number;
   diasComputados: number;
+  /** Horas extra enteras del mes (control), y los días que aportan alguna. */
+  horasExtra50: number;
+  horasExtra100: number;
+  diasConExtra: { fecha: string; horas50: number; horas100: number; minutos: number }[];
 }
 
 export function resumenLiquidacion(celdas: readonly CeldaDia[]): ResumenLiquidacion {
   const r: ResumenLiquidacion = {
     laborables: 0, laborablesMes: 0, ausentes: [], tardes: [], minutosTarde: 0, trabajoNoLaborable: [], sinSalida: [],
     sinHorarioConMarcas: 0, minutosEsperadosMes: 0, minutosEsperadosHastaHoy: 0, minutosTrabajados: 0, diasComputados: 0,
+    horasExtra50: 0, horasExtra100: 0, diasConExtra: [],
   };
   for (const c of celdas) {
     const esperado = minutosJornada(c);
@@ -392,6 +445,11 @@ export function resumenLiquidacion(celdas: readonly CeldaDia[]): ResumenLiquidac
     if (c.minutosTrabajados != null) {
       r.minutosTrabajados += c.minutosTrabajados;
       r.diasComputados++;
+    }
+    if (c.extra && (c.extra.horas50 || c.extra.horas100)) {
+      r.horasExtra50 += c.extra.horas50;
+      r.horasExtra100 += c.extra.horas100;
+      r.diasConExtra.push({ fecha: c.fecha, horas50: c.extra.horas50, horas100: c.extra.horas100, minutos: c.extra.minutos50 + c.extra.minutos100 });
     }
   }
   return r;

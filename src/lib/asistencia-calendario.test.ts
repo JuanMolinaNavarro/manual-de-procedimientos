@@ -21,6 +21,7 @@ import {
   validarConfigInput,
   describirHorario,
   resumenLiquidacion,
+  horasExtraDe,
   fmtHorasMin,
   CONFIG_DEFAULT,
   type HorarioVersion,
@@ -307,6 +308,54 @@ describe('resumenLiquidacion', () => {
     expect(cal.filas[0].celdas[1].minutosTrabajados).toBeNull();
     expect(fmtHorasMin(510)).toBe('8 h 30 min');
     expect(fmtHorasMin(120)).toBe('2 h');
+  });
+});
+
+describe('horas extra (control)', () => {
+  it('parte el exceso en 50 % / 100 % según el día y cuenta horas enteras', () => {
+    // Martes: todo 50 %; 1 h 45 → 1 hora entera.
+    expect(horasExtraDe('2026-09-15', 17 * 60, 18 * 60 + 45)).toEqual({ minutos50: 105, minutos100: 0, horas50: 1, horas100: 0 });
+    // Sábado 09–13 con salida 15:30: nada al 50 (salida esperada = corte), 2 h 30 al 100 → 2.
+    expect(horasExtraDe('2026-09-19', 13 * 60, 15 * 60 + 30)).toEqual({ minutos50: 0, minutos100: 150, horas50: 0, horas100: 2 });
+    // Sábado no laborable 10:00–15:00: 3 h al 50 y 2 h al 100.
+    expect(horasExtraDe('2026-09-19', 10 * 60, 15 * 60)).toEqual({ minutos50: 180, minutos100: 120, horas50: 3, horas100: 2 });
+    // Domingo: todo 100 %.
+    expect(horasExtraDe('2026-09-20', 8 * 60, 9 * 60 + 59)).toEqual({ minutos50: 0, minutos100: 119, horas50: 0, horas100: 1 });
+    // Sin exceso.
+    expect(horasExtraDe('2026-09-15', 17 * 60, 16 * 60)).toEqual({ minutos50: 0, minutos100: 0, horas50: 0, horas100: 0 });
+  });
+
+  it('solo cuenta la salida tardía, nunca la entrada temprana, y necesita salida', () => {
+    const v = version();
+    const ev = (fecha: string, fichadas: FichadaDia[]) => evaluarDia({ fecha, hoy: HOY, version: v, fichadas }, CONFIG_DEFAULT);
+    expect(ev('2026-09-14', [marca('2026-09-14', '06:00'), marca('2026-09-14', '17:00', 1)]).extra).toEqual({ minutos50: 0, minutos100: 0, horas50: 0, horas100: 0 });
+    expect(ev('2026-09-14', [marca('2026-09-14', '08:00'), marca('2026-09-14', '19:10', 1)]).extra).toEqual({ minutos50: 130, minutos100: 0, horas50: 2, horas100: 0 });
+    expect(ev('2026-09-14', [marca('2026-09-14', '08:00')]).extra).toBeNull();
+    expect(ev('2026-09-14', []).extra).toBeNull();
+    // Día no laborable trabajado: toda la jornada es extra.
+    expect(ev('2026-09-13', [marca('2026-09-13', '09:00'), marca('2026-09-13', '12:00', 1)]).extra).toEqual({ minutos50: 0, minutos100: 180, horas50: 0, horas100: 3 });
+    expect(ev('2026-09-16', []).extra).toBeNull(); // futuro
+  });
+
+  it('el resumen suma las horas enteras y lista los días', () => {
+    const cal = armarCalendario({
+      desde: '2026-09-01', hasta: '2026-09-30', hoy: HOY, cfg: CONFIG_DEFAULT,
+      filas: [{
+        versiones: [version()],
+        fichadasPorFecha: {
+          '2026-09-01': [marca('2026-09-01', '08:00'), marca('2026-09-01', '18:30', 1)], // 1 h 30 → 1 al 50
+          '2026-09-02': [marca('2026-09-02', '08:00'), marca('2026-09-02', '17:40', 1)], // 40 min → nada
+          '2026-09-06': [marca('2026-09-06', '08:00'), marca('2026-09-06', '10:00', 1)], // domingo: 2 al 100
+        },
+      }],
+    });
+    const r = resumenLiquidacion(cal.filas[0].celdas);
+    expect(r.horasExtra50).toBe(1);
+    expect(r.horasExtra100).toBe(2);
+    expect(r.diasConExtra).toEqual([
+      { fecha: '2026-09-01', horas50: 1, horas100: 0, minutos: 90 },
+      { fecha: '2026-09-06', horas50: 0, horas100: 2, minutos: 120 },
+    ]);
   });
 });
 
