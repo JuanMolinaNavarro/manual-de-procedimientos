@@ -166,7 +166,7 @@ export default function PerfilPersonaPage({ personaId }: { personaId: number }) 
 
         {/* Lateral: horario y reloj */}
         <div className="space-y-4">
-          <HorarioCard versiones={versiones} vigente={vigente} hoy={hoy} vinculada={!!persona?.empleado} />
+          <HorarioCard versiones={versiones} vigente={vigente} hoy={hoy} vinculada={!!persona?.empleado} cargando={!persona} />
           <RelojCard persona={persona} empNombre={emp?.nombre ?? persona?.empleado?.nombre ?? null} />
         </div>
       </div>
@@ -201,7 +201,7 @@ function Foto({ persona, emp }: { persona: Persona | null; emp?: { id: number; f
   );
 }
 
-function HorarioCard({ versiones, vigente, hoy, vinculada }: { versiones: HorarioVersion[]; vigente: HorarioVersion | null; hoy: string; vinculada: boolean }) {
+function HorarioCard({ versiones, vigente, hoy, vinculada, cargando }: { versiones: HorarioVersion[]; vigente: HorarioVersion | null; hoy: string; vinculada: boolean; cargando: boolean }) {
   const ultima = ultimaVersion(versiones);
   return (
     <Card>
@@ -209,7 +209,9 @@ function HorarioCard({ versiones, vigente, hoy, vinculada }: { versiones: Horari
         <CardTitle className="inline-flex items-center gap-2 text-base"><Clock className="h-4 w-4" /> Horario</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {!vinculada ? (
+        {cargando ? (
+          <Skeleton className="h-16 w-full" />
+        ) : !vinculada ? (
           <p className="text-sm text-muted-foreground">Sin ficha vinculada: el horario se carga sobre la ficha del organigrama.</p>
         ) : !vigente ? (
           <p className="text-sm text-muted-foreground">
