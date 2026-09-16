@@ -162,24 +162,9 @@ export function presetDeRango(desde: string, hasta: string, hoy = hoyLocal()): P
 export const FILAS_POR_PAGINA = 15;
 
 // ─── Actividad de una persona ───────────────────────────────────────────────
-
-/**
- * Días sin fichar a partir de los cuales se archiva a una persona.
- *
- * Eran 365 (el silencio largo es compatible con licencias de enfermedad o
- * reserva de puesto, y en el histórico de estos relojes hubo gente que volvió
- * tras 4-6 meses). Se bajó a 60 por pedido: la contra es que una licencia larga
- * ahora archiva sola a la persona. No borra nada, y una fichada de los últimos
- * `DIAS_REACTIVACION` días la vuelve a activar.
- */
-export const DIAS_SILENCIO_DEFAULT = 60;
-
-/**
- * Una fichada de los últimos N días reactiva sola a quien se archivó por
- * silencio. El margen evita que una descarga completa del reloj (con marcas de
- * hace meses) resucite a gente que ya no está.
- */
-export const DIAS_REACTIVACION = 30;
+// El alta/baja es SIEMPRE manual (switch de la pestaña Personas). No hay
+// archivado por silencio ni reactivación automática por fichada: se probaron y
+// se sacaron porque pisaban decisiones tomadas a mano.
 
 /** Valores de `OrgEmpleado.estado`. */
 export const ESTADO_EMPLEADO_ACTIVO = 'active';

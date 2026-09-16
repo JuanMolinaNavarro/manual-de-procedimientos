@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Search, X, ListChecks, Archive, CalendarClock, Wand2 } from 'lucide-react';
+import { Search, X, ListChecks, CalendarClock, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,7 @@ import {
 import { Banner, ColHelp, Empty, EmpleadoCell } from '@/components/comunes/ui';
 import { usePaginaLocal } from '@/hooks/usePaginaLocal';
 import { cn } from '@/lib/utils';
-import { DIAS_SILENCIO_DEFAULT, FILAS_POR_PAGINA, fmtFechaDia, fmtFechaHora, fmtRelativo, hoyLocal, sumarDias } from '@/lib/asistencia-datos';
+import { FILAS_POR_PAGINA, fmtFechaDia, fmtFechaHora, fmtRelativo, hoyLocal } from '@/lib/asistencia-datos';
 import { describirHorario, versionVigente, type HorarioVersion } from '@/lib/asistencia-calendario';
 import { asistFetch, mensajeError, type Persona, type ResultadoMigracionLegacy } from './api';
 import { useAsistencia } from './AsistenciaContext';
@@ -32,8 +32,8 @@ const AYUDA_HORARIO =
 
 const AYUDA_ACTIVA =
   'Si la persona está vinculada, manda el estado de su ficha en el organigrama y el switch lo cambia ahí. ' +
-  'Si no está vinculada, es un estado propio de Asistencia. Una persona inactiva conserva todo su historial ' +
-  'y, si no está vinculada, se reactiva sola con la próxima fichada.';
+  'Si no está vinculada, es un estado propio de Asistencia. El cambio es siempre manual: ninguna fichada ni ' +
+  'proceso automático lo modifica. Una persona inactiva conserva todo su historial.';
 
 export default function PersonasTab() {
   const { personas, personasError, empleados, empleadoPorId, refrescar, set, horariosPorEmpleado, horarios } = useAsistencia();
@@ -48,8 +48,6 @@ export default function PersonasTab() {
   const [verInactivas, setVerInactivas] = useState(false);
   const [vinculando, setVinculando] = useState(false);
   const [guardando, setGuardando] = useState<number | null>(null);
-  // Fecha de corte del silencio, fijada al montar (el render no puede mirar el reloj).
-  const [corte] = useState(() => sumarDias(hoyLocal(), -DIAS_SILENCIO_DEFAULT));
 
   // Las inactivas se esconden por defecto: son la cola larga de gente que ya no está.
   const visibles = useMemo(() => (personas ?? []).filter((p) => verInactivas || p.activa), [personas, verInactivas]);
@@ -166,7 +164,6 @@ export default function PersonasTab() {
 
         <div className="ml-auto flex items-center gap-2">
           <DialogMigrarLegacy onListo={refrescar} />
-          <DialogArchivar onListo={refrescar} />
 
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -244,7 +241,7 @@ export default function PersonasTab() {
                       />
                     </TableCell>
                     <TableCell className="hidden text-sm text-muted-foreground lg:table-cell">{p.nombreReloj || '—'}</TableCell>
-                    <TableCell><UltimaFichada iso={p.ultimaFichada} corte={corte} /></TableCell>
+                    <TableCell><UltimaFichada iso={p.ultimaFichada} /></TableCell>
                     <TableCell>
                       <EmpleadoPicker
                         empleados={empleados}
@@ -428,95 +425,15 @@ function DialogMigrarLegacy({ onListo }: { onListo: () => void }) {
   );
 }
 
-/** "hace 3 días" en gris; más de un año (o nunca) en ámbar: es candidata a archivar. */
-function UltimaFichada({ iso, corte }: { iso: string | null; corte: string }) {
-  const silenciosa = !iso || iso.slice(0, 10) < corte;
+/** "hace 3 días" / "nunca", con la fecha completa al pasar el mouse. */
+function UltimaFichada({ iso }: { iso: string | null }) {
   return (
-    <span
-      className={cn('text-sm tabular-nums', silenciosa ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')}
-      title={iso ? fmtFechaHora(iso) : undefined}
-    >
+    <span className="text-sm tabular-nums text-muted-foreground" title={iso ? fmtFechaHora(iso) : undefined}>
       {iso ? fmtRelativo(iso) : 'nunca'}
     </span>
   );
 }
 
-/** Archivado en bloque por silencio. Primero cuenta (simula), después aplica. */
-function DialogArchivar({ onListo }: { onListo: () => void }) {
-  const [abierto, setAbierto] = useState(false);
-  const [candidatas, setCandidatas] = useState<number | null>(null);
-  const [archivando, setArchivando] = useState(false);
-
-  useEffect(() => {
-    if (!abierto) return;
-    let vivo = true;
-    asistFetch<{ candidatas: number }>('/api/admin/asistencia/personas/archivar', {
-      method: 'POST',
-      body: JSON.stringify({ dias: DIAS_SILENCIO_DEFAULT, simular: true }),
-    })
-      .then((r) => { if (vivo) setCandidatas(r.candidatas); })
-      .catch((e) => { if (vivo) toast.error(mensajeError(e)); });
-    return () => { vivo = false; };
-  }, [abierto]);
-
-  async function archivar() {
-    setArchivando(true);
-    try {
-      const r = await asistFetch<{ archivadas: number }>('/api/admin/asistencia/personas/archivar', {
-        method: 'POST',
-        body: JSON.stringify({ dias: DIAS_SILENCIO_DEFAULT }),
-      });
-      toast.success(`${r.archivadas} persona(s) archivadas.`);
-      setAbierto(false);
-      onListo();
-    } catch (e) {
-      toast.error(mensajeError(e));
-    } finally {
-      setArchivando(false);
-    }
-  }
-
-  return (
-    <AlertDialog open={abierto} onOpenChange={(o) => { setAbierto(o); if (!o) setCandidatas(null); }}>
-      <AlertDialogTrigger asChild>
-        <Button variant="outline" className="h-9">
-          <Archive className="h-4 w-4" />
-          Archivar sin actividad
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Archivar personas sin actividad</AlertDialogTitle>
-          <AlertDialogDescription asChild>
-            <div className="space-y-2 text-sm">
-              <p>
-                Se marcan inactivas las personas <strong>sin vincular</strong> que llevan más de{' '}
-                <strong>{DIAS_SILENCIO_DEFAULT} días</strong> sin fichar, o que nunca ficharon. Las vinculadas al
-                organigrama no se tocan: su baja se hace ahí.
-              </p>
-              <p>
-                No se borra nada. Si alguna vuelve a fichar, se reactiva sola. Esto además corre
-                solo una vez por día: el botón sirve para aplicarlo ahora.
-              </p>
-              <p className="pt-1 font-semibold">
-                {candidatas == null ? 'Contando…' : candidatas === 0 ? 'No hay nadie para archivar.' : `${candidatas} persona(s) quedarían inactivas.`}
-              </p>
-            </div>
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction
-            disabled={archivando || !candidatas}
-            onClick={(e) => { e.preventDefault(); archivar(); }}
-          >
-            {archivando ? 'Archivando…' : 'Archivar'}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
 
 function ListaSkeleton() {
   return (

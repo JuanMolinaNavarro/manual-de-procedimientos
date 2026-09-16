@@ -12,8 +12,6 @@ import {
   ORIGEN_CROSSCHEX,
   ORIGEN_RELOJ,
   OFFSET_RELOJ_MIN,
-  DIAS_REACTIVACION,
-  DIAS_SILENCIO_DEFAULT,
   ESTADO_EMPLEADO_ACTIVO,
   ESTADO_EMPLEADO_INACTIVO,
   esFechaImposible,
@@ -210,18 +208,7 @@ async function guardarRegistros(relojId: number, lote: RegistroReloj[]): Promise
     })),
     skipDuplicates: true,
   });
-  // Una marca reciente reactiva sola a quien se archivó **por silencio**
-  // (`archivada_silencio`), no a quien apagaron a mano: esa baja es una decisión
-  // y una fichada no la revierte. Tampoco a las vinculadas (su baja es del
-  // organigrama). Y solo si es reciente, por las descargas completas.
-  const corte = sumarDias(hoyLocal(), -DIAS_REACTIVACION);
-  const recientes = [...new Set(lote.filter((r) => r.fecha >= corte).map((r) => r.userId))];
-  if (recientes.length) {
-    await prisma.asistenciaPersona.updateMany({
-      where: { user_id: { in: recientes }, empleado_id: null, activo: false, archivada_silencio: true },
-      data: { activo: true, archivada_silencio: false },
-    });
-  }
+  // Una fichada NO cambia `activo`: la baja/alta de una persona es siempre manual.
   return res.count;
 }
 
@@ -404,36 +391,9 @@ export async function setPersonaActiva(id: number, activa: boolean) {
     });
     if (!emp) throw new AsistenciaError('Empleado no encontrado', 404);
   }
-  // Cambio manual: nunca cuenta como "archivada por silencio", así el sync no la
-  // vuelve a prender sola si la apagaron a propósito.
-  return prisma.asistenciaPersona.update({ where: { id }, data: { activo: activa, archivada_silencio: false } });
+  return prisma.asistenciaPersona.update({ where: { id }, data: { activo: activa } });
 }
 
-/**
- * Archiva (activo = false) a las personas SIN vincular que llevan más de `dias`
- * sin fichar, o que nunca ficharon. Las vinculadas no se tocan: su baja es del
- * organigrama. Con `simular` solo cuenta cuántas serían.
- */
-export async function archivarSilenciosas(dias = DIAS_SILENCIO_DEFAULT, simular = false) {
-  const hoy = hoyLocal();
-  const [candidatas, conActividad] = await Promise.all([
-    prisma.asistenciaPersona.findMany({ where: { empleado_id: null, activo: true }, select: { id: true, user_id: true } }),
-    prisma.asistenciaFichada.findMany({
-      where: { fecha: { gte: sumarDias(hoy, -dias), lte: sumarDias(hoy, 1) } },
-      distinct: ['user_id'],
-      select: { user_id: true },
-    }),
-  ]);
-  const activas = new Set(conActividad.map((f) => f.user_id));
-  const silenciosas = candidatas.filter((p) => !activas.has(p.user_id));
-  if (!simular && silenciosas.length) {
-    await prisma.asistenciaPersona.updateMany({
-      where: { id: { in: silenciosas.map((p) => p.id) } },
-      data: { activo: false, archivada_silencio: true },
-    });
-  }
-  return { dias, candidatas: silenciosas.length, archivadas: simular ? 0 : silenciosas.length };
-}
 
 export async function vincularPersona(id: number, empleadoId: number | null) {
   const persona = await prisma.asistenciaPersona.findUnique({ where: { id } });
