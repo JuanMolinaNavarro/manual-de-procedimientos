@@ -23,7 +23,7 @@ import { useAsistencia } from './AsistenciaContext';
 import EmpleadoPicker from './EmpleadoPicker';
 import { Chip, Paginacion } from './piezas';
 import HorarioDialog from './HorarioDialog';
-import PerfilPersonaDialog from './PerfilPersonaDialog';
+import Link from 'next/link';
 
 type Filtro = 'todas' | 'sinVincular' | 'vinculadas' | 'sinHorario';
 
@@ -40,7 +40,6 @@ export default function PersonasTab() {
   const { personas, personasError, empleados, empleadoPorId, refrescar, set, horariosPorEmpleado, horarios } = useAsistencia();
   const [hoy] = useState(() => hoyLocal());
   const [editando, setEditando] = useState<{ id: number; nombre: string } | null>(null);
-  const [perfil, setPerfil] = useState<Persona | null>(null);
   const vigenteDe = useCallback(
     (empleadoId: number | null) => (empleadoId == null ? null : versionVigente(horariosPorEmpleado.get(empleadoId) ?? [], hoy)),
     [horariosPorEmpleado, hoy],
@@ -231,11 +230,10 @@ export default function PersonasTab() {
                 return (
                   <TableRow key={p.id} className={cn(!p.activa && 'opacity-60')}>
                     <TableCell>
-                      {/* El nombre abre el perfil (resumen del mes para liquidar). */}
-                      <button
-                        type="button"
-                        onClick={() => setPerfil(p)}
-                        className="rounded-md text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                      {/* El nombre lleva al perfil (resumen del mes para liquidar). */}
+                      <Link
+                        href={`/admin/asistencia/personas/${p.id}`}
+                        className="block rounded-md transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                         aria-label={`Ver perfil de ${p.nombre}`}
                       >
                       <EmpleadoCell
@@ -247,7 +245,7 @@ export default function PersonasTab() {
                           </span>
                         }
                       />
-                      </button>
+                      </Link>
                     </TableCell>
                     <TableCell className="hidden text-sm text-muted-foreground lg:table-cell">{p.nombreReloj || '—'}</TableCell>
                     <TableCell><UltimaFichada iso={p.ultimaFichada} /></TableCell>
@@ -306,15 +304,6 @@ export default function PersonasTab() {
           onPage={pag.onPage}
         />
         </div>
-      )}
-
-      {perfil && (
-        <PerfilPersonaDialog
-          persona={perfil}
-          open
-          onOpenChange={(o) => { if (!o) setPerfil(null); }}
-          onEditarHorario={perfil.empleado ? () => { setEditando({ id: perfil.empleado!.id, nombre: perfil.empleado!.nombre }); setPerfil(null); } : undefined}
-        />
       )}
 
       {editando && (
