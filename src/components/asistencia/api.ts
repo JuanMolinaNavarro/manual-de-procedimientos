@@ -80,5 +80,5 @@ export interface ResultadoSync {
   error?: string;
 }
 
-export type { HorarioVersion, ConfigAsistencia, CeldaDia, TotalesFila, DiaCalendario } from '@/lib/asistencia-calendario';
-export type { CalendarioMes, FilaCalendarioMes, ResultadoGuardar, ResultadoMigracionLegacy } from '@/lib/asistencia-horarios';
+export type { HorarioVersion, ConfigAsistencia, CeldaDia, TotalesFila, DiaCalendario, ResumenLiquidacion } from '@/lib/asistencia-calendario';
+export type { CalendarioMes, FilaCalendarioMes, PerfilPersona, ResultadoGuardar, ResultadoMigracionLegacy } from '@/lib/asistencia-horarios';

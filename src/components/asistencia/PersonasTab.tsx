@@ -16,13 +16,14 @@ import {
 import { Banner, ColHelp, Empty, EmpleadoCell } from '@/components/comunes/ui';
 import { usePaginaLocal } from '@/hooks/usePaginaLocal';
 import { cn } from '@/lib/utils';
-import { FILAS_POR_PAGINA, fmtFechaDia, fmtFechaHora, fmtRelativo, hoyLocal } from '@/lib/asistencia-datos';
-import { describirHorario, versionVigente, type HorarioVersion } from '@/lib/asistencia-calendario';
+import { FILAS_POR_PAGINA, fmtFechaHora, fmtRelativo, hoyLocal } from '@/lib/asistencia-datos';
+import { versionVigente } from '@/lib/asistencia-calendario';
 import { asistFetch, mensajeError, type Persona, type ResultadoMigracionLegacy } from './api';
 import { useAsistencia } from './AsistenciaContext';
 import EmpleadoPicker from './EmpleadoPicker';
 import { Chip, Paginacion } from './piezas';
 import HorarioDialog from './HorarioDialog';
+import PerfilPersonaDialog from './PerfilPersonaDialog';
 
 type Filtro = 'todas' | 'sinVincular' | 'vinculadas' | 'sinHorario';
 
@@ -39,6 +40,7 @@ export default function PersonasTab() {
   const { personas, personasError, empleados, empleadoPorId, refrescar, set, horariosPorEmpleado, horarios } = useAsistencia();
   const [hoy] = useState(() => hoyLocal());
   const [editando, setEditando] = useState<{ id: number; nombre: string } | null>(null);
+  const [perfil, setPerfil] = useState<Persona | null>(null);
   const vigenteDe = useCallback(
     (empleadoId: number | null) => (empleadoId == null ? null : versionVigente(horariosPorEmpleado.get(empleadoId) ?? [], hoy)),
     [horariosPorEmpleado, hoy],
@@ -230,6 +232,13 @@ export default function PersonasTab() {
                 return (
                   <TableRow key={p.id} className={cn(!p.activa && 'opacity-60')}>
                     <TableCell>
+                      {/* El nombre abre el perfil (resumen del mes para liquidar). */}
+                      <button
+                        type="button"
+                        onClick={() => setPerfil(p)}
+                        className="rounded-md text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                        aria-label={`Ver perfil de ${p.nombre}`}
+                      >
                       <EmpleadoCell
                         empleado={emp ?? { id: -1, nombre: p.nombre, foto_archivo: null }}
                         sub={
@@ -239,6 +248,7 @@ export default function PersonasTab() {
                           </span>
                         }
                       />
+                      </button>
                     </TableCell>
                     <TableCell className="hidden text-sm text-muted-foreground lg:table-cell">{p.nombreReloj || '—'}</TableCell>
                     <TableCell><UltimaFichada iso={p.ultimaFichada} /></TableCell>
@@ -252,13 +262,17 @@ export default function PersonasTab() {
                       />
                     </TableCell>
                     <TableCell>
-                      <HorarioCell
-                        version={vigenteDe(p.empleadoId)}
-                        versiones={p.empleadoId != null ? horariosPorEmpleado.get(p.empleadoId) ?? [] : []}
-                        cargando={horarios == null}
-                        vinculada={p.empleadoId != null}
-                        onEditar={emp ? () => setEditando({ id: emp.id, nombre: emp.nombre }) : undefined}
-                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        disabled={!emp || horarios == null}
+                        title={emp ? undefined : 'Vinculá la ficha del organigrama primero'}
+                        onClick={() => emp && setEditando({ id: emp.id, nombre: emp.nombre })}
+                        aria-label={`Editar horario de ${p.nombre}`}
+                      >
+                        <CalendarClock className="h-3.5 w-3.5" /> Editar
+                      </Button>
                     </TableCell>
                     <TableCell className="text-center">
                       <Switch
@@ -295,6 +309,15 @@ export default function PersonasTab() {
         </div>
       )}
 
+      {perfil && (
+        <PerfilPersonaDialog
+          persona={perfil}
+          open
+          onOpenChange={(o) => { if (!o) setPerfil(null); }}
+          onEditarHorario={perfil.empleado ? () => { setEditando({ id: perfil.empleado!.id, nombre: perfil.empleado!.nombre }); setPerfil(null); } : undefined}
+        />
+      )}
+
       {editando && (
         <HorarioDialog
           empleado={editando}
@@ -309,36 +332,6 @@ export default function PersonasTab() {
           Hay <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400">{sinVincular}</Badge>{' '}
           persona(s) activas sin vincular: sus fichadas se muestran con el nombre truncado que trae el reloj.
         </p>
-      )}
-    </div>
-  );
-}
-
-/** Horario vigente hoy en una línea + botón para editarlo. */
-function HorarioCell({
-  version, versiones, cargando, vinculada, onEditar,
-}: {
-  version: HorarioVersion | null; versiones: HorarioVersion[]; cargando: boolean; vinculada: boolean; onEditar?: () => void;
-}) {
-  if (!vinculada) return <span className="text-xs text-muted-foreground">Vinculá la ficha primero</span>;
-  if (cargando) return <Skeleton className="h-4 w-32" />;
-  return (
-    <div className="flex items-center gap-2">
-      <span className="min-w-0 text-sm">
-        {version ? (
-          version.incluir ? (
-            <span className="tabular-nums" title={`Vigente desde el ${fmtFechaDia(version.vigenteDesde)}${version.toleranciaMin != null ? ` · tolerancia ${version.toleranciaMin} min` : ''}`}>{describirHorario(version)}</span>
-          ) : (
-            <Badge variant="secondary">No incluido</Badge>
-          )
-        ) : (
-          <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400">{versiones.length ? 'Sin horario vigente' : 'Sin horario'}</Badge>
-        )}
-      </span>
-      {onEditar && (
-        <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2" onClick={onEditar} aria-label="Editar horario">
-          <CalendarClock className="h-3.5 w-3.5" /> {version ? 'Editar' : 'Cargar'}
-        </Button>
       )}
     </div>
   );

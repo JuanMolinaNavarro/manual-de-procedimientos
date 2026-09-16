@@ -20,6 +20,8 @@ import {
   validarHorarioInput,
   validarConfigInput,
   describirHorario,
+  resumenLiquidacion,
+  fmtHorasMin,
   CONFIG_DEFAULT,
   type HorarioVersion,
   type FichadaDia,
@@ -268,6 +270,44 @@ describe('armarCalendario y totales', () => {
     });
     expect(cal.filas[0].tieneHorario).toBe(false);
     expect(cal.filas[0].celdas[0].estado).toBe('sin_horario');
+  });
+});
+
+describe('resumenLiquidacion', () => {
+  it('suma ausencias, tardanzas y horas contra lo esperado', () => {
+    const cal = armarCalendario({
+      desde: '2026-09-01',
+      hasta: '2026-09-30',
+      hoy: HOY,
+      cfg: CONFIG_DEFAULT,
+      filas: [{
+        versiones: [version()],
+        fichadasPorFecha: {
+          '2026-09-01': [marca('2026-09-01', '08:05'), marca('2026-09-01', '17:05', 1)], // 9 h
+          '2026-09-02': [marca('2026-09-02', '08:45')], // grave, sin salida
+          '2026-09-03': [marca('2026-09-03', '08:15'), marca('2026-09-03', '12:15', 1)], // tarde 15, 4 h
+          '2026-09-05': [marca('2026-09-05', '10:00'), marca('2026-09-05', '12:00', 1)], // sábado
+        },
+      }],
+    });
+    const r = resumenLiquidacion(cal.filas[0].celdas);
+    expect(r.laborablesMes).toBe(22); // L–V de septiembre 2026
+    expect(r.laborables).toBe(10); // 1-4, 7-11, 14 (hoy 15 pendiente no cuenta)
+    expect(r.minutosEsperadosMes).toBe(22 * 9 * 60);
+    expect(r.minutosEsperadosHastaHoy).toBe(11 * 9 * 60); // incluye hoy
+    expect(r.ausentes).toHaveLength(7);
+    expect(r.tardes).toEqual([
+      { fecha: '2026-09-02', minutos: 45, grave: true },
+      { fecha: '2026-09-03', minutos: 15, grave: false },
+    ]);
+    expect(r.minutosTarde).toBe(60);
+    expect(r.sinSalida).toEqual(['2026-09-02']);
+    expect(r.trabajoNoLaborable).toEqual(['2026-09-05']);
+    expect(r.minutosTrabajados).toBe(9 * 60 + 4 * 60 + 2 * 60);
+    expect(r.diasComputados).toBe(3);
+    expect(cal.filas[0].celdas[1].minutosTrabajados).toBeNull();
+    expect(fmtHorasMin(510)).toBe('8 h 30 min');
+    expect(fmtHorasMin(120)).toBe('2 h');
   });
 });
 

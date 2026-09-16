@@ -108,6 +108,12 @@ export interface CeldaDia {
   entrada: string | null; // ISO de la marca tomada como entrada
   salida: string | null; // ISO de la marca tomada como salida
   minutosTarde: number | null;
+  /**
+   * `salida − entrada` en minutos cuando hay las dos marcas; null si falta
+   * alguna. No descuenta descansos (tipo 2): es un bruto para comparar contra
+   * la jornada esperada, no una liquidación de horas.
+   */
+  minutosTrabajados: number | null;
   sinSalida: boolean;
   /** La entrada no vino de una marca de tipo Entrada (reloj sin tipos, etc.). */
   entradaInferida: boolean;
@@ -301,6 +307,7 @@ export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDi
     entrada: null,
     salida: null,
     minutosTarde: null,
+    minutosTrabajados: null,
     sinSalida: false,
     entradaInferida: false,
     marcas: 0,
@@ -315,6 +322,7 @@ export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDi
 
   const r = resumirFichadas(e.fichadas);
   const conMarcas: CeldaDia = { ...base, entrada: r.entrada, salida: r.salida, entradaInferida: r.entradaInferida, marcas: r.marcas };
+  if (r.entrada && r.salida && r.salida > r.entrada) conMarcas.minutosTrabajados = Math.round((Date.parse(r.salida) - Date.parse(r.entrada)) / 60_000);
   // Hoy la jornada sigue abierta: no es "sin salida" todavía.
   conMarcas.sinSalida = r.marcas > 0 && r.salida == null && e.fecha !== e.hoy;
 
@@ -330,6 +338,70 @@ export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDi
   // con tolerancia 10 y umbral 30, entrar 08:31 a un turno de 08:00 es grave.
   const estado: EstadoDia = minutosTarde >= cfg.tardeGraveMin ? 'tarde_grave' : minutosTarde > tolerancia ? 'tarde' : 'a_horario';
   return { ...conJornada, estado, minutosTarde };
+}
+
+/** Minutos de la jornada esperada de una celda (0 si no laborable). */
+export function minutosJornada(c: Pick<CeldaDia, 'jornada'>): number {
+  return c.jornada ? minutosDe(c.jornada.salida) - minutosDe(c.jornada.entrada) : 0;
+}
+
+/** Resumen de un mes para liquidar: ausencias, tardanzas y horas contra lo esperado. */
+export interface ResumenLiquidacion {
+  /** Días con jornada ya transcurridos (hasta hoy inclusive, sin contar hoy si está pendiente). */
+  laborables: number;
+  /** Días con jornada en todo el mes, futuro incluido. */
+  laborablesMes: number;
+  ausentes: string[]; // fechas
+  tardes: { fecha: string; minutos: number; grave: boolean }[];
+  minutosTarde: number;
+  trabajoNoLaborable: string[];
+  /** Días con entrada pero sin salida: sus horas no se pueden contar. */
+  sinSalida: string[];
+  /** Días con marcas pero sin horario vigente (no se evalúan). */
+  sinHorarioConMarcas: number;
+  minutosEsperadosMes: number;
+  minutosEsperadosHastaHoy: number;
+  /** Suma de `minutosTrabajados` de los días con entrada y salida. */
+  minutosTrabajados: number;
+  diasComputados: number;
+}
+
+export function resumenLiquidacion(celdas: readonly CeldaDia[]): ResumenLiquidacion {
+  const r: ResumenLiquidacion = {
+    laborables: 0, laborablesMes: 0, ausentes: [], tardes: [], minutosTarde: 0, trabajoNoLaborable: [], sinSalida: [],
+    sinHorarioConMarcas: 0, minutosEsperadosMes: 0, minutosEsperadosHastaHoy: 0, minutosTrabajados: 0, diasComputados: 0,
+  };
+  for (const c of celdas) {
+    const esperado = minutosJornada(c);
+    if (c.jornada) {
+      r.laborablesMes++;
+      r.minutosEsperadosMes += esperado;
+      if (c.estado !== 'futuro') {
+        r.minutosEsperadosHastaHoy += esperado;
+        if (c.estado !== 'pendiente') r.laborables++;
+      }
+    }
+    if (c.estado === 'ausente') r.ausentes.push(c.fecha);
+    if (c.estado === 'tarde' || c.estado === 'tarde_grave') {
+      r.tardes.push({ fecha: c.fecha, minutos: c.minutosTarde ?? 0, grave: c.estado === 'tarde_grave' });
+      r.minutosTarde += c.minutosTarde ?? 0;
+    }
+    if (c.estado === 'trabajo_no_laborable') r.trabajoNoLaborable.push(c.fecha);
+    if (c.sinSalida) r.sinSalida.push(c.fecha);
+    if (c.estado === 'sin_horario' && c.marcas > 0) r.sinHorarioConMarcas++;
+    if (c.minutosTrabajados != null) {
+      r.minutosTrabajados += c.minutosTrabajados;
+      r.diasComputados++;
+    }
+  }
+  return r;
+}
+
+/** 510 → "8 h 30 min"; 0 → "0 h". */
+export function fmtHorasMin(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  return m ? `${h} h ${m} min` : `${h} h`;
 }
 
 export function totalesDe(celdas: readonly CeldaDia[]): TotalesFila {

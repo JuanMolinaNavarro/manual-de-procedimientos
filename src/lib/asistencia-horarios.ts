@@ -12,8 +12,10 @@ import {
   armarCalendario,
   lunesDe,
   rangoMes,
+  resumenLiquidacion,
   ultimaVersion,
   type ConfigAsistencia,
+  type ResumenLiquidacion,
   type DiasHorario,
   type FichadaDia,
   type HorarioInput,
@@ -196,7 +198,7 @@ export interface CalendarioMes {
  * (vinculadas o no) con sus marcas en gris. Las fichadas de un empleado son
  * la unión de las de todos sus `user_id` del reloj.
  */
-export async function calendarioMes(mes: string, incluirSinHorario: boolean): Promise<CalendarioMes> {
+export async function calendarioMes(mes: string, incluirSinHorario: boolean, soloClave?: string): Promise<CalendarioMes> {
   const { desde, hasta } = rangoMes(mes);
   const hoy = hoyLocal();
   const [cfg, versionesRows, personas] = await Promise.all([
@@ -271,7 +273,8 @@ export async function calendarioMes(mes: string, incluirSinHorario: boolean): Pr
   const sinHorario = filas.filter((f) => f.activa && !tieneHorario(f)).length;
   // Con horario: activos siempre (un inactivo con versión abierta no figura como
   // ausente). Sin horario: solo a pedido y solo activos.
-  const visibles = filas.filter((f) => f.activa && (tieneHorario(f) || incluirSinHorario));
+  // `soloClave` (perfil de una persona) trae esa fila aunque esté inactiva.
+  const visibles = filas.filter((f) => (soloClave ? f.clave === soloClave : f.activa && (tieneHorario(f) || incluirSinHorario)));
 
   const userIds = [...new Set(visibles.flatMap((f) => f.userIds))];
   const fichadas = userIds.length
@@ -302,6 +305,48 @@ export async function calendarioMes(mes: string, incluirSinHorario: boolean): Pr
   const filasOrdenadas = [...cal.filas].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 
   return { mes, desde, hasta, hoy, config: cfg, dias: cal.dias, filas: filasOrdenadas, sinHorario, truncado: fichadas.length === MAX_FILAS_CALENDARIO };
+}
+
+// ─── Perfil de una persona ───────────────────────────────────────────────────
+
+export interface PerfilPersona extends Omit<CalendarioMes, 'filas' | 'sinHorario' | 'truncado'> {
+  persona: { id: number; userId: string; nombreReloj: string; empleadoId: number | null; nombre: string; activa: boolean };
+  /** null si la persona no aparece en el calendario del mes (no debería pasar con `soloClave`). */
+  fila: FilaCalendarioMes | null;
+  resumen: ResumenLiquidacion | null;
+  /** Versiones de horario de la ficha vinculada (vacío si no está vinculada). */
+  versiones: HorarioVersion[];
+}
+
+/** Mes de una persona con el resumen para liquidar (ausencias, tardanzas, horas). */
+export async function perfilPersona(personaId: number, mes: string): Promise<PerfilPersona> {
+  const p = await prisma.asistenciaPersona.findUnique({
+    where: { id: personaId },
+    include: { empleado: { select: { id: true, nombre: true, estado: true } } },
+  });
+  if (!p) throw new AsistenciaError('Persona no encontrada', 404);
+  const clave = p.empleado_id != null ? `e:${p.empleado_id}` : `u:${p.user_id}`;
+  const [cal, versiones] = await Promise.all([calendarioMes(mes, true, clave), p.empleado_id != null ? listarHorarios(p.empleado_id) : Promise.resolve([])]);
+  const fila = cal.filas[0] ?? null;
+  return {
+    mes: cal.mes,
+    desde: cal.desde,
+    hasta: cal.hasta,
+    hoy: cal.hoy,
+    config: cal.config,
+    dias: cal.dias,
+    persona: {
+      id: p.id,
+      userId: p.user_id,
+      nombreReloj: p.nombre_reloj,
+      empleadoId: p.empleado_id,
+      nombre: p.empleado?.nombre || p.nombre_reloj || p.user_id,
+      activa: personaActiva({ empleadoId: p.empleado_id, activo: p.activo, empleadoEstado: p.empleado?.estado ?? null }),
+    },
+    fila,
+    resumen: fila ? resumenLiquidacion(fila.celdas) : null,
+    versiones,
+  };
 }
 
 // ─── Migración de los horarios viejos de la ficha (Release A) ────────────────
