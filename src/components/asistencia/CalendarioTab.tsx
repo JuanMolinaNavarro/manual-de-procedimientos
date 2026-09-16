@@ -107,7 +107,7 @@ export default function CalendarioTab() {
 }
 
 function Grilla({ data, filas }: { data: CalendarioMes; filas: FilaCalendarioMes[] }) {
-  const cols = `240px repeat(${data.dias.length}, 28px) 96px`;
+  const cols = `240px repeat(${data.dias.length}, 28px)`;
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-card">
       <div className="min-w-max" style={{ display: 'grid', gridTemplateColumns: cols }}>
@@ -123,7 +123,6 @@ function Grilla({ data, filas }: { data: CalendarioMes; filas: FilaCalendarioMes
             <span>{d.dia}</span>
           </div>
         ))}
-        <div className="sticky right-0 z-20 border-b border-l border-border bg-card px-2 py-2 text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Σ</div>
 
         {/* Filas */}
         {filas.map((r) => (
@@ -136,15 +135,13 @@ function Grilla({ data, filas }: { data: CalendarioMes; filas: FilaCalendarioMes
 
 function Fila({ fila, data }: { fila: FilaCalendarioMes; data: CalendarioMes }) {
   const t = fila.totales;
-  const resumen = fila.tieneHorario
-    ? [t.aHorario && `${t.aHorario} ok`, t.tarde && `${t.tarde}T`, t.tardeGrave && `${t.tardeGrave}!`, t.ausente && `${t.ausente}A`].filter(Boolean).join(' · ') || '—'
-    : `${t.conMarcas} con marcas`;
+  // Los totales no van en una columna: quedan como tooltip de la persona.
   const detalle = fila.tieneHorario
     ? `${t.laborables} laborables · ${t.aHorario} a horario · ${t.tarde} tarde · ${t.tardeGrave} tarde grave · ${t.ausente} ausente · ${t.trabajoNoLaborable} en día no laborable · ${t.sinSalida} sin salida · ${t.minutosTarde} min de atraso`
     : 'Sin horario: solo se muestran los días con marcas';
   return (
     <>
-      <div className="sticky left-0 z-10 border-b border-border bg-card px-3 py-1.5">
+      <div className="sticky left-0 z-10 border-b border-border bg-card px-3 py-1.5" title={detalle}>
         <EmpleadoCell
           empleado={{ id: fila.empleadoId ?? -1, nombre: fila.nombre, foto_archivo: fila.fotoArchivo }}
           sub={
@@ -161,7 +158,6 @@ function Fila({ fila, data }: { fila: FilaCalendarioMes; data: CalendarioMes }) 
           <Celda celda={c} fila={fila} />
         </div>
       ))}
-      <div className="sticky right-0 z-10 border-b border-l border-border bg-card px-2 py-1.5 text-right text-[11px] tabular-nums text-muted-foreground" title={detalle}>{resumen}</div>
     </>
   );
 }

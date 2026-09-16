@@ -859,8 +859,11 @@ model AsistenciaPersona {
   empleado_id  Int?
   // Solo manda cuando la persona NO está vinculada: si tiene ficha, la
   // actividad la decide `OrgEmpleado.estado` (ver `personaActiva`). Se apaga a
-  // mano o por silencio prolongado, y se vuelve a prender sola con una fichada.
-  activo       Boolean  @default(true)
+  // mano o por silencio prolongado. `archivada_silencio` distingue los dos
+  // casos: solo a quien archivó el cron/botón por silencio lo reactiva sola una
+  // fichada reciente; una baja manual se queda apagada hasta que alguien la prenda.
+  activo             Boolean  @default(true)
+  archivada_silencio Boolean  @default(false)
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 

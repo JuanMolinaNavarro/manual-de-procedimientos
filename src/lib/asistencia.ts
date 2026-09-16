@@ -210,15 +210,16 @@ async function guardarRegistros(relojId: number, lote: RegistroReloj[]): Promise
     })),
     skipDuplicates: true,
   });
-  // Una marca reciente reactiva sola a quien se archivó por silencio. Solo a
-  // las personas sin vincular: la baja de un empleado es del organigrama y una
-  // fichada no la revierte. Y solo si es reciente, por las descargas completas.
+  // Una marca reciente reactiva sola a quien se archivó **por silencio**
+  // (`archivada_silencio`), no a quien apagaron a mano: esa baja es una decisión
+  // y una fichada no la revierte. Tampoco a las vinculadas (su baja es del
+  // organigrama). Y solo si es reciente, por las descargas completas.
   const corte = sumarDias(hoyLocal(), -DIAS_REACTIVACION);
   const recientes = [...new Set(lote.filter((r) => r.fecha >= corte).map((r) => r.userId))];
   if (recientes.length) {
     await prisma.asistenciaPersona.updateMany({
-      where: { user_id: { in: recientes }, empleado_id: null, activo: false },
-      data: { activo: true },
+      where: { user_id: { in: recientes }, empleado_id: null, activo: false, archivada_silencio: true },
+      data: { activo: true, archivada_silencio: false },
     });
   }
   return res.count;
@@ -403,7 +404,9 @@ export async function setPersonaActiva(id: number, activa: boolean) {
     });
     if (!emp) throw new AsistenciaError('Empleado no encontrado', 404);
   }
-  return prisma.asistenciaPersona.update({ where: { id }, data: { activo: activa } });
+  // Cambio manual: nunca cuenta como "archivada por silencio", así el sync no la
+  // vuelve a prender sola si la apagaron a propósito.
+  return prisma.asistenciaPersona.update({ where: { id }, data: { activo: activa, archivada_silencio: false } });
 }
 
 /**
@@ -426,7 +429,7 @@ export async function archivarSilenciosas(dias = DIAS_SILENCIO_DEFAULT, simular 
   if (!simular && silenciosas.length) {
     await prisma.asistenciaPersona.updateMany({
       where: { id: { in: silenciosas.map((p) => p.id) } },
-      data: { activo: false },
+      data: { activo: false, archivada_silencio: true },
     });
   }
   return { dias, candidatas: silenciosas.length, archivadas: simular ? 0 : silenciosas.length };
