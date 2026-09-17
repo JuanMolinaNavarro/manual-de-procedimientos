@@ -314,26 +314,32 @@ describe('resumenLiquidacion', () => {
 describe('horas extra (control)', () => {
   it('parte el exceso en 50 % / 100 % según el día y cuenta horas enteras', () => {
     // Martes: todo 50 %; 1 h 45 → 1 hora entera.
-    expect(horasExtraDe('2026-09-15', 17 * 60, 18 * 60 + 45)).toEqual({ minutos50: 105, minutos100: 0, horas50: 1, horas100: 0 });
+    expect(horasExtraDe('2026-09-15', 17 * 60, 18 * 60 + 45)).toEqual({ compensado: 0, minutos50: 105, minutos100: 0, horas50: 1, horas100: 0 });
     // Sábado 09–13 con salida 15:30: nada al 50 (salida esperada = corte), 2 h 30 al 100 → 2.
-    expect(horasExtraDe('2026-09-19', 13 * 60, 15 * 60 + 30)).toEqual({ minutos50: 0, minutos100: 150, horas50: 0, horas100: 2 });
+    expect(horasExtraDe('2026-09-19', 13 * 60, 15 * 60 + 30)).toEqual({ compensado: 0, minutos50: 0, minutos100: 150, horas50: 0, horas100: 2 });
     // Sábado no laborable 10:00–15:00: 3 h al 50 y 2 h al 100.
-    expect(horasExtraDe('2026-09-19', 10 * 60, 15 * 60)).toEqual({ minutos50: 180, minutos100: 120, horas50: 3, horas100: 2 });
+    expect(horasExtraDe('2026-09-19', 10 * 60, 15 * 60)).toEqual({ compensado: 0, minutos50: 180, minutos100: 120, horas50: 3, horas100: 2 });
     // Domingo: todo 100 %.
-    expect(horasExtraDe('2026-09-20', 8 * 60, 9 * 60 + 59)).toEqual({ minutos50: 0, minutos100: 119, horas50: 0, horas100: 1 });
+    expect(horasExtraDe('2026-09-20', 8 * 60, 9 * 60 + 59)).toEqual({ compensado: 0, minutos50: 0, minutos100: 119, horas50: 0, horas100: 1 });
     // Sin exceso.
-    expect(horasExtraDe('2026-09-15', 17 * 60, 16 * 60)).toEqual({ minutos50: 0, minutos100: 0, horas50: 0, horas100: 0 });
+    expect(horasExtraDe('2026-09-15', 17 * 60, 16 * 60)).toEqual({ compensado: 0, minutos50: 0, minutos100: 0, horas50: 0, horas100: 0 });
   });
 
   it('solo cuenta la salida tardía, nunca la entrada temprana, y necesita salida', () => {
     const v = version();
     const ev = (fecha: string, fichadas: FichadaDia[]) => evaluarDia({ fecha, hoy: HOY, version: v, fichadas }, CONFIG_DEFAULT);
-    expect(ev('2026-09-14', [marca('2026-09-14', '06:00'), marca('2026-09-14', '17:00', 1)]).extra).toEqual({ minutos50: 0, minutos100: 0, horas50: 0, horas100: 0 });
-    expect(ev('2026-09-14', [marca('2026-09-14', '08:00'), marca('2026-09-14', '19:10', 1)]).extra).toEqual({ minutos50: 130, minutos100: 0, horas50: 2, horas100: 0 });
+    expect(ev('2026-09-14', [marca('2026-09-14', '06:00'), marca('2026-09-14', '17:00', 1)]).extra).toEqual({ compensado: 0, minutos50: 0, minutos100: 0, horas50: 0, horas100: 0 });
+    expect(ev('2026-09-14', [marca('2026-09-14', '08:00'), marca('2026-09-14', '19:10', 1)]).extra).toEqual({ compensado: 0, minutos50: 130, minutos100: 0, horas50: 2, horas100: 0 });
+    // Llegó 1 h 22 tarde y se fue 1 h 22 tarde: compensa, no es extra.
+    expect(ev('2026-09-14', [marca('2026-09-14', '09:22'), marca('2026-09-14', '18:22', 1)]).extra).toEqual({ compensado: 82, minutos50: 0, minutos100: 0, horas50: 0, horas100: 0 });
+    // Llegó 30 tarde y se fue 2 h 30 tarde: compensa 30 y quedan 2 h extra.
+    expect(ev('2026-09-14', [marca('2026-09-14', '08:30'), marca('2026-09-14', '19:30', 1)]).extra).toEqual({ compensado: 30, minutos50: 120, minutos100: 0, horas50: 2, horas100: 0 });
+    // Llegó 1 h tarde y se fue 20 min tarde: compensa solo 20.
+    expect(ev('2026-09-14', [marca('2026-09-14', '09:00'), marca('2026-09-14', '17:20', 1)]).extra).toEqual({ compensado: 20, minutos50: 0, minutos100: 0, horas50: 0, horas100: 0 });
     expect(ev('2026-09-14', [marca('2026-09-14', '08:00')]).extra).toBeNull();
     expect(ev('2026-09-14', []).extra).toBeNull();
     // Día no laborable trabajado: toda la jornada es extra.
-    expect(ev('2026-09-13', [marca('2026-09-13', '09:00'), marca('2026-09-13', '12:00', 1)]).extra).toEqual({ minutos50: 0, minutos100: 180, horas50: 0, horas100: 3 });
+    expect(ev('2026-09-13', [marca('2026-09-13', '09:00'), marca('2026-09-13', '12:00', 1)]).extra).toEqual({ compensado: 0, minutos50: 0, minutos100: 180, horas50: 0, horas100: 3 });
     expect(ev('2026-09-16', []).extra).toBeNull(); // futuro
   });
 
@@ -356,6 +362,7 @@ describe('horas extra (control)', () => {
       { fecha: '2026-09-01', horas50: 1, horas100: 0, minutos: 90 },
       { fecha: '2026-09-06', horas50: 0, horas100: 2, minutos: 120 },
     ]);
+    expect(r.minutosCompensados).toBe(0);
   });
 });
 

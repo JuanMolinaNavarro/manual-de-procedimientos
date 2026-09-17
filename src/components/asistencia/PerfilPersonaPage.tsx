@@ -340,9 +340,10 @@ function Resumen({ r, hoyEnMes }: { r: NonNullable<PerfilPersona['resumen']>; ho
         value={`${extraTotal} h`}
         tone={extraTotal ? 'violet' : undefined}
         detail={
-          r.diasConExtra.length
-            ? `${r.horasExtra50} h al 50 % · ${r.horasExtra100} h al 100 % · ${r.diasConExtra.length} día(s). Solo salida tardía y horas enteras; para contrastar con el Excel del área.`
-            : 'Sin salidas tardías de una hora o más.'
+          (r.diasConExtra.length
+            ? `${r.horasExtra50} h al 50 % · ${r.horasExtra100} h al 100 % · ${r.diasConExtra.length} día(s). Solo salida tardía neta y horas enteras; para contrastar con el Excel del área.`
+            : 'Sin salidas tardías netas de una hora o más.') +
+          (r.minutosCompensados ? ` ${fmtHorasMin(r.minutosCompensados)} de salida tardía solo compensaron llegadas tarde.` : '')
         }
       />
       <StatCard
@@ -408,7 +409,9 @@ function Detalle({ celdas, dias }: { celdas: CeldaDia[]; dias: PerfilPersona['di
                     {c.extra.horas50 ? `${c.extra.horas50} h 50 %` : ''}{c.extra.horas50 && c.extra.horas100 ? ' + ' : ''}{c.extra.horas100 ? `${c.extra.horas100} h 100 %` : ''}
                   </span>
                 ) : c.extra && c.extra.minutos50 + c.extra.minutos100 > 0 ? (
-                  <span className="text-muted-foreground" title="Menos de una hora completa: no cuenta">{c.extra.minutos50 + c.extra.minutos100} min</span>
+                  <span className="text-muted-foreground" title={`Menos de una hora completa: no cuenta${c.extra.compensado ? ` (y ${c.extra.compensado} min compensan la llegada tarde)` : ''}`}>{c.extra.minutos50 + c.extra.minutos100} min</span>
+                ) : c.extra && c.extra.compensado > 0 ? (
+                  <span className="text-muted-foreground" title="La salida tardía solo compensa la llegada tarde de ese día: no es hora extra">compensa {c.extra.compensado} min</span>
                 ) : '—'}
               </TableCell>
             </TableRow>

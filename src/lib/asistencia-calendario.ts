@@ -128,6 +128,12 @@ export interface CeldaDia {
 
 /** Exceso de un día partido en 50 % / 100 %, en minutos crudos y en horas completas. */
 export interface HorasExtraDia {
+  /**
+   * Minutos de salida tardía que solo compensan la llegada tarde del mismo día:
+   * llegar 1 h tarde e irse 1 h tarde no es hora extra. Se descuentan antes de
+   * partir el exceso en 50 % / 100 %.
+   */
+  compensado: number;
   minutos50: number;
   minutos100: number;
   /** `Math.floor(minutos / HE_BLOQUE_MIN)`: una hora extra cuenta solo si está completa. */
@@ -362,7 +368,14 @@ export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDi
   // con tolerancia 10 y umbral 30, entrar 08:31 a un turno de 08:00 es grave.
   const estado: EstadoDia = minutosTarde >= cfg.tardeGraveMin ? 'tarde_grave' : minutosTarde > tolerancia ? 'tarde' : 'a_horario';
   // Solo la salida tardía cuenta como extra: llegar antes no (decisión de negocio).
-  const extra = r.salida ? horasExtraDe(e.fecha, minutosDe(jornada.salida), minutoLocalDe(r.salida)) : null;
+  // Y primero compensa la llegada tarde del mismo día: solo el exceso neto es extra.
+  let extra: HorasExtraDia | null = null;
+  if (r.salida) {
+    const salidaEsperada = minutosDe(jornada.salida);
+    const salidaReal = minutoLocalDe(r.salida);
+    const compensado = Math.min(minutosTarde, Math.max(0, salidaReal - salidaEsperada));
+    extra = { ...horasExtraDe(e.fecha, salidaEsperada + compensado, salidaReal), compensado };
+  }
   return { ...conJornada, estado, minutosTarde, extra };
 }
 
@@ -374,7 +387,7 @@ export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDi
  * feriado entre semana sale como 50 %. Las horas se cuentan enteras por tipo.
  */
 export function horasExtraDe(fecha: string, desde: number, hasta: number): HorasExtraDia {
-  const out: HorasExtraDia = { minutos50: 0, minutos100: 0, horas50: 0, horas100: 0 };
+  const out: HorasExtraDia = { compensado: 0, minutos50: 0, minutos100: 0, horas50: 0, horas100: 0 };
   if (hasta <= desde) return out;
   const ds = diaSemanaDe(fecha);
   if (ds === 6) out.minutos100 = hasta - desde;
@@ -416,13 +429,15 @@ export interface ResumenLiquidacion {
   horasExtra50: number;
   horasExtra100: number;
   diasConExtra: { fecha: string; horas50: number; horas100: number; minutos: number }[];
+  /** Minutos de salida tardía que solo compensaron llegadas tarde (no son extra). */
+  minutosCompensados: number;
 }
 
 export function resumenLiquidacion(celdas: readonly CeldaDia[]): ResumenLiquidacion {
   const r: ResumenLiquidacion = {
     laborables: 0, laborablesMes: 0, ausentes: [], tardes: [], minutosTarde: 0, trabajoNoLaborable: [], sinSalida: [],
     sinHorarioConMarcas: 0, minutosEsperadosMes: 0, minutosEsperadosHastaHoy: 0, minutosTrabajados: 0, diasComputados: 0,
-    horasExtra50: 0, horasExtra100: 0, diasConExtra: [],
+    horasExtra50: 0, horasExtra100: 0, diasConExtra: [], minutosCompensados: 0,
   };
   for (const c of celdas) {
     const esperado = minutosJornada(c);
@@ -446,6 +461,7 @@ export function resumenLiquidacion(celdas: readonly CeldaDia[]): ResumenLiquidac
       r.minutosTrabajados += c.minutosTrabajados;
       r.diasComputados++;
     }
+    if (c.extra) r.minutosCompensados += c.extra.compensado;
     if (c.extra && (c.extra.horas50 || c.extra.horas100)) {
       r.horasExtra50 += c.extra.horas50;
       r.horasExtra100 += c.extra.horas100;
