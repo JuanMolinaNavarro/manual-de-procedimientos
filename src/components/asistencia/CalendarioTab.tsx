@@ -22,7 +22,7 @@ import { fmtFechaDia, fmtHoraCorta, tipoMarcaLabel } from '@/lib/asistencia-dato
 import { DIAS_SEMANA_CORTO, ESTADOS_DIA, fmtMes, mesAnterior, mesSiguiente, validarConfigInput, type EstadoDia } from '@/lib/asistencia-calendario';
 import { asistFetch, mensajeError, type CalendarioMes, type CeldaDia, type ConfigAsistencia, type FichadaDetalle, type FilaCalendarioMes } from './api';
 import { useAsistencia, useAsistenciaData } from './AsistenciaContext';
-import { Campo, Chip } from './piezas';
+import { Campo, Chip, LinkPerfil } from './piezas';
 
 /** Color + marcador de texto por estado (el color solo no alcanza para leerlo). */
 const ESTILO: Record<EstadoDia, { celda: string; marca?: string }> = {
@@ -134,6 +134,9 @@ function Grilla({ data, filas }: { data: CalendarioMes; filas: FilaCalendarioMes
 }
 
 function Fila({ fila, data }: { fila: FilaCalendarioMes; data: CalendarioMes }) {
+  const { personaPorUserId } = useAsistencia();
+  // El perfil es por persona del reloj; un empleado sin legajo no tiene.
+  const personaId = fila.userIds.length ? personaPorUserId.get(fila.userIds[0])?.id ?? null : null;
   const t = fila.totales;
   // Los totales no van en una columna: quedan como tooltip de la persona.
   const detalle = fila.tieneHorario
@@ -142,6 +145,7 @@ function Fila({ fila, data }: { fila: FilaCalendarioMes; data: CalendarioMes }) 
   return (
     <>
       <div className="sticky left-0 z-10 border-b border-border bg-card px-3 py-1.5" title={detalle}>
+        <LinkPerfil personaId={personaId} nombre={fila.nombre}>
         <EmpleadoCell
           empleado={{ id: fila.empleadoId ?? -1, nombre: fila.nombre, foto_archivo: fila.fotoArchivo }}
           sub={
@@ -152,6 +156,7 @@ function Fila({ fila, data }: { fila: FilaCalendarioMes; data: CalendarioMes }) 
             </span>
           }
         />
+        </LinkPerfil>
       </div>
       {fila.celdas.map((c, i) => (
         <div key={c.fecha} className={cn('flex items-center justify-center border-b border-border', data.dias[i].finDeSemana && 'bg-muted/30', data.dias[i].esHoy && 'bg-primary/5')}>

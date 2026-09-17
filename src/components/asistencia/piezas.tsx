@@ -2,6 +2,7 @@
 
 /** Piezas chicas compartidas por las pestañas de Asistencia. */
 
+import Link from 'next/link';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -99,5 +100,24 @@ export function Paginacion({
         </div>
       )}
     </div>
+  );
+}
+
+export const hrefPerfil = (personaId: number) => `/admin/asistencia/personas/${personaId}`;
+
+/**
+ * Envuelve el nombre de una persona con el link a su perfil. Sin `personaId`
+ * (empleado sin legajo en el reloj) queda como texto plano: no hay perfil.
+ */
+export function LinkPerfil({ personaId, nombre, className, children }: { personaId: number | null | undefined; nombre?: string; className?: string; children: React.ReactNode }) {
+  if (personaId == null) return <div className={className}>{children}</div>;
+  return (
+    <Link
+      href={hrefPerfil(personaId)}
+      aria-label={nombre ? `Ver perfil de ${nombre}` : 'Ver perfil'}
+      className={cn('block rounded-md transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50', className)}
+    >
+      {children}
+    </Link>
   );
 }

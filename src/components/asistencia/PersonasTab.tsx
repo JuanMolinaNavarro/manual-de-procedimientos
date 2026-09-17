@@ -21,9 +21,8 @@ import { versionVigente } from '@/lib/asistencia-calendario';
 import { asistFetch, mensajeError, type Persona } from './api';
 import { useAsistencia } from './AsistenciaContext';
 import EmpleadoPicker from './EmpleadoPicker';
-import { Chip, Paginacion } from './piezas';
+import { Chip, LinkPerfil, Paginacion } from './piezas';
 import HorarioDialog from './HorarioDialog';
-import Link from 'next/link';
 
 type Filtro = 'todas' | 'sinVincular' | 'vinculadas' | 'sinHorario';
 
@@ -231,11 +230,7 @@ export default function PersonasTab() {
                   <TableRow key={p.id} className={cn(!p.activa && 'opacity-60')}>
                     <TableCell>
                       {/* El nombre lleva al perfil (resumen del mes para liquidar). */}
-                      <Link
-                        href={`/admin/asistencia/personas/${p.id}`}
-                        className="block rounded-md transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                        aria-label={`Ver perfil de ${p.nombre}`}
-                      >
+                      <LinkPerfil personaId={p.id} nombre={p.nombre}>
                       <EmpleadoCell
                         empleado={emp ?? { id: -1, nombre: p.nombre, foto_archivo: null }}
                         sub={
@@ -245,7 +240,7 @@ export default function PersonasTab() {
                           </span>
                         }
                       />
-                      </Link>
+                      </LinkPerfil>
                     </TableCell>
                     <TableCell className="hidden text-sm text-muted-foreground lg:table-cell">{p.nombreReloj || '—'}</TableCell>
                     <TableCell><UltimaFichada iso={p.ultimaFichada} /></TableCell>

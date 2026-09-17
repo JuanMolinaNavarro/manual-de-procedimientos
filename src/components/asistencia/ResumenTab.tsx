@@ -9,7 +9,7 @@ import { Banner, Empty, EmpleadoCell, StatCard } from '@/components/comunes/ui';
 import { cn } from '@/lib/utils';
 import { fmtFechaDia, fmtRelativo, type ResumenAsistencia } from '@/lib/asistencia-datos';
 import { useAsistencia, useAsistenciaData } from './AsistenciaContext';
-import { ControlesPeriodo } from './piezas';
+import { ControlesPeriodo, LinkPerfil } from './piezas';
 
 /** Cuántas personas se listan antes de mandar a la pestaña Personas. */
 const TOPE_LISTA = 10;
@@ -154,10 +154,12 @@ function PendientesDeVincular() {
           <div className="space-y-2">
             {visibles.map((p) => (
               <div key={p.id} className="flex items-center justify-between gap-3">
-                <EmpleadoCell
-                  empleado={{ id: -1, nombre: p.nombreReloj || p.userId, foto_archivo: null }}
-                  sub={<span className="text-amber-600 dark:text-amber-400">{p.userId} · sin vincular</span>}
-                />
+                <LinkPerfil personaId={p.id} nombre={p.nombreReloj || p.userId} className="min-w-0">
+                  <EmpleadoCell
+                    empleado={{ id: -1, nombre: p.nombreReloj || p.userId, foto_archivo: null }}
+                    sub={<span className="text-amber-600 dark:text-amber-400">{p.userId} · sin vincular</span>}
+                  />
+                </LinkPerfil>
                 <Button variant="ghost" size="sm" className="shrink-0" onClick={() => set({ tab: 'personas' })}>
                   Vincular
                 </Button>

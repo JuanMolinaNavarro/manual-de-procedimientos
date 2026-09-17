@@ -23,7 +23,7 @@ import {
   rangoPreset,
 } from '@/lib/asistencia-datos';
 import { mensajeError, type FichadaDetalle, type FichadaDia } from './api';
-import { Chip, FiltroChip, Campo, ControlesPeriodo, Paginacion } from './piezas';
+import { Campo, Chip, ControlesPeriodo, FiltroChip, LinkPerfil, Paginacion } from './piezas';
 import { useAsistencia, useAsistenciaData } from './AsistenciaContext';
 
 type Respuesta =
@@ -318,14 +318,16 @@ function PersonaCell({ userId, nombre }: { userId: string; nombre: string }) {
   const emp = persona?.empleadoId != null ? empleadoPorId.get(persona.empleadoId) : undefined;
 
   return (
-    <EmpleadoCell
-      empleado={emp ?? { id: -1, nombre, foto_archivo: null }}
-      sub={
-        emp
-          ? `${userId} · ${emp.rol}`
-          : <span className="text-amber-600 dark:text-amber-400">{userId} · sin vincular</span>
-      }
-    />
+    <LinkPerfil personaId={persona?.id} nombre={emp?.nombre ?? nombre}>
+      <EmpleadoCell
+        empleado={emp ?? { id: -1, nombre, foto_archivo: null }}
+        sub={
+          emp
+            ? `${userId} · ${emp.rol}`
+            : <span className="text-amber-600 dark:text-amber-400">{userId} · sin vincular</span>
+        }
+      />
+    </LinkPerfil>
   );
 }
 
