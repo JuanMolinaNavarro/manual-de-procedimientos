@@ -8,7 +8,7 @@
  * el detalle día por día. Todo sale del mismo `evaluarDia` del calendario.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -64,6 +64,11 @@ export default function PerfilPersonaPage({ personaId }: { personaId: number }) 
   const mes = f.mes;
 
   const persona = personas?.find((p) => p.id === personaId) ?? null;
+  // Para vincular solo se ofrecen las fichas que ninguna persona del reloj tiene todavía.
+  const empleadosLibres = useMemo(() => {
+    const ocupados = new Set((personas ?? []).map((p) => p.empleadoId).filter((id): id is number => id != null));
+    return empleados.filter((e) => !ocupados.has(e.id));
+  }, [empleados, personas]);
   const emp = persona?.empleadoId != null ? empleadoPorId.get(persona.empleadoId) : undefined;
   const { data, error, loading } = useAsistenciaData<PerfilPersona>(`/api/admin/asistencia/personas/${personaId}/perfil?mes=${mes}`);
   const versiones = data?.versiones ?? (persona?.empleadoId != null ? horariosPorEmpleado.get(persona.empleadoId) ?? [] : []);
@@ -186,7 +191,7 @@ export default function PerfilPersonaPage({ personaId }: { personaId: number }) 
         {/* Lateral: horario y reloj */}
         <div className="space-y-4">
           <HorarioCard versiones={versiones} vigente={vigente} hoy={hoy} vinculada={!!persona?.empleado} cargando={!persona} />
-          <RelojCard persona={persona} empleados={empleados} vinculando={vinculando} onVincular={vincular} />
+          <RelojCard persona={persona} empleados={empleadosLibres} vinculando={vinculando} onVincular={vincular} />
         </div>
       </div>
 
@@ -338,7 +343,7 @@ function RelojCard({
                 <>
                   {/* Solo se ofrece vincular cuando todavía no tiene ficha; cambiar o desvincular se hace desde Personas. */}
                   <EmpleadoPicker empleados={empleados} valor={null} disabled={vinculando} onCambio={onVincular} className="w-full" />
-                  <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">Sin vincular: elegí la ficha del organigrama para poder cargarle horario.</p>
+                  <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">Sin vincular: elegí la ficha del organigrama para poder cargarle horario. Solo se listan las fichas que no tienen legajo asignado.</p>
                 </>
               )}
             </dd>
