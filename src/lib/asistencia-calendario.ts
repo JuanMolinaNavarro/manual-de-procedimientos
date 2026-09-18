@@ -99,17 +99,16 @@ export const ESTADOS_DIA: Record<EstadoDia, { label: string; desc: string }> = {
   tarde: { label: 'Tarde', desc: 'Entró después de la tolerancia.' },
   tarde_grave: { label: 'Tarde grave', desc: 'Entró con más minutos de atraso que el umbral general.' },
   ausente: { label: 'Ausente', desc: 'Tenía horario y no hay ninguna fichada.' },
-  feriado: { label: 'Feriado', desc: 'Detectado: ese día fichó menos del 20 % de la gente con horario. Cuenta como no laborable; quien fichó tiene toda la jornada como extra al 100 %.' },
+  feriado: { label: 'Feriado', desc: 'Detectado: ese día fichó menos del 20 % de las personas activas (todos los relojes). Cuenta como no laborable; quien fichó tiene toda la jornada como extra al 100 %.' },
 };
 
 /**
- * Feriado detectado: un día laborable ya pasado en el que fichó menos de esta
- * fracción de las personas con jornada. No hay tabla de feriados: se infiere de
- * la asistencia real, como un domingo.
+ * Feriado detectado: un día ya pasado, que no sea domingo, en el que fichó
+ * menos de esta fracción de las personas **activas** del reloj (todos los
+ * relojes combinados, tengan o no horario). No hay tabla de feriados: se
+ * infiere de la asistencia real.
  */
 export const FERIADO_UMBRAL = 0.2;
-/** Con menos gente esperada que esto no se infiere nada (evita falsos feriados en equipos chicos). */
-export const FERIADO_MIN_ESPERADOS = 5;
 
 /** Una marca del día, ya filtrada por persona y fecha. */
 export interface FichadaDia {
@@ -554,32 +553,23 @@ export interface FilaCalendario {
 }
 
 /**
- * Feriados inferidos de la asistencia real: un día laborable ya pasado (no hoy,
- * no sábado/domingo) en el que, de la gente con jornada ese día, fichó menos
- * de `FERIADO_UMBRAL`. Se calcula sobre toda la población con horario, no
- * sobre la fila que se está mirando.
+ * Feriados inferidos de la asistencia real de **todas las personas activas**
+ * (todos los relojes combinados): un día ya pasado (no hoy), que no sea
+ * domingo, en el que fichó menos de `FERIADO_UMBRAL` del pool. Sin pool no se
+ * infiere nada.
  */
 export function detectarFeriados(
   fechas: readonly string[],
-  poblacion: readonly FilaEntrada[],
+  activos: number,
+  presentesPorFecha: ReadonlyMap<string, number>,
   hoy: string,
-  opts: { umbral?: number; minimoEsperados?: number } = {},
+  umbral = FERIADO_UMBRAL,
 ): Set<string> {
-  const umbral = opts.umbral ?? FERIADO_UMBRAL;
-  const minimo = opts.minimoEsperados ?? FERIADO_MIN_ESPERADOS;
   const out = new Set<string>();
+  if (activos <= 0) return out;
   for (const fecha of fechas) {
-    if (fecha >= hoy || diaSemanaDe(fecha) >= 5) continue;
-    let esperados = 0;
-    let presentes = 0;
-    for (const f of poblacion) {
-      const v = versionVigente(f.versiones, fecha);
-      if (!v || !v.incluir || (f.fechaIngreso && FECHA_RE.test(f.fechaIngreso) && fecha < f.fechaIngreso)) continue;
-      if (!jornadaDelDia(v, fecha)) continue;
-      esperados++;
-      if ((f.fichadasPorFecha[fecha]?.length ?? 0) > 0) presentes++;
-    }
-    if (esperados >= minimo && presentes / esperados < umbral) out.add(fecha);
+    if (fecha >= hoy || diaSemanaDe(fecha) === 6) continue;
+    if ((presentesPorFecha.get(fecha) ?? 0) / activos < umbral) out.add(fecha);
   }
   return out;
 }

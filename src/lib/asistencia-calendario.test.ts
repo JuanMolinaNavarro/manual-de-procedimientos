@@ -395,25 +395,24 @@ describe('horas extra (control)', () => {
 });
 
 describe('detectarFeriados', () => {
-  const fila = (fichadas: Record<string, FichadaDia[]>) => ({ versiones: [version()], fichadasPorFecha: fichadas });
-  it('marca el día laborable en que fichó menos del 20 % de la gente esperada', () => {
-    const presente = (f: string) => ({ [f]: [marca(f, '08:00')] });
-    const poblacion = [
-      fila({ ...presente('2026-09-07'), ...presente('2026-09-08') }),
-      fila({ ...presente('2026-09-07') }),
-      fila({ ...presente('2026-09-07') }),
-      fila({ ...presente('2026-09-07') }),
-      fila({ ...presente('2026-09-07') }),
-      fila({}),
-    ];
-    const fer = detectarFeriados(['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-12', HOY], poblacion, HOY);
-    expect(fer.has('2026-09-07')).toBe(false); // 5 de 6 ficharon
-    expect(fer.has('2026-09-08')).toBe(true); // 1 de 6 = 16 %
-    expect(fer.has('2026-09-09')).toBe(true); // nadie
-    expect(fer.has('2026-09-12')).toBe(false); // sábado: no se infiere
+  it('marca el día (no domingo) en que fichó menos del 20 % de las personas activas', () => {
+    const presentes = new Map([
+      ['2026-09-07', 9], // lunes: 90 %
+      ['2026-09-08', 1], // martes: 10 %
+      ['2026-09-12', 1], // sábado: 10 % → también feriado (solo se excluye el domingo)
+      ['2026-09-13', 0], // domingo: nunca
+      [HOY, 0],
+    ]);
+    const fer = detectarFeriados(['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-12', '2026-09-13', HOY], 10, presentes, HOY);
+    expect(fer.has('2026-09-07')).toBe(false);
+    expect(fer.has('2026-09-08')).toBe(true);
+    expect(fer.has('2026-09-09')).toBe(true); // nadie fichó
+    expect(fer.has('2026-09-12')).toBe(true);
+    expect(fer.has('2026-09-13')).toBe(false);
     expect(fer.has(HOY)).toBe(false); // hoy todavía no cerró
-    // Con menos de 5 esperados no se infiere.
-    expect(detectarFeriados(['2026-09-09'], poblacion.slice(0, 4), HOY).size).toBe(0);
+    // Justo 20 % no es feriado; sin pool no se infiere nada.
+    expect(detectarFeriados(['2026-09-08'], 10, new Map([['2026-09-08', 2]]), HOY).size).toBe(0);
+    expect(detectarFeriados(['2026-09-08'], 0, new Map(), HOY).size).toBe(0);
   });
 });
 

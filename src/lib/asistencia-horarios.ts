@@ -277,11 +277,23 @@ export async function calendarioMes(mes: string, incluirSinHorario: boolean, sol
   // ausente). Sin horario: solo a pedido y solo activos.
   // `soloClave` (perfil de una persona) trae esa fila aunque esté inactiva.
   const visibles = filas.filter((f) => (soloClave ? f.clave === soloClave : f.activa && (tieneHorario(f) || incluirSinHorario)));
-  // Los feriados se infieren sobre toda la población con horario, no sobre lo
-  // que se muestra (el perfil de una persona necesita el mismo resultado).
-  const poblacion = filas.filter((f) => f.activa && tieneHorario(f));
+  // Feriados: sobre el pool de TODAS las personas activas del reloj (todos los
+  // relojes, con o sin horario), no sobre lo que se muestra. Una consulta
+  // agregada (persona × día) alcanza: solo hace falta cuántas ficharon cada día.
+  const activosUserIds = personas
+    .filter((p) => personaActiva({ empleadoId: p.empleado_id, activo: p.activo, empleadoEstado: p.empleado?.estado ?? null }))
+    .map((p) => p.user_id);
+  const presentesPorFecha = new Map<string, number>();
+  if (activosUserIds.length) {
+    const grupos = await prisma.asistenciaFichada.groupBy({
+      by: ['user_id', 'fecha'],
+      where: { user_id: { in: activosUserIds }, fecha: { gte: desde, lte: hasta } },
+    });
+    for (const g of grupos) presentesPorFecha.set(g.fecha, (presentesPorFecha.get(g.fecha) ?? 0) + 1);
+  }
+  const feriados = detectarFeriados(diasDelRango(desde, hasta), activosUserIds.length, presentesPorFecha, hoy);
 
-  const userIds = [...new Set([...visibles, ...poblacion].flatMap((f) => f.userIds))];
+  const userIds = [...new Set(visibles.flatMap((f) => f.userIds))];
   const fichadas = userIds.length
     ? await prisma.asistenciaFichada.findMany({
         where: { user_id: { in: userIds }, fecha: { gte: desde, lte: hasta } },
@@ -306,7 +318,6 @@ export async function calendarioMes(mes: string, incluirSinHorario: boolean, sol
     void _a;
     return { ...resto, fichadasPorFecha };
   };
-  const feriados = detectarFeriados(diasDelRango(desde, hasta), poblacion.map(conFichadas), hoy);
   const cal = armarCalendario({ desde, hasta, hoy, cfg, filas: visibles.map(conFichadas), feriados });
   const filasOrdenadas = [...cal.filas].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 
