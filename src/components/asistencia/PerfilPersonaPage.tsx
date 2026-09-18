@@ -330,11 +330,17 @@ function RelojCard({
             <dd>{persona.nombreReloj || '—'}</dd>
             <dt className="text-muted-foreground">Última fichada</dt>
             <dd title={persona.ultimaFichada ? fmtFechaHora(persona.ultimaFichada) : undefined}>{persona.ultimaFichada ? fmtRelativo(persona.ultimaFichada) : 'nunca'}</dd>
-            <dt className="pt-2 text-muted-foreground">Ficha</dt>
+            <dt className={cn('text-muted-foreground', !persona.empleado && 'pt-2')}>Ficha</dt>
             <dd>
-              {/* Vínculo con el organigrama: mismo selector y misma API que la tabla Personas. */}
-              <EmpleadoPicker empleados={empleados} valor={persona.empleadoId} disabled={vinculando} onCambio={onVincular} className="w-full" />
-              {!persona.empleado && <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">Sin vincular: elegí la ficha del organigrama para poder cargarle horario.</p>}
+              {persona.empleado ? (
+                persona.empleado.nombre
+              ) : (
+                <>
+                  {/* Solo se ofrece vincular cuando todavía no tiene ficha; cambiar o desvincular se hace desde Personas. */}
+                  <EmpleadoPicker empleados={empleados} valor={null} disabled={vinculando} onCambio={onVincular} className="w-full" />
+                  <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">Sin vincular: elegí la ficha del organigrama para poder cargarle horario.</p>
+                </>
+              )}
             </dd>
             <dt className="text-muted-foreground">Estado</dt>
             <dd>{persona.activa ? 'activa' : 'inactiva'}</dd>
