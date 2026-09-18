@@ -39,6 +39,12 @@ export default function PersonasTab() {
   const { personas, personasError, empleados, empleadoPorId, refrescar, set, horariosPorEmpleado, horarios } = useAsistencia();
   const [hoy] = useState(() => hoyLocal());
   const [editando, setEditando] = useState<{ id: number; nombre: string } | null>(null);
+  // Para vincular solo se ofrecen las fichas que ninguna otra persona tiene (más la propia, para mostrarla).
+  const ocupados = useMemo(() => new Map((personas ?? []).filter((p) => p.empleadoId != null).map((p) => [p.empleadoId as number, p.id])), [personas]);
+  const opcionesPara = useCallback(
+    (personaId: number) => empleados.filter((e) => !ocupados.has(e.id) || ocupados.get(e.id) === personaId),
+    [empleados, ocupados],
+  );
   const vigenteDe = useCallback(
     (empleadoId: number | null) => (empleadoId == null ? null : versionVigente(horariosPorEmpleado.get(empleadoId) ?? [], hoy)),
     [horariosPorEmpleado, hoy],
@@ -246,7 +252,7 @@ export default function PersonasTab() {
                     <TableCell><UltimaFichada iso={p.ultimaFichada} /></TableCell>
                     <TableCell>
                       <EmpleadoPicker
-                        empleados={empleados}
+                        empleados={opcionesPara(p.id)}
                         valor={p.empleadoId}
                         disabled={guardando === p.id}
                         onCambio={(id) => vincular(p, id)}

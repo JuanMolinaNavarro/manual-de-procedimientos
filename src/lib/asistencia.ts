@@ -399,8 +399,12 @@ export async function vincularPersona(id: number, empleadoId: number | null) {
   const persona = await prisma.asistenciaPersona.findUnique({ where: { id } });
   if (!persona) throw new AsistenciaError('Persona no encontrada', 404);
   if (empleadoId != null) {
-    const emp = await prisma.orgEmpleado.findUnique({ where: { id: empleadoId }, select: { id: true } });
+    const emp = await prisma.orgEmpleado.findUnique({ where: { id: empleadoId }, select: { id: true, nombre: true } });
     if (!emp) throw new AsistenciaError('Empleado no encontrado', 404);
+    // Una ficha del organigrama tiene un solo legajo del reloj: si ya está
+    // vinculada a otra persona, primero hay que desvincular esa.
+    const otra = await prisma.asistenciaPersona.findFirst({ where: { empleado_id: empleadoId, id: { not: id } }, select: { user_id: true } });
+    if (otra) throw new AsistenciaError(`${emp.nombre} ya está vinculado al legajo ${otra.user_id}. Desvinculalo primero.`, 409);
   }
   return prisma.asistenciaPersona.update({ where: { id }, data: { empleado_id: empleadoId } });
 }
@@ -411,12 +415,16 @@ export async function vincularPersona(id: number, empleadoId: number | null) {
  * que todavía no tengan empleado y donde el match sea único.
  */
 export async function vincularPorCuil(): Promise<{ vinculadas: number }> {
-  const [personas, maestros] = await Promise.all([
+  const [personas, maestros, yaVinculados] = await Promise.all([
     prisma.asistenciaPersona.findMany({ where: { empleado_id: null } }),
     prisma.nominaEmpleado.findMany({ where: { cuil: { not: '' } }, select: { empleado_id: true, cuil: true } }),
+    prisma.asistenciaPersona.findMany({ where: { empleado_id: { not: null } }, select: { empleado_id: true } }),
   ]);
+  // Una ficha ya vinculada a un legajo no se vuelve a ofrecer.
+  const ocupados = new Set(yaVinculados.map((p) => p.empleado_id));
   const dniAEmpleado = new Map<string, number[]>();
   for (const m of maestros) {
+    if (ocupados.has(m.empleado_id)) continue;
     const dni = m.cuil.replace(/\D/g, '').slice(2, 10);
     if (dni.length === 8) (dniAEmpleado.get(dni) ?? dniAEmpleado.set(dni, []).get(dni)!).push(m.empleado_id);
   }
@@ -424,8 +432,9 @@ export async function vincularPorCuil(): Promise<{ vinculadas: number }> {
   for (const p of personas) {
     const dni = p.user_id.replace(/\D/g, '');
     const cands = dniAEmpleado.get(dni);
-    if (cands && cands.length === 1) {
+    if (cands && cands.length === 1 && !ocupados.has(cands[0])) {
       await prisma.asistenciaPersona.update({ where: { id: p.id }, data: { empleado_id: cands[0] } });
+      ocupados.add(cands[0]);
       vinculadas++;
     }
   }
