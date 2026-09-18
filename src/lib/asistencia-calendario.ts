@@ -35,6 +35,12 @@ export interface DiaHorario {
   semanas: number[];
   entrada: string; // HH:MM
   salida: string; // HH:MM, posterior a la entrada (sin turno nocturno)
+  /**
+   * Turnos rotativos: horas distintas por semana del ciclo (clave = semana
+   * 0-based). Si una semana no figura, usa `entrada`/`salida`. Así dos personas
+   * alternan mañana/tarde con el mismo ciclo y el ancla corrido una semana.
+   */
+  porSemana?: Partial<Record<number, { entrada: string; salida: string }>>;
 }
 
 /** Índice por día de la semana; día ausente = no laborable. */
@@ -80,7 +86,8 @@ export type EstadoDia =
   | 'a_horario'
   | 'tarde'
   | 'tarde_grave'
-  | 'ausente';
+  | 'ausente'
+  | 'feriado';
 
 export const ESTADOS_DIA: Record<EstadoDia, { label: string; desc: string }> = {
   futuro: { label: 'Futuro', desc: 'Todavía no llegó ese día.' },
@@ -92,7 +99,17 @@ export const ESTADOS_DIA: Record<EstadoDia, { label: string; desc: string }> = {
   tarde: { label: 'Tarde', desc: 'Entró después de la tolerancia.' },
   tarde_grave: { label: 'Tarde grave', desc: 'Entró con más minutos de atraso que el umbral general.' },
   ausente: { label: 'Ausente', desc: 'Tenía horario y no hay ninguna fichada.' },
+  feriado: { label: 'Feriado', desc: 'Detectado: ese día fichó menos del 20 % de la gente con horario. Cuenta como no laborable; quien fichó tiene toda la jornada como extra al 100 %.' },
 };
+
+/**
+ * Feriado detectado: un día laborable ya pasado en el que fichó menos de esta
+ * fracción de las personas con jornada. No hay tabla de feriados: se infiere de
+ * la asistencia real, como un domingo.
+ */
+export const FERIADO_UMBRAL = 0.2;
+/** Con menos gente esperada que esto no se infiere nada (evita falsos feriados en equipos chicos). */
+export const FERIADO_MIN_ESPERADOS = 5;
 
 /** Una marca del día, ya filtrada por persona y fecha. */
 export interface FichadaDia {
@@ -265,8 +282,12 @@ export function jornadaDelDia(v: HorarioVersion, fecha: string): DiaHorario | nu
   if (!v.incluir) return null;
   const d = v.dias[diaSemanaDe(fecha)];
   if (!d) return null;
-  if (v.cicloSemanas > 1 && !d.semanas.includes(semanaDelCiclo(fecha, v.cicloAncla, v.cicloSemanas))) return null;
-  return d;
+  if (v.cicloSemanas <= 1) return d;
+  const sem = semanaDelCiclo(fecha, v.cicloAncla, v.cicloSemanas);
+  if (!d.semanas.includes(sem)) return null;
+  // Turno rotativo: la semana puede tener sus propias horas.
+  const t = d.porSemana?.[sem];
+  return t ? { ...d, entrada: t.entrada, salida: t.salida } : d;
 }
 
 /**
@@ -323,6 +344,8 @@ export interface EntradaEvaluacion {
   fichadas: readonly FichadaDia[];
   /** `NominaEmpleado.fecha_ingreso`: antes de esa fecha no se esperaba a la persona. */
   fechaIngreso?: string | null;
+  /** Feriado detectado (`detectarFeriados`): se trata como domingo. */
+  feriado?: boolean;
 }
 
 export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDia {
@@ -341,7 +364,10 @@ export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDi
   };
   const antesDelIngreso = !!e.fechaIngreso && FECHA_RE.test(e.fechaIngreso) && e.fecha < e.fechaIngreso;
   const version = e.version != null && e.version.incluir && !antesDelIngreso ? e.version : null;
-  const jornada = version ? jornadaDelDia(version, e.fecha) : null;
+  // Un feriado detectado anula la jornada de ese día: nadie queda ausente y
+  // quien fichó lo hizo en día no laborable (extra al 100 %).
+  const esFeriado = !!e.feriado && e.fecha <= e.hoy;
+  const jornada = version && !esFeriado ? jornadaDelDia(version, e.fecha) : null;
 
   // Futuro: sin estado, pero con la jornada planificada para que el calendario
   // muestre qué días le tocan (p. ej. qué sábados del ciclo).
@@ -355,8 +381,8 @@ export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDi
 
   if (!version) return { ...conMarcas, estado: 'sin_horario' };
   if (!jornada) {
-    if (r.marcas > 0 && r.entrada && r.salida) conMarcas.extra = horasExtraDe(e.fecha, minutoLocalDe(r.entrada), minutoLocalDe(r.salida));
-    return { ...conMarcas, estado: r.marcas > 0 ? 'trabajo_no_laborable' : 'no_laborable' };
+    if (r.marcas > 0 && r.entrada && r.salida) conMarcas.extra = horasExtraDe(e.fecha, minutoLocalDe(r.entrada), minutoLocalDe(r.salida), esFeriado);
+    return { ...conMarcas, estado: r.marcas > 0 ? 'trabajo_no_laborable' : esFeriado ? 'feriado' : 'no_laborable' };
   }
 
   const conJornada: CeldaDia = { ...conMarcas, jornada: { entrada: jornada.entrada, salida: jornada.salida } };
@@ -364,9 +390,11 @@ export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDi
 
   const tolerancia = version.toleranciaMin ?? cfg.toleranciaMin;
   const minutosTarde = Math.max(0, minutoLocalDe(r.entrada) - minutosDe(jornada.entrada));
-  // "Grave" se mide desde la hora pactada, no desde el fin de la tolerancia:
+  // Primero manda la tolerancia que aplique (propia si la tiene, si no la general):
+  // dentro de ella es "a horario" aunque supere el umbral grave. Fuera de ella,
+  // "grave" se mide desde la hora pactada, no desde el fin de la tolerancia:
   // con tolerancia 10 y umbral 30, entrar 08:31 a un turno de 08:00 es grave.
-  const estado: EstadoDia = minutosTarde >= cfg.tardeGraveMin ? 'tarde_grave' : minutosTarde > tolerancia ? 'tarde' : 'a_horario';
+  const estado: EstadoDia = minutosTarde <= tolerancia ? 'a_horario' : minutosTarde >= cfg.tardeGraveMin ? 'tarde_grave' : 'tarde';
   // Solo la salida tardía cuenta como extra: llegar antes no (decisión de negocio).
   // Y primero compensa la llegada tarde del mismo día: solo el exceso neto es extra.
   let extra: HorasExtraDia | null = null;
@@ -383,14 +411,14 @@ export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDi
  * Exceso trabajado entre dos minutos del día (`desde` = salida esperada o
  * entrada real en día no laborable; `hasta` = salida real), partido en 50 % /
  * 100 % según el día: lunes a viernes 50 %; sábado 50 % hasta `HE_SABADO_CORTE`
- * y 100 % después; domingo 100 %. Los feriados no están modelados todavía: un
- * feriado entre semana sale como 50 %. Las horas se cuentan enteras por tipo.
+ * y 100 % después; domingo y feriado (`todo100`) 100 %. Las horas se cuentan
+ * enteras por tipo.
  */
-export function horasExtraDe(fecha: string, desde: number, hasta: number): HorasExtraDia {
+export function horasExtraDe(fecha: string, desde: number, hasta: number, todo100 = false): HorasExtraDia {
   const out: HorasExtraDia = { compensado: 0, minutos50: 0, minutos100: 0, horas50: 0, horas100: 0 };
   if (hasta <= desde) return out;
   const ds = diaSemanaDe(fecha);
-  if (ds === 6) out.minutos100 = hasta - desde;
+  if (ds === 6 || todo100) out.minutos100 = hasta - desde;
   else if (ds === 5) {
     const corte = minutosDe(HE_SABADO_CORTE);
     out.minutos50 = Math.max(0, Math.min(hasta, corte) - desde);
@@ -431,13 +459,15 @@ export interface ResumenLiquidacion {
   diasConExtra: { fecha: string; horas50: number; horas100: number; minutos: number }[];
   /** Minutos de salida tardía que solo compensaron llegadas tarde (no son extra). */
   minutosCompensados: number;
+  /** Feriados detectados en el mes (días en que casi nadie fichó). */
+  feriados: string[];
 }
 
 export function resumenLiquidacion(celdas: readonly CeldaDia[]): ResumenLiquidacion {
   const r: ResumenLiquidacion = {
     laborables: 0, laborablesMes: 0, ausentes: [], tardes: [], minutosTarde: 0, trabajoNoLaborable: [], sinSalida: [],
     sinHorarioConMarcas: 0, minutosEsperadosMes: 0, minutosEsperadosHastaHoy: 0, minutosTrabajados: 0, diasComputados: 0,
-    horasExtra50: 0, horasExtra100: 0, diasConExtra: [], minutosCompensados: 0,
+    horasExtra50: 0, horasExtra100: 0, diasConExtra: [], minutosCompensados: 0, feriados: [],
   };
   for (const c of celdas) {
     const esperado = minutosJornada(c);
@@ -450,6 +480,7 @@ export function resumenLiquidacion(celdas: readonly CeldaDia[]): ResumenLiquidac
       }
     }
     if (c.estado === 'ausente') r.ausentes.push(c.fecha);
+    if (c.estado === 'feriado') r.feriados.push(c.fecha);
     if (c.estado === 'tarde' || c.estado === 'tarde_grave') {
       r.tardes.push({ fecha: c.fecha, minutos: c.minutosTarde ?? 0, grave: c.estado === 'tarde_grave' });
       r.minutosTarde += c.minutosTarde ?? 0;
@@ -504,6 +535,8 @@ export interface DiaCalendario {
   diaSemana: DiaSemana;
   esHoy: boolean;
   finDeSemana: boolean;
+  /** Feriado detectado por baja asistencia (ver `detectarFeriados`). */
+  feriado: boolean;
 }
 
 export interface FilaEntrada {
@@ -520,18 +553,50 @@ export interface FilaCalendario {
   tieneHorario: boolean;
 }
 
+/**
+ * Feriados inferidos de la asistencia real: un día laborable ya pasado (no hoy,
+ * no sábado/domingo) en el que, de la gente con jornada ese día, fichó menos
+ * de `FERIADO_UMBRAL`. Se calcula sobre toda la población con horario, no
+ * sobre la fila que se está mirando.
+ */
+export function detectarFeriados(
+  fechas: readonly string[],
+  poblacion: readonly FilaEntrada[],
+  hoy: string,
+  opts: { umbral?: number; minimoEsperados?: number } = {},
+): Set<string> {
+  const umbral = opts.umbral ?? FERIADO_UMBRAL;
+  const minimo = opts.minimoEsperados ?? FERIADO_MIN_ESPERADOS;
+  const out = new Set<string>();
+  for (const fecha of fechas) {
+    if (fecha >= hoy || diaSemanaDe(fecha) >= 5) continue;
+    let esperados = 0;
+    let presentes = 0;
+    for (const f of poblacion) {
+      const v = versionVigente(f.versiones, fecha);
+      if (!v || !v.incluir || (f.fechaIngreso && FECHA_RE.test(f.fechaIngreso) && fecha < f.fechaIngreso)) continue;
+      if (!jornadaDelDia(v, fecha)) continue;
+      esperados++;
+      if ((f.fichadasPorFecha[fecha]?.length ?? 0) > 0) presentes++;
+    }
+    if (esperados >= minimo && presentes / esperados < umbral) out.add(fecha);
+  }
+  return out;
+}
+
 export function armarCalendario<T extends FilaEntrada>(
-  p: { desde: string; hasta: string; hoy: string; cfg: ConfigAsistencia; filas: readonly T[] },
+  p: { desde: string; hasta: string; hoy: string; cfg: ConfigAsistencia; filas: readonly T[]; feriados?: ReadonlySet<string> },
 ): { dias: DiaCalendario[]; filas: (Omit<T, keyof FilaEntrada> & FilaCalendario)[] } {
   const fechas = diasDelRango(p.desde, p.hasta);
+  const feriados = p.feriados ?? new Set<string>();
   const dias = fechas.map<DiaCalendario>((fecha) => {
     const ds = diaSemanaDe(fecha);
-    return { fecha, dia: Number(fecha.slice(8, 10)), diaSemana: ds, esHoy: fecha === p.hoy, finDeSemana: ds >= 5 };
+    return { fecha, dia: Number(fecha.slice(8, 10)), diaSemana: ds, esHoy: fecha === p.hoy, finDeSemana: ds >= 5, feriado: feriados.has(fecha) };
   });
   const filas = p.filas.map((fila) => {
     const { versiones, fechaIngreso, fichadasPorFecha, ...resto } = fila;
     const celdas = fechas.map((fecha) =>
-      evaluarDia({ fecha, hoy: p.hoy, version: versionVigente(versiones, fecha), fichadas: fichadasPorFecha[fecha] ?? [], fechaIngreso }, p.cfg),
+      evaluarDia({ fecha, hoy: p.hoy, version: versionVigente(versiones, fecha), fichadas: fichadasPorFecha[fecha] ?? [], fechaIngreso, feriado: feriados.has(fecha) }, p.cfg),
     );
     const tieneHorario = versiones.some((v) => v.incluir && v.vigenteDesde <= p.hasta && (v.vigenteHasta == null || v.vigenteHasta >= p.desde));
     return { ...(resto as Omit<T, keyof FilaEntrada>), celdas, totales: totalesDe(celdas), tieneHorario };
@@ -601,13 +666,28 @@ export function validarHorarioInput(raw: unknown): HorarioInput {
     if (!HORA_RE.test(entrada) || !HORA_RE.test(salida)) throw new Error(`Cargá entrada y salida del ${nombre.toLowerCase()} como HH:MM`);
     if (minutosDe(salida) <= minutosDe(entrada)) throw new Error(`${nombre}: la salida tiene que ser posterior a la entrada (no hay turnos nocturnos)`);
     let semanas: number[];
+    let porSemana: DiaHorario['porSemana'];
     if (cicloSemanas === 1) semanas = [0];
     else {
       const s = Array.isArray(d.semanas) ? d.semanas.map(Number) : [];
       semanas = [...new Set(s)].filter((n) => Number.isInteger(n) && n >= 0 && n < cicloSemanas).sort((a, b) => a - b);
       if (semanas.length === 0) throw new Error(`${nombre}: elegí al menos una semana del ciclo`);
+      // Turnos rotativos: horas propias por semana (solo las semanas en que viene).
+      if (esObjeto(d.porSemana)) {
+        for (const sem of semanas) {
+          const t = d.porSemana[String(sem)];
+          if (t == null) continue;
+          if (!esObjeto(t)) throw new Error(`${nombre}, semana ${sem + 1}: horario inválido`);
+          const te = String(t.entrada ?? '');
+          const tsal = String(t.salida ?? '');
+          if (!HORA_RE.test(te) || !HORA_RE.test(tsal)) throw new Error(`${nombre}, semana ${sem + 1}: cargá entrada y salida como HH:MM`);
+          if (minutosDe(tsal) <= minutosDe(te)) throw new Error(`${nombre}, semana ${sem + 1}: la salida tiene que ser posterior a la entrada`);
+          if (te === entrada && tsal === salida) continue; // igual al default: no hace falta guardarlo
+          (porSemana ??= {})[sem] = { entrada: te, salida: tsal };
+        }
+      }
     }
-    dias[ds] = { semanas, entrada, salida };
+    dias[ds] = porSemana ? { semanas, entrada, salida, porSemana } : { semanas, entrada, salida };
   }
   if (incluir && Object.keys(dias).length === 0) throw new Error('Marcá al menos un día laborable');
 
@@ -649,13 +729,22 @@ export function describirHorario(v: Pick<HorarioVersion, 'incluir' | 'cicloSeman
     const d = v.dias[ds];
     if (!d) continue;
     // Se agrupa por jornada igual (horas y semanas), no por días seguidos: "L, X, V 08:00–12:00".
-    const clave = `${d.entrada}|${d.salida}|${d.semanas.join(',')}`;
+    const clave = `${d.entrada}|${d.salida}|${d.semanas.join(',')}|${JSON.stringify(d.porSemana ?? null)}`;
     const seg = segs.find((s) => s.clave === clave);
     if (seg) seg.dias.push(ds);
     else segs.push({ dias: [ds], clave, d });
   }
   if (segs.length === 0) return 'Sin días laborables';
   const partes = segs.map((s) => {
+    const ps = s.d.porSemana;
+    if (v.cicloSemanas > 1 && ps && Object.keys(ps).length > 0) {
+      // Rotativo: una hora por semana. "L–V S1 06:00–14:00, S2 14:00–22:00".
+      const porSem = s.d.semanas.map((n) => {
+        const t = ps[n] ?? s.d;
+        return `S${n + 1} ${t.entrada}–${t.salida}`;
+      });
+      return `${etiquetaDias(s.dias)} ${porSem.join(', ')}`;
+    }
     const sem = v.cicloSemanas > 1 && s.d.semanas.length < v.cicloSemanas ? ` (${s.d.semanas.map((n) => `S${n + 1}`).join(', ')})` : '';
     return `${etiquetaDias(s.dias)} ${s.d.entrada}–${s.d.salida}${sem}`;
   });

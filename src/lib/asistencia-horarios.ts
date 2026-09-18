@@ -10,6 +10,8 @@ import { AsistenciaError } from './asistencia';
 import { ESTADO_EMPLEADO_ACTIVO, hoyLocal, personaActiva, sumarDias } from './asistencia-datos';
 import {
   armarCalendario,
+  detectarFeriados,
+  diasDelRango,
   rangoMes,
   resumenLiquidacion,
   ultimaVersion,
@@ -186,6 +188,8 @@ export interface CalendarioMes {
   filas: FilaCalendarioMes[];
   /** Personas activas sin horario vigente (se listan solo con `incluirSinHorario`). */
   sinHorario: number;
+  /** Feriados detectados por baja asistencia (`detectarFeriados`), yyyy-mm-dd. */
+  feriados: string[];
   truncado: boolean;
 }
 
@@ -273,8 +277,11 @@ export async function calendarioMes(mes: string, incluirSinHorario: boolean, sol
   // ausente). Sin horario: solo a pedido y solo activos.
   // `soloClave` (perfil de una persona) trae esa fila aunque esté inactiva.
   const visibles = filas.filter((f) => (soloClave ? f.clave === soloClave : f.activa && (tieneHorario(f) || incluirSinHorario)));
+  // Los feriados se infieren sobre toda la población con horario, no sobre lo
+  // que se muestra (el perfil de una persona necesita el mismo resultado).
+  const poblacion = filas.filter((f) => f.activa && tieneHorario(f));
 
-  const userIds = [...new Set(visibles.flatMap((f) => f.userIds))];
+  const userIds = [...new Set([...visibles, ...poblacion].flatMap((f) => f.userIds))];
   const fichadas = userIds.length
     ? await prisma.asistenciaFichada.findMany({
         where: { user_id: { in: userIds }, fecha: { gte: desde, lte: hasta } },
@@ -290,7 +297,7 @@ export async function calendarioMes(mes: string, incluirSinHorario: boolean, sol
     (porFecha[f.fecha] ??= []).push({ fechaHora: f.fecha_hora.toISOString(), tipo: f.tipo });
   }
 
-  const entrada = visibles.map((f) => {
+  const conFichadas = (f: FilaBase) => {
     const fichadasPorFecha: Record<string, FichadaDia[]> = {};
     for (const u of f.userIds) {
       for (const [fecha, marcas] of Object.entries(porUser.get(u) ?? {})) (fichadasPorFecha[fecha] ??= []).push(...marcas);
@@ -298,16 +305,18 @@ export async function calendarioMes(mes: string, incluirSinHorario: boolean, sol
     const { activa: _a, ...resto } = f;
     void _a;
     return { ...resto, fichadasPorFecha };
-  });
-  const cal = armarCalendario({ desde, hasta, hoy, cfg, filas: entrada });
+  };
+  const feriados = detectarFeriados(diasDelRango(desde, hasta), poblacion.map(conFichadas), hoy);
+  const cal = armarCalendario({ desde, hasta, hoy, cfg, filas: visibles.map(conFichadas), feriados });
   const filasOrdenadas = [...cal.filas].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 
-  return { mes, desde, hasta, hoy, config: cfg, dias: cal.dias, filas: filasOrdenadas, sinHorario, truncado: fichadas.length === MAX_FILAS_CALENDARIO };
+  return { mes, desde, hasta, hoy, config: cfg, dias: cal.dias, filas: filasOrdenadas, sinHorario, feriados: [...feriados].sort(), truncado: fichadas.length === MAX_FILAS_CALENDARIO };
 }
 
 // ─── Perfil de una persona ───────────────────────────────────────────────────
 
 export interface PerfilPersona extends Omit<CalendarioMes, 'filas' | 'sinHorario' | 'truncado'> {
+  feriados: string[];
   persona: { id: number; userId: string; nombreReloj: string; empleadoId: number | null; nombre: string; activa: boolean };
   /** null si la persona no aparece en el calendario del mes (no debería pasar con `soloClave`). */
   fila: FilaCalendarioMes | null;
@@ -333,6 +342,7 @@ export async function perfilPersona(personaId: number, mes: string): Promise<Per
     hoy: cal.hoy,
     config: cal.config,
     dias: cal.dias,
+    feriados: cal.feriados,
     persona: {
       id: p.id,
       userId: p.user_id,

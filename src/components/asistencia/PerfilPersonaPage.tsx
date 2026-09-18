@@ -9,6 +9,7 @@
  */
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Clock, History, ListChecks } from 'lucide-react';
@@ -38,7 +39,8 @@ import {
   type EstadoDia,
   type HorarioVersion,
 } from '@/lib/asistencia-calendario';
-import type { PerfilPersona, Persona } from './api';
+import { asistFetch, mensajeError, type PerfilPersona, type Persona } from './api';
+import EmpleadoPicker from './EmpleadoPicker';
 import { useAsistencia, useAsistenciaData } from './AsistenciaContext';
 import HorarioDialog from './HorarioDialog';
 
@@ -48,12 +50,14 @@ const TONO: Partial<Record<EstadoDia, string>> = {
   tarde_grave: 'border-orange-600/70 text-orange-700 dark:text-orange-400',
   ausente: 'border-red-500/60 text-red-700 dark:text-red-400',
   trabajo_no_laborable: 'border-sky-500/60 text-sky-700 dark:text-sky-400',
+  feriado: 'border-violet-500/50 text-violet-700 dark:text-violet-400',
 };
 
 const ddmm = (f: string) => fmtFechaDia(f).slice(0, 5);
 
 export default function PerfilPersonaPage({ personaId }: { personaId: number }) {
-  const { f, set, personas, personasError, empleadoPorId, horariosPorEmpleado } = useAsistencia();
+  const { f, set, personas, personasError, empleados, empleadoPorId, horariosPorEmpleado, refrescar } = useAsistencia();
+  const [vinculando, setVinculando] = useState(false);
   const router = useRouter();
   const [hoy] = useState(() => hoyLocal());
   const [editando, setEditando] = useState(false);
@@ -66,6 +70,21 @@ export default function PerfilPersonaPage({ personaId }: { personaId: number }) 
   const vigente = versionVigente(versiones, hoy);
   const r = data?.resumen ?? null;
   const sinHorario = !!data && !data.fila?.tieneHorario;
+
+  async function vincular(empleadoId: number | null) {
+    if (!persona) return;
+    setVinculando(true);
+    try {
+      await asistFetch(`/api/admin/asistencia/personas/${persona.id}`, { method: 'PATCH', body: JSON.stringify({ empleadoId }) });
+      const e = empleadoId != null ? empleadoPorId.get(empleadoId) : undefined;
+      toast.success(e ? `${persona.userId} vinculada a ${e.nombre}.` : `${persona.userId} quedó sin vincular.`);
+      refrescar();
+    } catch (err) {
+      toast.error(mensajeError(err));
+    } finally {
+      setVinculando(false);
+    }
+  }
 
   if (personasError) return <Banner variant="warn">{personasError}</Banner>;
   if (personas && !persona) {
@@ -167,7 +186,7 @@ export default function PerfilPersonaPage({ personaId }: { personaId: number }) 
         {/* Lateral: horario y reloj */}
         <div className="space-y-4">
           <HorarioCard versiones={versiones} vigente={vigente} hoy={hoy} vinculada={!!persona?.empleado} cargando={!persona} />
-          <RelojCard persona={persona} empNombre={emp?.nombre ?? persona?.empleado?.nombre ?? null} />
+          <RelojCard persona={persona} empleados={empleados} vinculando={vinculando} onVincular={vincular} />
         </div>
       </div>
 
@@ -229,17 +248,23 @@ function HorarioCard({ versiones, vigente, hoy, vinculada, cargando }: { version
               {DIAS_SEMANA.map((ds) => {
                 const d = vigente.dias[ds];
                 const parcial = d && vigente.cicloSemanas > 1 && d.semanas.length < vigente.cicloSemanas;
+                const rotativo = d && vigente.cicloSemanas > 1 && d.porSemana && Object.keys(d.porSemana).length > 0;
+                const horasSem = (n: number) => d?.porSemana?.[n] ?? d;
                 return (
                   <div
                     key={ds}
-                    title={d ? `${DIAS_SEMANA_LARGO[ds]} ${d.entrada}–${d.salida}${parcial ? ` (semanas ${d.semanas.map((n) => n + 1).join(', ')})` : ''}` : `${DIAS_SEMANA_LARGO[ds]}: no laborable`}
+                    title={d ? (rotativo ? `${DIAS_SEMANA_LARGO[ds]} ${d.semanas.map((n) => `S${n + 1} ${horasSem(n)!.entrada}–${horasSem(n)!.salida}`).join(', ')}` : `${DIAS_SEMANA_LARGO[ds]} ${d.entrada}–${d.salida}${parcial ? ` (semanas ${d.semanas.map((n) => n + 1).join(', ')})` : ''}`) : `${DIAS_SEMANA_LARGO[ds]}: no laborable`}
                     className={cn(
                       'flex flex-col items-center rounded-md border px-0.5 py-1.5 text-center',
                       d ? 'border-primary/40 bg-primary/10 text-foreground' : 'border-dashed border-border text-muted-foreground opacity-60',
                     )}
                   >
                     <span className="text-xs font-bold">{DIAS_SEMANA_CORTO[ds]}</span>
-                    {d ? (
+                    {d && rotativo ? (
+                      d.semanas.map((n) => (
+                        <span key={n} className="text-[9px] tabular-nums leading-tight">S{n + 1} {horasSem(n)!.entrada}–{horasSem(n)!.salida}</span>
+                      ))
+                    ) : d ? (
                       <>
                         <span className="text-[10px] tabular-nums">{d.entrada}</span>
                         <span className="text-[10px] tabular-nums">{d.salida}</span>
@@ -284,7 +309,11 @@ function HorarioCard({ versiones, vigente, hoy, vinculada, cargando }: { version
   );
 }
 
-function RelojCard({ persona, empNombre }: { persona: Persona | null; empNombre: string | null }) {
+function RelojCard({
+  persona, empleados, vinculando, onVincular,
+}: {
+  persona: Persona | null; empleados: Parameters<typeof EmpleadoPicker>[0]['empleados']; vinculando: boolean; onVincular: (id: number | null) => void;
+}) {
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -301,8 +330,12 @@ function RelojCard({ persona, empNombre }: { persona: Persona | null; empNombre:
             <dd>{persona.nombreReloj || '—'}</dd>
             <dt className="text-muted-foreground">Última fichada</dt>
             <dd title={persona.ultimaFichada ? fmtFechaHora(persona.ultimaFichada) : undefined}>{persona.ultimaFichada ? fmtRelativo(persona.ultimaFichada) : 'nunca'}</dd>
-            <dt className="text-muted-foreground">Ficha</dt>
-            <dd>{empNombre ?? <span className="text-amber-600 dark:text-amber-400">sin vincular</span>}</dd>
+            <dt className="pt-2 text-muted-foreground">Ficha</dt>
+            <dd>
+              {/* Vínculo con el organigrama: mismo selector y misma API que la tabla Personas. */}
+              <EmpleadoPicker empleados={empleados} valor={persona.empleadoId} disabled={vinculando} onCambio={onVincular} className="w-full" />
+              {!persona.empleado && <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">Sin vincular: elegí la ficha del organigrama para poder cargarle horario.</p>}
+            </dd>
             <dt className="text-muted-foreground">Estado</dt>
             <dd>{persona.activa ? 'activa' : 'inactiva'}</dd>
           </dl>
@@ -319,7 +352,12 @@ function Resumen({ r, hoyEnMes }: { r: NonNullable<PerfilPersona['resumen']>; ho
   const extraTotal = r.horasExtra50 + r.horasExtra100;
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      <StatCard label="Ausencias" value={r.ausentes.length} tone={r.ausentes.length ? 'red' : 'green'} detail={lista(r.ausentes) ?? `Sin ausencias en ${r.laborables} día(s) laborable(s).`} />
+      <StatCard
+        label="Ausencias"
+        value={r.ausentes.length}
+        tone={r.ausentes.length ? 'red' : 'green'}
+        detail={(lista(r.ausentes) ?? `Sin ausencias en ${r.laborables} día(s) laborable(s).`) + (r.feriados.length ? ` Feriado(s) detectado(s): ${lista(r.feriados)}.` : '')}
+      />
       <StatCard
         label="Llegadas tarde"
         value={r.tardes.length}
@@ -367,6 +405,7 @@ function Detalle({ celdas, dias }: { celdas: CeldaDia[]; dias: PerfilPersona['di
   const filas = celdas
     .map((c, i) => ({ c, d: dias[i] }))
     .filter(({ c }) => c.estado !== 'futuro' && !(c.estado === 'no_laborable' && c.marcas === 0) && !(c.estado === 'sin_horario' && c.marcas === 0));
+  // Los feriados detectados se muestran aunque no haya marcas: explican por qué no hay ausencia.
   if (filas.length === 0) return <p className="text-sm text-muted-foreground">Sin días para mostrar en este mes.</p>;
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-card">

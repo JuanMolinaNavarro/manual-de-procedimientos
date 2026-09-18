@@ -35,9 +35,10 @@ const ESTILO: Record<EstadoDia, { celda: string; marca?: string }> = {
   tarde: { celda: 'bg-amber-400/80 text-amber-950 dark:bg-amber-500/70 dark:text-amber-50', marca: 'T' },
   tarde_grave: { celda: 'bg-orange-600/85 text-white dark:bg-orange-500/80', marca: '!' },
   ausente: { celda: 'bg-red-500/65 text-white dark:bg-red-500/60', marca: 'A' },
+  feriado: { celda: 'bg-violet-500/25 text-violet-800 dark:bg-violet-500/30 dark:text-violet-200', marca: 'F' },
 };
 
-const LEYENDA: EstadoDia[] = ['a_horario', 'tarde', 'tarde_grave', 'ausente', 'trabajo_no_laborable', 'no_laborable', 'sin_horario', 'pendiente'];
+const LEYENDA: EstadoDia[] = ['a_horario', 'tarde', 'tarde_grave', 'ausente', 'trabajo_no_laborable', 'no_laborable', 'feriado', 'sin_horario', 'pendiente'];
 
 export default function CalendarioTab() {
   const { f, set } = useAsistencia();
@@ -116,8 +117,8 @@ function Grilla({ data, filas }: { data: CalendarioMes; filas: FilaCalendarioMes
         {data.dias.map((d) => (
           <div
             key={d.fecha}
-            className={cn('flex flex-col items-center justify-end border-b border-border py-1 text-[11px] tabular-nums', d.finDeSemana ? 'bg-muted/40 text-muted-foreground' : 'text-foreground', d.esHoy && 'bg-primary/10 font-bold')}
-            title={fmtFechaDia(d.fecha)}
+            className={cn('flex flex-col items-center justify-end border-b border-border py-1 text-[11px] tabular-nums', d.finDeSemana ? 'bg-muted/40 text-muted-foreground' : 'text-foreground', d.feriado && 'bg-violet-500/15 text-violet-700 dark:text-violet-300', d.esHoy && 'bg-primary/10 font-bold')}
+            title={d.feriado ? `${fmtFechaDia(d.fecha)} · feriado detectado (fichó menos del 20 %)` : fmtFechaDia(d.fecha)}
           >
             <span className="text-[10px] text-muted-foreground">{DIAS_SEMANA_CORTO[d.diaSemana]}</span>
             <span>{d.dia}</span>
@@ -159,7 +160,7 @@ function Fila({ fila, data }: { fila: FilaCalendarioMes; data: CalendarioMes }) 
         </LinkPerfil>
       </div>
       {fila.celdas.map((c, i) => (
-        <div key={c.fecha} className={cn('flex items-center justify-center border-b border-border', data.dias[i].finDeSemana && 'bg-muted/30', data.dias[i].esHoy && 'bg-primary/5')}>
+        <div key={c.fecha} className={cn('flex items-center justify-center border-b border-border', (data.dias[i].finDeSemana || data.dias[i].feriado) && 'bg-muted/30', data.dias[i].esHoy && 'bg-primary/5')}>
           <Celda celda={c} fila={fila} />
         </div>
       ))}
@@ -170,7 +171,7 @@ function Fila({ fila, data }: { fila: FilaCalendarioMes; data: CalendarioMes }) 
 function Celda({ celda, fila }: { celda: CeldaDia; fila: FilaCalendarioMes }) {
   const [abierta, setAbierta] = useState(false);
   const e = ESTILO[celda.estado];
-  const inerte = celda.estado === 'futuro' || (celda.estado === 'sin_horario' && celda.marcas === 0);
+  const inerte = celda.estado === 'futuro' || ((celda.estado === 'sin_horario' || celda.estado === 'feriado') && celda.marcas === 0);
   // Día futuro con jornada: un contorno tenue muestra el plan (qué sábados le tocan).
   const futuroLaborable = celda.estado === 'futuro' && celda.jornada != null;
   const label = `${fmtFechaDia(celda.fecha)}: ${ESTADOS_DIA[celda.estado].label}${celda.jornada && celda.estado === 'futuro' ? ` (${celda.jornada.entrada}–${celda.jornada.salida})` : ''}${celda.minutosTarde ? `, ${celda.minutosTarde} min tarde` : ''}${celda.sinSalida ? ', sin salida' : ''}`;

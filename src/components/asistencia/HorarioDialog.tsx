@@ -49,6 +49,8 @@ interface DiaForm {
   entrada: string;
   salida: string;
   semanas: number[];
+  /** Con ciclo > 1: horas de cada semana (turnos rotativos). */
+  porSemana: Record<number, { entrada: string; salida: string }>;
 }
 
 interface Form {
@@ -65,9 +67,11 @@ function formDesde(v: HorarioVersion | null, hoy: string): Form {
   const dias = {} as Record<DiaSemana, DiaForm>;
   for (const ds of DIAS_SEMANA) {
     const d = base[ds];
+    const porSemana: DiaForm['porSemana'] = {};
+    if (d) for (const sem of d.semanas) porSemana[sem] = d.porSemana?.[sem] ?? { entrada: d.entrada, salida: d.salida };
     dias[ds] = d
-      ? { activo: true, entrada: d.entrada, salida: d.salida, semanas: d.semanas }
-      : { activo: false, entrada: '08:00', salida: '17:00', semanas: [0] };
+      ? { activo: true, entrada: d.entrada, salida: d.salida, semanas: d.semanas, porSemana }
+      : { activo: false, entrada: '08:00', salida: '17:00', semanas: [0], porSemana: {} };
   }
   return {
     incluir: v?.incluir ?? true,
@@ -83,7 +87,18 @@ function diasDelForm(f: Form): DiasHorario {
   const out: DiasHorario = {};
   for (const ds of DIAS_SEMANA) {
     const d = f.dias[ds];
-    if (d.activo) out[ds] = { semanas: f.cicloSemanas === 1 ? [0] : d.semanas, entrada: d.entrada, salida: d.salida };
+    if (!d.activo) continue;
+    if (f.cicloSemanas === 1) {
+      out[ds] = { semanas: [0], entrada: d.entrada, salida: d.salida };
+      continue;
+    }
+    // Con ciclo, las horas viven por semana; el default es el de la primera semana activa.
+    const semanas = [...d.semanas].sort((a, b) => a - b);
+    const horasDe = (sem: number) => d.porSemana[sem] ?? { entrada: d.entrada, salida: d.salida };
+    const base = semanas.length ? horasDe(semanas[0]) : { entrada: d.entrada, salida: d.salida };
+    const porSemana: Record<number, { entrada: string; salida: string }> = {};
+    for (const sem of semanas) porSemana[sem] = horasDe(sem);
+    out[ds] = { semanas, entrada: base.entrada, salida: base.salida, porSemana };
   }
   return out;
 }
@@ -122,8 +137,19 @@ function Editor({ empleado, versiones, onCerrar }: { empleado: { id: number; nom
   const setCiclo = (n: number) =>
     setF((p) => {
       const dias = { ...p.dias };
-      for (const ds of DIAS_SEMANA) dias[ds] = { ...dias[ds], semanas: todasLasSemanas(n) };
+      for (const ds of DIAS_SEMANA) {
+        const d = dias[ds];
+        const porSemana: DiaForm['porSemana'] = {};
+        for (const sem of todasLasSemanas(n)) porSemana[sem] = d.porSemana[sem] ?? { entrada: d.entrada, salida: d.salida };
+        dias[ds] = { ...d, semanas: todasLasSemanas(n), porSemana };
+      }
       return { ...p, cicloSemanas: n, dias };
+    });
+  const setSemana = (ds: DiaSemana, sem: number, patch: Partial<{ entrada: string; salida: string }>) =>
+    setF((p) => {
+      const d = p.dias[ds];
+      const actual = d.porSemana[sem] ?? { entrada: d.entrada, salida: d.salida };
+      return { ...p, dias: { ...p.dias, [ds]: { ...d, porSemana: { ...d.porSemana, [sem]: { ...actual, ...patch } } } } };
     });
 
   // Versión "borrador" para el preview de fechas.
@@ -239,46 +265,69 @@ function Editor({ empleado, versiones, onCerrar }: { empleado: { id: number; nom
         </div>
         {cicloN > 1 && (
           <p className="-mt-3 text-xs text-muted-foreground">
-            Se toma el lunes de esa semana ({f.cicloAncla ? fmtFechaDia(lunesDe(f.cicloAncla)) : '—'}) como semana 1. Cada día indica en qué semanas del ciclo aplica.
+            Se toma el lunes de esa semana ({f.cicloAncla ? fmtFechaDia(lunesDe(f.cicloAncla)) : '—'}) como semana 1. Cada día indica en qué semanas del ciclo viene y con qué horario:
+            para turnos que rotan (mañana una semana, tarde la otra), cargá horas distintas por semana; para que dos personas se alternen, dales el mismo ciclo con el ancla corrida una semana.
           </p>
         )}
 
         <div className={cn('overflow-hidden rounded-lg border border-border', !f.incluir && 'opacity-50')}>
           <div className="grid grid-cols-[3rem_1fr_1fr_1fr_auto] items-center gap-x-3 border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            <span>Día</span><span>Viene</span><span>Entrada</span><span>Salida</span><span>{cicloN > 1 ? 'Semanas' : ''}</span>
+            <span>Día</span><span>Viene</span>
+            {cicloN > 1 ? <span className="col-span-3">Semanas del ciclo (cada una con su horario)</span> : <><span>Entrada</span><span>Salida</span><span /></>}
           </div>
           {DIAS_SEMANA.map((ds) => {
             const d = f.dias[ds];
+            const toggle = (
+              <button
+                type="button"
+                aria-pressed={d.activo}
+                aria-label={`${DIAS_SEMANA_LARGO[ds]}: ${d.activo ? 'laborable' : 'no laborable'}`}
+                disabled={!f.incluir}
+                onClick={() => setDia(ds, { activo: !d.activo, semanas: d.activo ? d.semanas : todasLasSemanas(cicloN) })}
+                className={cn(
+                  'h-7 w-16 rounded-md border text-xs font-medium transition-colors',
+                  d.activo ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted-foreground hover:bg-accent',
+                )}
+              >
+                {d.activo ? 'Sí' : 'No'}
+              </button>
+            );
+            if (cicloN === 1) {
+              return (
+                <div key={ds} className={cn('grid grid-cols-[3rem_1fr_1fr_1fr_auto] items-center gap-x-3 px-3 py-1.5', ds % 2 === 1 && 'bg-muted/20', !d.activo && 'text-muted-foreground')}>
+                  <span className="text-sm font-medium" title={DIAS_SEMANA_LARGO[ds]}>{DIAS_SEMANA_CORTO[ds]}</span>
+                  {toggle}
+                  <Input type="time" value={d.entrada} disabled={!d.activo || !f.incluir} onChange={(e) => setDia(ds, { entrada: e.target.value })} className="h-8 w-28" aria-label={`Entrada ${DIAS_SEMANA_LARGO[ds]}`} />
+                  <Input type="time" value={d.salida} disabled={!d.activo || !f.incluir} onChange={(e) => setDia(ds, { salida: e.target.value })} className="h-8 w-28" aria-label={`Salida ${DIAS_SEMANA_LARGO[ds]}`} />
+                  <span />
+                </div>
+              );
+            }
+            // Con ciclo: una línea por semana, cada una con su propio horario (turnos rotativos).
             return (
-              <div key={ds} className={cn('grid grid-cols-[3rem_1fr_1fr_1fr_auto] items-center gap-x-3 px-3 py-1.5', ds % 2 === 1 && 'bg-muted/20', !d.activo && 'text-muted-foreground')}>
-                <span className="text-sm font-medium" title={DIAS_SEMANA_LARGO[ds]}>{DIAS_SEMANA_CORTO[ds]}</span>
-                <button
-                  type="button"
-                  aria-pressed={d.activo}
-                  aria-label={`${DIAS_SEMANA_LARGO[ds]}: ${d.activo ? 'laborable' : 'no laborable'}`}
-                  disabled={!f.incluir}
-                  onClick={() => setDia(ds, { activo: !d.activo, semanas: d.activo ? d.semanas : todasLasSemanas(cicloN) })}
-                  className={cn(
-                    'h-7 w-16 rounded-md border text-xs font-medium transition-colors',
-                    d.activo ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted-foreground hover:bg-accent',
-                  )}
-                >
-                  {d.activo ? 'Sí' : 'No'}
-                </button>
-                <Input type="time" value={d.entrada} disabled={!d.activo || !f.incluir} onChange={(e) => setDia(ds, { entrada: e.target.value })} className="h-8 w-28" aria-label={`Entrada ${DIAS_SEMANA_LARGO[ds]}`} />
-                <Input type="time" value={d.salida} disabled={!d.activo || !f.incluir} onChange={(e) => setDia(ds, { salida: e.target.value })} className="h-8 w-28" aria-label={`Salida ${DIAS_SEMANA_LARGO[ds]}`} />
-                <div className="flex items-center gap-2">
-                  {cicloN > 1 && Array.from({ length: cicloN }, (_, i) => i).map((sem) => (
-                    <label key={sem} className="flex items-center gap-1 text-xs">
-                      <Checkbox
-                        checked={d.semanas.includes(sem)}
-                        disabled={!d.activo || !f.incluir}
-                        onCheckedChange={(v) => setDia(ds, { semanas: v ? [...new Set([...d.semanas, sem])].sort() : d.semanas.filter((x) => x !== sem) })}
-                        aria-label={`${DIAS_SEMANA_LARGO[ds]} semana ${sem + 1}`}
-                      />
-                      S{sem + 1}
-                    </label>
-                  ))}
+              <div key={ds} className={cn('grid grid-cols-[3rem_1fr_auto] items-start gap-x-3 px-3 py-1.5', ds % 2 === 1 && 'bg-muted/20', !d.activo && 'text-muted-foreground')}>
+                <span className="pt-1 text-sm font-medium" title={DIAS_SEMANA_LARGO[ds]}>{DIAS_SEMANA_CORTO[ds]}</span>
+                <div className="pt-0.5">{toggle}</div>
+                <div className="space-y-1">
+                  {todasLasSemanas(cicloN).map((sem) => {
+                    const viene = d.semanas.includes(sem);
+                    const h = d.porSemana[sem] ?? { entrada: d.entrada, salida: d.salida };
+                    return (
+                      <div key={sem} className="flex items-center gap-2">
+                        <label className="flex w-12 items-center gap-1 text-xs">
+                          <Checkbox
+                            checked={viene}
+                            disabled={!d.activo || !f.incluir}
+                            onCheckedChange={(v) => setDia(ds, { semanas: v ? [...new Set([...d.semanas, sem])].sort() : d.semanas.filter((x) => x !== sem) })}
+                            aria-label={`${DIAS_SEMANA_LARGO[ds]} semana ${sem + 1}`}
+                          />
+                          S{sem + 1}
+                        </label>
+                        <Input type="time" value={h.entrada} disabled={!d.activo || !viene || !f.incluir} onChange={(e) => setSemana(ds, sem, { entrada: e.target.value })} className="h-8 w-28" aria-label={`Entrada ${DIAS_SEMANA_LARGO[ds]} semana ${sem + 1}`} />
+                        <Input type="time" value={h.salida} disabled={!d.activo || !viene || !f.incluir} onChange={(e) => setSemana(ds, sem, { salida: e.target.value })} className="h-8 w-28" aria-label={`Salida ${DIAS_SEMANA_LARGO[ds]} semana ${sem + 1}`} />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );

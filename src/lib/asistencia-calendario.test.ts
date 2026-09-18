@@ -22,6 +22,7 @@ import {
   describirHorario,
   resumenLiquidacion,
   horasExtraDe,
+  detectarFeriados,
   fmtHorasMin,
   CONFIG_DEFAULT,
   type HorarioVersion,
@@ -184,13 +185,40 @@ describe('evaluarDia', () => {
     expect(ev('2026-09-14', [marca('2026-09-14', '07:45'), marca('2026-09-14', '17:00', 1)]).minutosTarde).toBe(0);
   });
 
-  it('la tolerancia de la versión pisa la general', () => {
+  it('la tolerancia de la versión pisa la general, incluso al umbral grave', () => {
     const estricta = version({ toleranciaMin: 0 });
     expect(ev('2026-09-14', [marca('2026-09-14', '08:01')], { version: estricta }).estado).toBe('tarde');
     const laxa = version({ toleranciaMin: 20 });
     expect(ev('2026-09-14', [marca('2026-09-14', '08:15')], { version: laxa }).estado).toBe('a_horario');
-    // Pero "grave" sigue siendo el umbral general.
     expect(ev('2026-09-14', [marca('2026-09-14', '08:30')], { version: laxa }).estado).toBe('tarde_grave');
+    // Tolerancia propia de 45: entrar 08:35 es "a horario" aunque supere el umbral grave de 30.
+    const amplia = version({ toleranciaMin: 45 });
+    expect(ev('2026-09-14', [marca('2026-09-14', '08:35')], { version: amplia }).estado).toBe('a_horario');
+    expect(ev('2026-09-14', [marca('2026-09-14', '08:46')], { version: amplia }).estado).toBe('tarde_grave');
+  });
+
+  it('turnos rotativos: cada semana del ciclo puede tener sus horas', () => {
+    const dias = Object.fromEntries([0, 1, 2, 3, 4].map((d) => [d, { semanas: [0, 1], entrada: '06:00', salida: '14:00', porSemana: { 1: { entrada: '14:00', salida: '22:00' } } }]));
+    const a = version({ cicloSemanas: 2, cicloAncla: '2026-09-07', dias });
+    const b = version({ cicloSemanas: 2, cicloAncla: '2026-08-31', dias }); // ancla corrida: turnos invertidos
+    expect(jornadaDelDia(a, '2026-09-08')).toMatchObject({ entrada: '06:00', salida: '14:00' });
+    expect(jornadaDelDia(a, '2026-09-15')).toMatchObject({ entrada: '14:00', salida: '22:00' });
+    expect(jornadaDelDia(b, '2026-09-08')).toMatchObject({ entrada: '14:00', salida: '22:00' });
+    expect(jornadaDelDia(b, '2026-09-15')).toMatchObject({ entrada: '06:00', salida: '14:00' });
+    // La tardanza se mide contra el turno de esa semana.
+    expect(evaluarDia({ fecha: '2026-09-14', hoy: HOY, version: a, fichadas: [marca('2026-09-14', '14:20')] }, CONFIG_DEFAULT)).toMatchObject({ estado: 'tarde', minutosTarde: 20 });
+    expect(describirHorario(a)).toBe('L–V S1 06:00–14:00, S2 14:00–22:00 · semanas alternas');
+    const v = validarHorarioInput({ empleadoId: 1, aplicarDesde: '2026-09-15', cicloSemanas: 2, cicloAncla: '2026-09-07', dias: { '0': { entrada: '06:00', salida: '14:00', semanas: [0, 1], porSemana: { '0': { entrada: '06:00', salida: '14:00' }, '1': { entrada: '14:00', salida: '22:00' } } } } });
+    expect(v.dias[0]).toEqual({ semanas: [0, 1], entrada: '06:00', salida: '14:00', porSemana: { 1: { entrada: '14:00', salida: '22:00' } } });
+    expect(() => validarHorarioInput({ empleadoId: 1, aplicarDesde: '2026-09-15', cicloSemanas: 2, cicloAncla: '2026-09-07', dias: { '0': { entrada: '06:00', salida: '14:00', semanas: [0, 1], porSemana: { '1': { entrada: '22:00', salida: '06:00' } } } } })).toThrow(/semana 2/);
+  });
+
+  it('feriado detectado: nadie ausente y quien fichó tiene extra al 100 %', () => {
+    expect(ev('2026-09-14', [], { feriado: true })).toMatchObject({ estado: 'feriado', jornada: null });
+    const c = ev('2026-09-14', [marca('2026-09-14', '08:00'), marca('2026-09-14', '11:00', 1)], { feriado: true });
+    expect(c.estado).toBe('trabajo_no_laborable');
+    expect(c.extra).toEqual({ compensado: 0, minutos50: 0, minutos100: 180, horas50: 0, horas100: 3 });
+    expect(ev('2026-09-16', [], { feriado: true }).estado).toBe('futuro');
   });
 
   it('sin salida: ayer sí, hoy no', () => {
@@ -363,6 +391,29 @@ describe('horas extra (control)', () => {
       { fecha: '2026-09-06', horas50: 0, horas100: 2, minutos: 120 },
     ]);
     expect(r.minutosCompensados).toBe(0);
+  });
+});
+
+describe('detectarFeriados', () => {
+  const fila = (fichadas: Record<string, FichadaDia[]>) => ({ versiones: [version()], fichadasPorFecha: fichadas });
+  it('marca el día laborable en que fichó menos del 20 % de la gente esperada', () => {
+    const presente = (f: string) => ({ [f]: [marca(f, '08:00')] });
+    const poblacion = [
+      fila({ ...presente('2026-09-07'), ...presente('2026-09-08') }),
+      fila({ ...presente('2026-09-07') }),
+      fila({ ...presente('2026-09-07') }),
+      fila({ ...presente('2026-09-07') }),
+      fila({ ...presente('2026-09-07') }),
+      fila({}),
+    ];
+    const fer = detectarFeriados(['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-12', HOY], poblacion, HOY);
+    expect(fer.has('2026-09-07')).toBe(false); // 5 de 6 ficharon
+    expect(fer.has('2026-09-08')).toBe(true); // 1 de 6 = 16 %
+    expect(fer.has('2026-09-09')).toBe(true); // nadie
+    expect(fer.has('2026-09-12')).toBe(false); // sábado: no se infiere
+    expect(fer.has(HOY)).toBe(false); // hoy todavía no cerró
+    // Con menos de 5 esperados no se infiere.
+    expect(detectarFeriados(['2026-09-09'], poblacion.slice(0, 4), HOY).size).toBe(0);
   });
 });
 
