@@ -14,6 +14,7 @@ import {
   Antenna,
   Network,
   Fingerprint,
+  CalendarCheck,
   Database,
   FolderKanban,
   Warehouse,
@@ -74,6 +75,10 @@ const MODULE_META: Record<
   asistencia: {
     icon: <Fingerprint className="h-8 w-8" />,
     description: 'Fichadas de los relojes biométricos por empleado, sede y fecha.',
+  },
+  'mi-asistencia': {
+    icon: <CalendarCheck className="h-8 w-8" />,
+    description: 'Tu propia asistencia: calendario del último año y resumen del mes.',
   },
   padron: {
     icon: <Database className="h-8 w-8" />,
@@ -145,6 +150,7 @@ const CATEGORIAS: {
       'usuarios',
       'organigrama',
       'asistencia',
+      'mi-asistencia',
       'nomina-tablero',
       'nomina-maestro',
       'nomina-novedades',

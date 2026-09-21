@@ -19,26 +19,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Banner, Empty, EmpleadoCell } from '@/components/comunes/ui';
 import { cn } from '@/lib/utils';
 import { fmtFechaDia, fmtHoraCorta, tipoMarcaLabel } from '@/lib/asistencia-datos';
-import { DIAS_SEMANA_CORTO, ESTADOS_DIA, fmtMes, mesAnterior, mesSiguiente, validarConfigInput, type EstadoDia } from '@/lib/asistencia-calendario';
+import { DIAS_SEMANA_CORTO, ESTADOS_DIA, fmtMes, mesAnterior, mesSiguiente, validarConfigInput } from '@/lib/asistencia-calendario';
 import { asistFetch, mensajeError, type CalendarioMes, type CeldaDia, type ConfigAsistencia, type FichadaDetalle, type FilaCalendarioMes } from './api';
 import { useAsistencia, useAsistenciaData } from './AsistenciaContext';
 import { Campo, Chip, LinkPerfil } from './piezas';
+import { ESTILO_CELDA, LEYENDA_ESTADOS } from './estilo-celda';
 
-/** Color + marcador de texto por estado (el color solo no alcanza para leerlo). */
-const ESTILO: Record<EstadoDia, { celda: string; marca?: string }> = {
-  futuro: { celda: 'bg-transparent' },
-  pendiente: { celda: 'bg-muted/60 text-muted-foreground', marca: '·' },
-  sin_horario: { celda: 'border border-dashed border-border bg-transparent text-muted-foreground' },
-  no_laborable: { celda: 'bg-muted/50' },
-  trabajo_no_laborable: { celda: 'bg-sky-400/70 text-sky-950 dark:bg-sky-500/60 dark:text-sky-50', marca: '+' },
-  a_horario: { celda: 'bg-emerald-500/70 dark:bg-emerald-500/60' },
-  tarde: { celda: 'bg-amber-400/80 text-amber-950 dark:bg-amber-500/70 dark:text-amber-50', marca: 'T' },
-  tarde_grave: { celda: 'bg-orange-600/85 text-white dark:bg-orange-500/80', marca: '!' },
-  ausente: { celda: 'bg-red-500/65 text-white dark:bg-red-500/60', marca: 'A' },
-  feriado: { celda: 'bg-violet-500/25 text-violet-800 dark:bg-violet-500/30 dark:text-violet-200', marca: 'F' },
-};
-
-const LEYENDA: EstadoDia[] = ['a_horario', 'tarde', 'tarde_grave', 'ausente', 'trabajo_no_laborable', 'no_laborable', 'feriado', 'sin_horario', 'pendiente'];
+const ESTILO = ESTILO_CELDA;
+const LEYENDA = LEYENDA_ESTADOS;
 
 export default function CalendarioTab() {
   const { f, set } = useAsistencia();

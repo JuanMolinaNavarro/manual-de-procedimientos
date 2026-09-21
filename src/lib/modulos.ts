@@ -9,6 +9,8 @@ export const ADMIN_MODULOS = [
   { slug: 'senales-ip',    label: 'Señales IP',     href: '/admin/senales-ip' },
   { slug: 'organigrama',   label: 'Organigrama',    href: '/admin/organigrama' },
   { slug: 'asistencia',    label: 'Asistencia',     href: '/admin/asistencia' },
+  // Mi asistencia: la vista personal (solo la ficha vinculada al usuario de la sesión).
+  { slug: 'mi-asistencia', label: 'Mi asistencia',  href: '/admin/mi-asistencia' },
   { slug: 'padron',        label: 'Padrón',         href: '/admin/padron' },
   { slug: 'proyectos',     label: 'Proyectos',      href: '/admin/proyectos' },
   { slug: 'deposito',      label: 'Depósito',       href: '/admin/deposito' },
