@@ -82,3 +82,8 @@ export interface ResultadoSync {
 
 export type { HorarioVersion, ConfigAsistencia, CeldaDia, TotalesFila, DiaCalendario, ResumenLiquidacion } from '@/lib/asistencia-calendario';
 export type { CalendarioMes, FilaCalendarioMes, PerfilPersona, ResultadoGuardar } from '@/lib/asistencia-horarios';
+export type { MiAsistencia } from '@/lib/asistencia-horarios';
+/** Respuesta de `GET /api/admin/mi-asistencia`: el usuario puede no tener ficha vinculada. */
+export type MiAsistenciaRespuesta =
+  | ({ vinculado: true } & import('@/lib/asistencia-horarios').MiAsistencia)
+  | { vinculado: false; usuario: string };
