@@ -50,6 +50,9 @@ CLAUDE.md
 # AI / tooling artifacts
 .playwright-mcp/
 .claude/worktrees/
+# configuración personal de Claude Code (permisos y servidores de cada máquina)
+.claude/settings.local.json
+.claude/launch.json
 
 # python caches
 __pycache__/
