@@ -109,18 +109,6 @@ export function getPlantilla(id: string): PlantillaCronograma {
   return PLANTILLAS_CRONOGRAMA.find((p) => p.id === id) ?? PLANTILLAS_CRONOGRAMA[0];
 }
 
-/** Categorías sugeridas para las líneas de costo (el campo es libre). */
-export const CATEGORIAS_SUGERIDAS = [
-  'Mano de obra',
-  'Materiales',
-  'Servicios y contratistas',
-  'Equipamiento',
-  'Licencias y software',
-  'Logística',
-  'Gastos generales',
-  'General',
-];
-
 // ─── Textos de ayuda (iconos "i" de la UI) ───────────────────────────────────
 
 export const AYUDA: Record<string, { titulo: string; cuerpo: string }> = {

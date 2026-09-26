@@ -30,6 +30,7 @@ import {
   Archive,
   FileSignature,
   SlidersHorizontal,
+  Receipt,
 } from 'lucide-react';
 
 const MODULE_META: Record<
@@ -80,6 +81,14 @@ const MODULE_META: Record<
     icon: <CalendarCheck className="h-8 w-8" />,
     description: 'Tu propia asistencia: calendario del último año y resumen del mes.',
   },
+  'gestion-recibos': {
+    icon: <FileSignature className="h-8 w-8" />,
+    description: 'Importar los recibos de Finnegans, avisar por mail, adhesiones y seguimiento de firmas.',
+  },
+  'mis-recibos': {
+    icon: <Receipt className="h-8 w-8" />,
+    description: 'Tus recibos de sueldo: verlos, descargarlos y firmarlos con tu PIN.',
+  },
   padron: {
     icon: <Database className="h-8 w-8" />,
     description: 'Padrón de abonados por empresa: cargar Excel y buscar duplicados.',
@@ -111,10 +120,6 @@ const MODULE_META: Record<
   'nomina-historico': {
     icon: <Archive className="h-8 w-8" />,
     description: 'Períodos cerrados: snapshots inmutables para consulta y auditoría.',
-  },
-  'nomina-recibos': {
-    icon: <FileSignature className="h-8 w-8" />,
-    description: 'Recibos digitales: adhesión, firma electrónica con PIN y constancias.',
   },
   'nomina-parametros': {
     icon: <SlidersHorizontal className="h-8 w-8" />,
@@ -151,12 +156,13 @@ const CATEGORIAS: {
       'organigrama',
       'asistencia',
       'mi-asistencia',
+      'gestion-recibos',
+      'mis-recibos',
       'nomina-tablero',
       'nomina-maestro',
       'nomina-novedades',
       'nomina-liquidacion',
       'nomina-historico',
-      'nomina-recibos',
       'nomina-parametros',
     ],
   },
@@ -181,8 +187,45 @@ export type AdminHomeModulo = {
   href: string;
 };
 
-export default function AdminHomeModulos({ modulos }: { modulos: AdminHomeModulo[] }) {
+function GrillaModulos({ modulos }: { modulos: AdminHomeModulo[] }) {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {modulos.map((mod) => {
+        const meta = MODULE_META[mod.slug];
+        return (
+          <Link
+            key={mod.slug}
+            href={mod.href}
+            className="group flex flex-col gap-4 rounded-lg border border-border bg-card p-6 transition-colors hover:border-primary/50 hover:bg-accent"
+          >
+            <div className="text-muted-foreground transition-colors group-hover:text-primary">
+              {meta.icon}
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-semibold text-foreground">{mod.label}</h3>
+              <p className="text-sm text-muted-foreground">{meta.description}</p>
+            </div>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * `sinCategorias`: muestra los módulos directamente, sin la grilla de categorías
+ * (el portal del rol `empleado`, que tiene solo dos).
+ */
+export default function AdminHomeModulos({
+  modulos,
+  sinCategorias = false,
+}: {
+  modulos: AdminHomeModulo[];
+  sinCategorias?: boolean;
+}) {
   const [categoriaActiva, setCategoriaActiva] = useState<string | null>(null);
+
+  if (sinCategorias) return <GrillaModulos modulos={modulos} />;
 
   const categorias = CATEGORIAS.map((cat) => ({
     ...cat,
@@ -203,26 +246,7 @@ export default function AdminHomeModulos({ modulos }: { modulos: AdminHomeModulo
           Volver a categorías
         </button>
         <h3 className="text-lg font-semibold text-foreground">{activa.titulo}</h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {activa.modulos.map((mod) => {
-            const meta = MODULE_META[mod.slug];
-            return (
-              <Link
-                key={mod.slug}
-                href={mod.href}
-                className="group flex flex-col gap-4 rounded-lg border border-border bg-card p-6 transition-colors hover:border-primary/50 hover:bg-accent"
-              >
-                <div className="text-muted-foreground transition-colors group-hover:text-primary">
-                  {meta.icon}
-                </div>
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-foreground">{mod.label}</h3>
-                  <p className="text-sm text-muted-foreground">{meta.description}</p>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+        <GrillaModulos modulos={activa.modulos} />
       </div>
     );
   }

@@ -1,20 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { getAllContratosVendedor, createContratoVendedor, type CreateContratoVendedorData } from '@/lib/senales-ip';
-import { isAdminRole } from '@/lib/roles';
-
-async function isAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('site_session');
-  const role = session?.value?.split('|')[1];
-  return isAdminRole(role);
-}
-
-async function getUsername(): Promise<string | null> {
-  const cookieStore = await cookies();
-  const val = cookieStore.get('site_session')?.value;
-  return val ? val.split('|')[0] : null;
-}
+import { getSessionUsername, isAdmin } from '@/lib/admin-auth';
 
 export async function GET() {
   try {
@@ -34,7 +20,7 @@ export async function POST(request: NextRequest) {
     if (!await isAdmin()) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
-    const username = await getUsername();
+    const username = await getSessionUsername();
     const body = await request.json() as CreateContratoVendedorData;
     if (!body.nombre_empresa?.trim()) {
       return NextResponse.json({ error: 'El campo "nombre_empresa" es requerido' }, { status: 400 });

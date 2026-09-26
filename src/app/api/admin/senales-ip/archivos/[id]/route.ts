@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { readFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { getArchivoById, deleteArchivoById } from '@/lib/senales-ip';
-import { isAdminRole } from '@/lib/roles';
-
-async function isAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('site_session');
-  const role = session?.value?.split('|')[1];
-  return isAdminRole(role);
-}
+import { isAdmin } from '@/lib/admin-auth';
+import { headersArchivo } from '@/lib/archivos';
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -28,10 +21,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Archivo no encontrado en disco' }, { status: 404 });
     }
     return new NextResponse(new Uint8Array(buffer), {
-      headers: {
-        'Content-Type': archivo.tipo_mime ?? 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${archivo.nombre_original}"`,
-      },
+      headers: headersArchivo(archivo.nombre_archivo, { nombreDescarga: archivo.nombre_original, descargar: true }),
     });
   } catch (error) {
     console.error('Error en GET /api/admin/senales-ip/archivos/[id]:', error);

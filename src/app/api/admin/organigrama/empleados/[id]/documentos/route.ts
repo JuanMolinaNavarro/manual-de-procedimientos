@@ -21,10 +21,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
   const { id } = await params;
   const empleadoId = Number(id);
-  if (Number.isNaN(empleadoId)) {
+  if (!Number.isInteger(empleadoId) || empleadoId <= 0) {
     return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
   }
-  return NextResponse.json(await getDocumentosDeEmpleado(empleadoId));
+  try {
+    return NextResponse.json(await getDocumentosDeEmpleado(empleadoId));
+  } catch (error) {
+    console.error('Error en GET /api/admin/organigrama/empleados/[id]/documentos:', error);
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

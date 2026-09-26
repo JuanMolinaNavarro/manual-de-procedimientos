@@ -12,8 +12,19 @@ import { FECHA_RE, hoyLocal, inicioDeMes, type FiltrosFichadas } from './asisten
 import { MES_RE } from './asistencia-calendario';
 
 export async function handle(where: string, fn: () => Promise<Response>): Promise<Response> {
-  try {
+  return handleSesion(where, async () => {
     if (!(await isAdmin())) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    return fn();
+  });
+}
+
+/**
+ * Como `handle` pero sin exigir rol admin: para las rutas personales (Mi asistencia)
+ * que usa también el rol `empleado`. La ruta resuelve la ficha con
+ * `getUsuarioSesion()` y nunca recibe un id del cliente.
+ */
+export async function handleSesion(where: string, fn: () => Promise<Response>): Promise<Response> {
+  try {
     return await fn();
   } catch (error) {
     if (error instanceof AsistenciaError) {

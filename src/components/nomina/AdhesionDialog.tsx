@@ -1,8 +1,11 @@
 'use client';
 
 /**
- * Adhesión al recibo digital (acto único) o cambio de PIN: el trabajador
- * tipea su PIN dos veces; solo viaja al servidor para guardar su hash.
+ * Adhesión al recibo digital (acto único, presencial): el trabajador declara su email (ahí le
+ * llegan los avisos de recibos disponibles) y tipea su PIN dos veces delante de RR.HH.; el PIN
+ * solo viaja al servidor para guardar su hash. La adhesión queda PENDIENTE
+ * hasta subir el acta firmada en papel. RR.HH. no cambia PINs: el trabajador lo cambia desde
+ * su portal (con el PIN actual); si lo olvidó, se revoca y se hace una adhesión nueva.
  */
 
 import { useState } from 'react';
@@ -11,38 +14,33 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ADHESION_MODOS, PIN_RE } from '@/lib/nomina-datos';
+import { PIN_RE } from '@/lib/nomina-datos';
+import { emailValido } from '@/lib/recibos-aviso';
 import type { EmpleadoNomina } from '@/lib/nomina-calc';
 import { mensajeError, nominaFetch } from './api';
 
-export default function AdhesionDialog({ organigramaId, empleado, modo: modoDialog, onClose, onOk }: {
+export default function AdhesionDialog({ organigramaId, empleado, onClose, onOk }: {
   organigramaId: number;
   empleado: EmpleadoNomina | null;
-  modo: 'adherir' | 'pin';
   onClose: () => void;
   onOk: () => void;
 }) {
-  const [modoActa, setModoActa] = useState('papel');
+  const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
   const [pin2, setPin2] = useState('');
   const [enviando, setEnviando] = useState(false);
 
-  function cerrar() { setPin(''); setPin2(''); setModoActa('papel'); onClose(); }
+  function cerrar() { setEmail(''); setPin(''); setPin2(''); onClose(); }
 
   async function confirmar() {
     if (!empleado) return;
+    if (!emailValido(email)) { toast.error('Ingresá un email válido'); return; }
     if (!PIN_RE.test(pin.trim())) { toast.error('El PIN debe tener entre 4 y 8 dígitos'); return; }
     if (pin.trim() !== pin2.trim()) { toast.error('Los PIN no coinciden'); return; }
     setEnviando(true);
     try {
-      if (modoDialog === 'adherir') {
-        await nominaFetch('/api/admin/nomina/adhesiones', { method: 'POST', body: JSON.stringify({ organigramaId, empleadoId: empleado.id, modo: modoActa, pin: pin.trim(), pin2: pin2.trim() }) });
-        toast.success(`${empleado.nombre} adherido al recibo digital`);
-      } else {
-        await nominaFetch(`/api/admin/nomina/adhesiones/${empleado.id}/pin`, { method: 'PUT', body: JSON.stringify({ organigramaId, pin: pin.trim(), pin2: pin2.trim() }) });
-        toast.success('PIN actualizado');
-      }
+      await nominaFetch('/api/admin/nomina/adhesiones', { method: 'POST', body: JSON.stringify({ organigramaId, empleadoId: empleado.id, email: email.trim(), pin: pin.trim(), pin2: pin2.trim() }) });
+      toast.success(`Adhesión de ${empleado.nombre} registrada: imprimí el acta, firmala y subila para habilitar la firma`);
       cerrar();
       onOk();
     } catch (e) { toast.error(mensajeError(e)); } finally { setEnviando(false); }
@@ -52,24 +50,22 @@ export default function AdhesionDialog({ organigramaId, empleado, modo: modoDial
     <Dialog open={!!empleado} onOpenChange={(o) => !o && cerrar()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{modoDialog === 'adherir' ? 'Adhesión al recibo digital' : 'Cambiar PIN'}</DialogTitle>
+          <DialogTitle>Adhesión al recibo digital</DialogTitle>
           <DialogDescription>
-            {empleado?.nombre}. {modoDialog === 'adherir'
-              ? 'El trabajador elige un PIN personal de 4 a 8 dígitos: es suyo, no lo compartas. Lo va a usar para firmar cada recibo.'
-              : 'Nuevo PIN personal de 4 a 8 dígitos.'}
+            {empleado?.nombre}. El trabajador declara el email donde quiere recibir los avisos y elige un PIN personal de 4 a 8
+            dígitos: es suyo, no lo compartas. Lo va a usar para firmar cada recibo desde el portal y lo puede cambiar él mismo.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          {modoDialog === 'adherir' && (
-            <div className="space-y-1.5">
-              <Label>Acta de adhesión</Label>
-              <Select value={modoActa} onValueChange={setModoActa}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{ADHESION_MODOS.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">Recomendado: imprimir el acta, que el trabajador la firme en papel, escanearla y subirla como PDF en su fila.</p>
-            </div>
-          )}
+          <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+            Después de guardar: imprimí el acta (dos copias), que el trabajador y un representante de la empresa la firmen, escaneala y subila en su fila.
+            Hasta entonces la adhesión queda <b>pendiente</b> y no permite firmar recibos.
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="adh-email">Email para los avisos</Label>
+            <Input id="adh-email" type="email" inputMode="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nombre@dominio.com" />
+            <p className="text-xs text-muted-foreground">Queda impreso en el acta. Solo se usa para avisar que hay recibos para firmar: nunca se mandan recibos por mail.</p>
+          </div>
           <div className="space-y-1.5">
             <Label htmlFor="adh-pin">PIN personal (lo tipea el trabajador)</Label>
             <Input id="adh-pin" type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value)} className="font-mono tracking-[.4em]" />
@@ -81,7 +77,7 @@ export default function AdhesionDialog({ organigramaId, empleado, modo: modoDial
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={cerrar}>Cancelar</Button>
-          <Button onClick={confirmar} disabled={enviando}>{modoDialog === 'adherir' ? 'Adherir' : 'Guardar PIN'}</Button>
+          <Button onClick={confirmar} disabled={enviando}>Adherir</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

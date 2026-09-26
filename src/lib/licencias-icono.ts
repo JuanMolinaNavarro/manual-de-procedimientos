@@ -5,7 +5,8 @@
  */
 import { randomUUID } from 'crypto';
 import { mkdirSync, unlinkSync, writeFileSync } from 'fs';
-import { extname, join } from 'path';
+import { join } from 'path';
+import { EXT_POR_MIME_IMAGEN } from './archivos';
 import { descargarFavicon } from './favicon';
 import { LICENCIA_MONEDAS, LICENCIA_PERIODICIDADES } from './organigrama';
 
@@ -13,21 +14,6 @@ export const LICENCIAS_DIR = join(process.cwd(), 'uploads', 'organigrama', 'lice
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'];
 const ICONO_MAX_BYTES = 2 * 1024 * 1024;
-
-const MIME_POR_EXT: Record<string, string> = {
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  webp: 'image/webp',
-  gif: 'image/gif',
-  svg: 'image/svg+xml',
-  ico: 'image/x-icon',
-};
-
-export function mimeDeIcono(nombreArchivo: string): string {
-  const ext = nombreArchivo.split('.').pop()?.toLowerCase() ?? '';
-  return MIME_POR_EXT[ext] ?? 'application/octet-stream';
-}
 
 export function guardarIcono(buffer: Buffer, ext: string): string {
   const storedName = `${randomUUID()}.${ext.replace(/^\./, '')}`;
@@ -101,7 +87,8 @@ export async function parseLicenciaForm(fd: FormData): Promise<LicenciaForm> {
       throw new LicenciaFormError('Ícono no permitido. Use PNG, JPG, WebP, GIF o SVG.');
     }
     if (file.size > ICONO_MAX_BYTES) throw new LicenciaFormError('El ícono no puede superar 2 MB');
-    const ext = (extname(file.name) || `.${file.type.split('/')[1].replace('+xml', '')}`).slice(1);
+    // Extensión según el tipo aceptado, no el nombre del cliente (se sirve por extensión).
+    const ext = EXT_POR_MIME_IMAGEN[file.type].slice(1);
     icono = { buffer: Buffer.from(await file.arrayBuffer()), ext };
   }
 

@@ -44,9 +44,9 @@ export default function NominaBar() {
             <>
               <Badge variant="outline">empleados {estado.incluidos}/{estado.total}</Badge>
               {estado.cerrado ? (
-                <Badge className="bg-violet-600 text-white hover:bg-violet-600">cerrado · {estado.firmados}/{estado.enCierre} firmados</Badge>
+                <Badge className="bg-violet-600 text-white hover:bg-violet-600">cálculo cerrado</Badge>
               ) : (
-                <Badge variant="secondary">en curso</Badge>
+                <Badge variant="secondary">cálculo en curso</Badge>
               )}
             </>
           )}

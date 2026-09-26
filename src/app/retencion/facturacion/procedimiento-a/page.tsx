@@ -107,7 +107,7 @@ export default function ProcedimientoAFacturacionPage() {
             <p className="text-sm text-muted-foreground">Mensaje sugerido</p>
             <CopyButton text={msgDescuentoVencido} />
           </div>
-          <p className="mt-3 text-foreground">"{msgDescuentoVencido}"</p>
+          <p className="mt-3 text-foreground">&quot;{msgDescuentoVencido}&quot;</p>
         </div>
 
         <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-200">
@@ -143,7 +143,7 @@ export default function ProcedimientoAFacturacionPage() {
             <p className="text-sm text-muted-foreground">Mensaje sugerido</p>
             <CopyButton text={msgServicioAgregado} />
           </div>
-          <p className="mt-3 text-foreground">"{msgServicioAgregado}"</p>
+          <p className="mt-3 text-foreground">&quot;{msgServicioAgregado}&quot;</p>
         </div>
 
         <div className="rounded-2xl border border-blue-500/40 bg-blue-500/10 p-4 text-blue-900 dark:text-blue-200">
@@ -197,7 +197,7 @@ export default function ProcedimientoAFacturacionPage() {
             <p className="text-sm text-muted-foreground">Mensaje sugerido</p>
             <CopyButton text={msgCargoEquipo} />
           </div>
-          <p className="mt-3 text-foreground">"{msgCargoEquipo}"</p>
+          <p className="mt-3 text-foreground">&quot;{msgCargoEquipo}&quot;</p>
         </div>
 
         <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-200">
@@ -243,7 +243,7 @@ export default function ProcedimientoAFacturacionPage() {
             <p className="text-sm text-muted-foreground">Mensaje sugerido</p>
             <CopyButton text={msgAumentoPrecio} />
           </div>
-          <p className="mt-3 text-foreground">"{msgAumentoPrecio}"</p>
+          <p className="mt-3 text-foreground">&quot;{msgAumentoPrecio}&quot;</p>
         </div>
       </section>
 
@@ -266,7 +266,7 @@ export default function ProcedimientoAFacturacionPage() {
               <p className="text-xs text-emerald-800/70 dark:text-emerald-200/70">Mensaje sugerido</p>
               <CopyButton text={msgDebitoAutomatico} />
             </div>
-            <p className="mt-2 text-sm">"{msgDebitoAutomatico}"</p>
+            <p className="mt-2 text-sm">&quot;{msgDebitoAutomatico}&quot;</p>
           </div>
         </div>
 
@@ -285,7 +285,7 @@ export default function ProcedimientoAFacturacionPage() {
               <p className="text-sm text-muted-foreground">Mensaje sugerido</p>
               <CopyButton text={msgDowngradePlan} />
             </div>
-            <p className="mt-2 text-foreground">"{msgDowngradePlan}"</p>
+            <p className="mt-2 text-foreground">&quot;{msgDowngradePlan}&quot;</p>
           </div>
         </div>
 

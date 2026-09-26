@@ -3,6 +3,7 @@ import { readFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { isAdmin, canEditModule } from '@/lib/admin-auth';
 import { getDocumentoById, updateDocumento, deleteDocumento } from '@/lib/organigrama';
+import { headersArchivo } from '@/lib/archivos';
 
 const DOCS_DIR = join(process.cwd(), 'uploads', 'organigrama', 'documentos');
 
@@ -21,19 +22,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   } catch {
     return NextResponse.json({ error: 'Archivo no encontrado' }, { status: 404 });
   }
-  // filename* (RFC 5987) para nombres con acentos/ñ; filename plano como fallback.
-  const ascii = doc.nombre_original.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, "'");
-  // Para .pdf forzamos el MIME: si el browser que subió mandó otro tipo (u
-  // octet-stream), el lector de PDF del navegador no se activaría al "Ver".
-  const mime = doc.nombre_archivo.toLowerCase().endsWith('.pdf')
-    ? 'application/pdf'
-    : doc.tipo_mime || 'application/octet-stream';
+  // Tipo según la extensión guardada (nunca el MIME que mandó el navegador al subir):
+  // PDF, imágenes y texto se ven; Office y demás se descargan.
   return new NextResponse(new Uint8Array(buffer), {
-    headers: {
-      'Content-Type': mime,
-      'Content-Disposition': `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(doc.nombre_original)}`,
-      'Cache-Control': 'private, max-age=3600',
-    },
+    headers: headersArchivo(doc.nombre_archivo, { nombreDescarga: doc.nombre_original }),
   });
 }
 

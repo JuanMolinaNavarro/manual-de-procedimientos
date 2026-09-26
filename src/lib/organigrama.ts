@@ -21,11 +21,6 @@ export interface SoftSkill {
   rating: number; // 1-5
 }
 
-export interface HorarioDia {
-  dia: string; // Lunes..Domingo
-  valor: string; // p.ej. "08:00 - 17:00" (vacío = sin horario)
-}
-
 // ─── Empleado ───────────────────────────────────────────────────────────────
 
 export interface OrgEmpleado {
@@ -40,10 +35,8 @@ export interface OrgEmpleado {
   foto_archivo: string | null;
   estado: string; // active | inactive
   sede: string | null;
-  horario: string | null;
   modalidad: string | null;
   guardias: string | null;
-  horarios: HorarioDia[] | null;
   actualizado: string | null;
   summary: string | null;
   antiguedad: string | null;
@@ -60,7 +53,6 @@ export interface OrgEmpleado {
   soft_skills: SoftSkill[] | null;
   skills: string[] | null;
   projects: string[] | null;
-  proyectos_actuales: string[] | null;
   free_x: number | null;
   free_y: number | null;
   created_by: string | null;
@@ -79,10 +71,8 @@ export interface CreateOrgEmpleadoData {
   telefono?: string | null;
   estado?: string;
   sede?: string | null;
-  horario?: string | null;
   modalidad?: string | null;
   guardias?: string | null;
-  horarios?: HorarioDia[] | null;
   actualizado?: string | null;
   summary?: string | null;
   antiguedad?: string | null;
@@ -99,7 +89,6 @@ export interface CreateOrgEmpleadoData {
   soft_skills?: SoftSkill[] | null;
   skills?: string[] | null;
   projects?: string[] | null;
-  proyectos_actuales?: string[] | null;
   free_x?: number | null;
   free_y?: number | null;
   created_by?: string | null;
@@ -196,9 +185,6 @@ export interface CreateOrgDocumentoData {
 
 export const LICENCIA_MONEDAS = ['USD', 'ARS'] as const;
 export const LICENCIA_PERIODICIDADES = ['mensual', 'anual', 'unica'] as const;
-export type LicenciaMoneda = (typeof LICENCIA_MONEDAS)[number];
-export type LicenciaPeriodicidad = (typeof LICENCIA_PERIODICIDADES)[number];
-
 export interface OrgLicencia {
   id: number;
   empleado_id: number;
@@ -267,8 +253,6 @@ function mapEmpleado(row: any): OrgEmpleado {
     soft_skills: row.soft_skills as SoftSkill[] | null,
     skills: row.skills as string[] | null,
     projects: row.projects as string[] | null,
-    proyectos_actuales: row.proyectos_actuales as string[] | null,
-    horarios: row.horarios as HorarioDia[] | null,
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -298,7 +282,6 @@ export async function createEmpleado(data: CreateOrgEmpleadoData): Promise<OrgEm
       telefono: data.telefono ?? null,
       estado: data.estado ?? 'active',
       sede: data.sede ?? null,
-      horario: data.horario ?? null,
       modalidad: data.modalidad ?? null,
       guardias: data.guardias ?? null,
       actualizado: data.actualizado ?? null,
@@ -317,8 +300,6 @@ export async function createEmpleado(data: CreateOrgEmpleadoData): Promise<OrgEm
       soft_skills: (data.soft_skills ?? undefined) as any,
       skills: (data.skills ?? undefined) as any,
       projects: (data.projects ?? undefined) as any,
-      proyectos_actuales: (data.proyectos_actuales ?? undefined) as any,
-      horarios: (data.horarios ?? undefined) as any,
       free_x: data.free_x ?? null,
       free_y: data.free_y ?? null,
       created_by: data.created_by ?? null,
@@ -346,7 +327,6 @@ export async function updateEmpleado(
       telefono: data.telefono,
       estado: data.estado ?? undefined,
       sede: data.sede,
-      horario: data.horario,
       modalidad: data.modalidad,
       guardias: data.guardias,
       actualizado: data.actualizado,
@@ -365,8 +345,6 @@ export async function updateEmpleado(
       soft_skills: json(data.soft_skills),
       skills: json(data.skills),
       projects: json(data.projects),
-      proyectos_actuales: json(data.proyectos_actuales),
-      horarios: json(data.horarios),
       free_x: data.free_x,
       free_y: data.free_y,
       updated_by: data.updated_by,
@@ -530,10 +508,6 @@ export async function deleteLicencia(id: number): Promise<OrgLicencia | null> {
 
 export async function getAllAreas(): Promise<OrgArea[]> {
   return prisma.orgArea.findMany({ orderBy: { id: 'asc' } }) as Promise<OrgArea[]>;
-}
-
-export async function getAreaById(id: number): Promise<OrgArea | null> {
-  return prisma.orgArea.findUnique({ where: { id } }) as Promise<OrgArea | null>;
 }
 
 export async function createArea(data: CreateOrgAreaData): Promise<OrgArea> {

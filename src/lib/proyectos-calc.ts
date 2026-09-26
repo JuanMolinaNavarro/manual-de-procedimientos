@@ -5,8 +5,6 @@
  * y el cliente para recalcular en vivo mientras se editan los supuestos.
  */
 
-import { MESES_CORTOS } from './proyectos-datos';
-
 // ─── Tipos compartidos (cliente ↔ servidor) ──────────────────────────────────
 
 export interface CostoProyecto {
@@ -95,17 +93,6 @@ export function sumarDias(iso: string, dias: number): string {
 
 export function difDias(desde: string, hasta: string): number {
   return Math.round((parseISO(hasta).getTime() - parseISO(desde).getTime()) / 86_400_000);
-}
-
-/** "05 mar" — para etiquetas compactas del cronograma. */
-export function fmtCorto(iso: string): string {
-  const d = parseISO(iso);
-  return `${String(d.getDate()).padStart(2, '0')} ${MESES_CORTOS[d.getMonth()]}`;
-}
-
-export function fmtFecha(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  return parseISO(iso).toLocaleDateString('es-AR');
 }
 
 // ─── Formato de números ──────────────────────────────────────────────────────

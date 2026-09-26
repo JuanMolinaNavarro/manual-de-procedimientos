@@ -1,6 +1,6 @@
 /**
  * Pagina para crear y listar usuarios del sitio.
- * Las credenciales se guardan en texto plano por requisito.
+ * Las contraseñas se guardan cifradas (scrypt) y nunca se devuelven: solo se asignan.
  */
 
 'use client';
@@ -32,7 +32,6 @@ interface EmpleadoVinculado {
 interface Usuario {
   id: number;
   usuario: string;
-  password: string;
   nombre: string | null;
   apellido: string | null;
   rol: string;
@@ -204,7 +203,7 @@ export default function UsuariosAdminPage() {
         <CardHeader>
           <CardTitle>Crear usuario</CardTitle>
           <CardDescription>
-            Las credenciales se guardan en texto plano por requisito.
+            Las contraseñas se guardan cifradas: no se pueden ver, solo asignar una nueva (mínimo 8 caracteres).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -225,7 +224,9 @@ export default function UsuariosAdminPage() {
                 id="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="Ej: clave123"
+                placeholder="Mínimo 8 caracteres"
+                autoComplete="new-password"
+                minLength={8}
                 required
               />
             </div>
@@ -259,6 +260,7 @@ export default function UsuariosAdminPage() {
               >
                 <option value="agente">Agente</option>
                 <option value="admin">Admin</option>
+                <option value="empleado">Empleado (solo Mi asistencia y Recibos)</option>
                 {esSuperadmin && <option value="superadmin">Superadmin</option>}
               </select>
             </div>
@@ -355,7 +357,6 @@ export default function UsuariosAdminPage() {
                 <TableHead>Usuario</TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Apellido</TableHead>
-                <TableHead>Contrasena</TableHead>
                 <TableHead>Rol</TableHead>
                 <TableHead>Área</TableHead>
                 <TableHead>Activo</TableHead>
@@ -366,7 +367,7 @@ export default function UsuariosAdminPage() {
             <TableBody>
               {visibles.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground">
                     {usuarios.length === 0 ? 'No hay usuarios creados.' : 'Sin resultados para la busqueda.'}
                   </TableCell>
                 </TableRow>
@@ -376,7 +377,6 @@ export default function UsuariosAdminPage() {
                     <TableCell>{item.usuario}</TableCell>
                     <TableCell>{item.nombre ?? "-"}</TableCell>
                     <TableCell>{item.apellido ?? "-"}</TableCell>
-                    <TableCell>{item.password}</TableCell>
                     <TableCell>{item.rol}</TableCell>
                     <TableCell>
                       {item.empleado ? (

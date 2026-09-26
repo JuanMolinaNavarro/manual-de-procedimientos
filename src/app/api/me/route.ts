@@ -5,40 +5,21 @@
  */
 
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { prisma } from '@/lib/prisma';
-
-function getUsuarioFromSession(value: string | undefined) {
-  if (!value) return null;
-  return value.split('|')[0] || null;
-}
+import { getSesion } from '@/lib/admin-auth';
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const session = cookieStore.get('site_session')?.value;
-    const usuario = getUsuarioFromSession(session);
-
-    if (!usuario) {
+    const u = await getSesion();
+    if (!u) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
-
-    const record = await prisma.usuario.findUnique({
-      where: { usuario },
-      select: {
-        usuario: true,
-        nombre: true,
-        apellido: true,
-        rol: true,
-        empleado: { select: { id: true, nombre: true, area: true } },
-      },
+    return NextResponse.json({
+      usuario: u.usuario,
+      nombre: u.nombre,
+      apellido: u.apellido,
+      rol: u.rol,
+      empleado: u.empleado,
     });
-
-    if (!record) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-
-    return NextResponse.json(record);
   } catch (error) {
     console.error('Error en GET /api/me:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });

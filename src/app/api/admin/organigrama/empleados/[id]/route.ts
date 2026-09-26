@@ -21,9 +21,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
   const { id } = await params;
-  const empleado = await getEmpleadoById(Number(id));
-  if (!empleado) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
-  return NextResponse.json(empleado);
+  const n = Number(id);
+  if (!Number.isInteger(n) || n <= 0) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+  try {
+    const empleado = await getEmpleadoById(n);
+    if (!empleado) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+    return NextResponse.json(empleado);
+  } catch (error) {
+    console.error('Error en GET /api/admin/organigrama/empleados/[id]:', error);
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
+  }
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

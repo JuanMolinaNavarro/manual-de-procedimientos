@@ -7,6 +7,7 @@
  * último período cerrado (para la alerta de variación).
  */
 
+import { mesLocal } from './fechas';
 import {
   RUBROS_EMPLEADOR,
   type Bono,
@@ -71,7 +72,7 @@ export function periodLabel(p: string): string {
 
 /** Período actual en formato YYYY-MM. */
 export function periodoActual(): string {
-  return new Date().toISOString().slice(0, 7);
+  return mesLocal();
 }
 
 export function aniosAntiguedad(fechaIngreso: string, periodo: string): number {

@@ -1,8 +1,6 @@
-import type { Metadata } from 'next';
-import RecibosPage from '@/components/nomina/RecibosPage';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = { title: 'Nómina · Recibos' };
-
+/** "Nómina · Recibos" pasó a ser el módulo propio Gestión de recibos: la dirección vieja redirige. */
 export default function Page() {
-  return <RecibosPage />;
+  redirect('/admin/gestion-recibos');
 }

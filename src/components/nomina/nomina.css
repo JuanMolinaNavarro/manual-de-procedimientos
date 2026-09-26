@@ -1,5 +1,5 @@
 /*
- * Nómina — estilos del recibo (modelo Anexo III) y del ticket térmico.
+ * Nómina — estilos del recibo (modelo Anexo III), la constancia y la impresión.
  * Portados del prototipo PayRoll Assistant. Son documentos "de papel": usan
  * su propia paleta fija (no cambian con el tema de la app).
  */
@@ -42,92 +42,8 @@
 .nomina-rc .alert-row.error { border-left-color: var(--red); background: rgba(166, 75, 53, .07); }
 .nomina-rc .alert-row.ok { border-left-color: var(--green); background: rgba(92, 112, 64, .08); }
 .nomina-rc .sign-hash { font-family: var(--mono); font-size: 10.5px; color: var(--muted); word-break: break-all; margin-top: 12px; }
-.nomina-rc .const-card { border: 1px solid var(--line); background: var(--card); padding: 12px 15px; font-family: var(--mono); font-size: 11.5px; line-height: 1.7; word-break: break-all; }
-.nomina-rc .const-card.ok { border-left: 4px solid var(--green); }
-.nomina-rc .const-card.dis { border-left: 4px solid var(--ochre); }
 .nomina-rc .firma { margin-top: 30px; display: flex; justify-content: space-between; font-size: 10px; color: #555; }
 .nomina-rc .firma div { border-top: 1px solid #555; padding-top: 4px; width: 42%; text-align: center; }
-
-/* ─── Ticket térmico (vista del trabajador en el kiosco) ─────────────────── */
-.nomina-printer { max-width: 400px; margin: 0 auto; }
-.nomina-printer .printer-body { background: linear-gradient(#4a4166, #3b3452); border-radius: 18px; padding: 14px; box-shadow: 0 14px 30px rgba(40, 32, 64, .28); position: relative; z-index: 2; }
-.nomina-printer .pb-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.nomina-printer .pb-mark { width: 26px; height: 26px; border-radius: 7px; background: rgba(255, 255, 255, .14); display: grid; place-items: center; color: #ede9f7; font-size: 13px; }
-.nomina-printer .pb-home { font-size: 12.5px; color: #ede9f7; background: rgba(255, 255, 255, .12); border: none; border-radius: 9px; padding: 7px 13px; font-family: inherit; cursor: pointer; }
-.nomina-printer .pb-screen { background: rgba(0, 0, 0, .24); border-radius: 12px; padding: 15px 16px; }
-.nomina-printer .pb-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-.nomina-printer .pb-plan { font-size: 17px; font-weight: 700; color: #f6f3fd; letter-spacing: -.01em; }
-.nomina-printer .pb-per { font-size: 12.5px; color: rgba(246, 243, 253, .62); margin-top: 1px; }
-.nomina-printer .pb-tot-l { font-size: 12.5px; color: rgba(246, 243, 253, .62); text-align: right; }
-.nomina-printer .pb-tot { font-size: 22px; font-weight: 800; color: #f6f3fd; text-align: right; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.nomina-printer .pb-status { display: flex; align-items: center; gap: 9px; margin-top: 13px; font-size: 12.5px; color: rgba(246, 243, 253, .62); min-height: 34px; }
-.nomina-printer .pb-ver { font-family: inherit; font-size: 14px; font-weight: 700; color: #3b3452; background: #f6f3fd; border: none; border-radius: 9px; padding: 9px 18px; cursor: pointer; transition: transform .12s; }
-.nomina-printer .pb-ver:active { transform: scale(.97); }
-.nomina-printer .pb-printing { display: flex; align-items: center; gap: 9px; }
-.nomina-printer .pb-spin { width: 14px; height: 14px; border: 2px solid rgba(246, 243, 253, .28); border-top-color: rgba(246, 243, 253, .75); border-radius: 50%; animation: nomina-pbspin .8s linear infinite; flex: none; }
-@keyframes nomina-pbspin { to { transform: rotate(360deg); } }
-.nomina-printer .pb-slotlip { height: 7px; margin: 0 10px; background: #2e2842; border-radius: 0 0 5px 5px; position: relative; z-index: 2; }
-
-.nomina-printer .paper-slot { overflow: hidden; margin: -2px 0 0; padding: 0 12px 28px; display: none; }
-.nomina-printer.printing .paper-slot { display: block; }
-.nomina-printer .paper {
-  background: #faf8f3; color: #3a3733; padding: 22px 20px 0;
-  font-family: var(--font-mono, "SF Mono", ui-monospace, Menlo, Consolas, monospace); font-size: 11.5px; line-height: 1.62;
-  filter: drop-shadow(0 10px 14px rgba(40, 32, 64, .16));
-  will-change: transform; transform: translate3d(0, 0, 0); backface-visibility: hidden;
-}
-/* Borde perforado: vive dentro del papel y viaja con él */
-.nomina-printer .paper .paper-edge {
-  height: 10px; margin: 6px -20px 0; background: #faf8f3;
-  -webkit-mask-image: radial-gradient(circle 5px at 5px 10px, transparent 96%, #000 100%);
-  mask-image: radial-gradient(circle 5px at 5px 10px, transparent 96%, #000 100%);
-  -webkit-mask-size: 10px 10px; mask-size: 10px 10px; -webkit-mask-repeat: repeat-x; mask-repeat: repeat-x;
-}
-.nomina-printer .p-brand { text-align: center; font-size: 13px; font-weight: 700; letter-spacing: .16em; }
-.nomina-printer .p-sub { text-align: center; font-size: 10px; color: #7a756c; letter-spacing: .08em; margin-top: 2px; }
-.nomina-printer .p-rule { border-top: 1px dashed #c3bdb1; margin: 13px 0 11px; }
-.nomina-printer .p-sec { font-size: 9.5px; letter-spacing: .18em; color: #7a756c; margin: 0 0 6px; }
-.nomina-printer .p-kv { display: flex; justify-content: space-between; gap: 10px; }
-.nomina-printer .p-kv span:first-child { color: #7a756c; }
-.nomina-printer .p-kv span:last-child { text-align: right; font-weight: 600; }
-.nomina-printer .p-line { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 5px; align-items: baseline; }
-.nomina-printer .p-line .amt { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.nomina-printer .p-line .base { display: block; font-size: 9.5px; color: #9a9488; letter-spacing: .02em; }
-.nomina-printer .p-line.sum { border-top: 1px solid #dad4c8; margin-top: 8px; padding-top: 6px; font-weight: 700; }
-.nomina-printer .p-neto { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 4px; }
-.nomina-printer .p-neto .lbl { font-size: 12px; font-weight: 700; letter-spacing: .1em; }
-.nomina-printer .p-neto .val { font-size: 20px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.nomina-printer .p-letras { font-size: 9.5px; color: #7a756c; margin-top: 3px; text-transform: uppercase; letter-spacing: .04em; }
-.nomina-printer .p-bar { display: grid; grid-template-columns: 1fr 62px 66px; gap: 7px; align-items: center; margin-top: 5px; font-size: 10px; }
-.nomina-printer .p-bar .track { height: 7px; background: #e7e2d7; }
-.nomina-printer .p-bar .fill { height: 100%; background: #5a5348; }
-.nomina-printer .p-bar .fill.own { background: #3a3733; }
-.nomina-printer .p-bar .amt { text-align: right; font-variant-numeric: tabular-nums; }
-.nomina-printer .p-note { font-size: 9.5px; color: #7a756c; margin-top: 9px; line-height: 1.55; }
-.nomina-printer .p-code { text-align: center; padding: 14px 0 4px; }
-.nomina-printer .p-code .bc { width: 78%; height: 34px; fill: #3a3733; }
-.nomina-printer .p-code .hx { font-size: 8.5px; color: #9a9488; letter-spacing: .06em; word-break: break-all; margin-top: 5px; }
-.nomina-printer .p-stamp { text-align: center; font-size: 10px; letter-spacing: .1em; padding: 9px 0 2px; margin-top: 11px; border-top: 1px dashed #c3bdb1; }
-.nomina-printer .p-stamp.ok { color: #4a5c33; }
-.nomina-printer .p-stamp.dis { color: #8a5a20; }
-
-/* ─── Kiosco (pantalla completa) ──────────────────────────────────────────── */
-.nomina-kiosk { position: fixed; inset: 0; z-index: 100; overflow-y: auto; background: #eceae4; color: #1a1917; }
-.nomina-kiosk .kiosk-inner { max-width: 640px; margin: 0 auto; padding: 16px 16px 80px; }
-.nomina-kiosk .kiosk-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #6e6a61; margin-bottom: 18px; }
-.nomina-kiosk .sign-box { border: 2px solid #54497a; background: #fbfaf7; padding: 18px 20px; margin: 16px auto 0; max-width: 400px; }
-.nomina-kiosk .sign-box h4 { font-size: 16px; font-weight: 800; margin-bottom: 4px; }
-.nomina-kiosk .sign-box .who { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; color: #6e6a61; margin-bottom: 12px; }
-.nomina-kiosk .sign-box label.chk-line { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; margin: 10px 0; cursor: pointer; }
-.nomina-kiosk .sign-box input[type=password], .nomina-kiosk .sign-box textarea { width: 100%; border: 1px solid #cbc7bc; background: #fff; border-radius: 5px; padding: 10px 12px; font-family: inherit; font-size: 14px; color: #1a1917; }
-.nomina-kiosk .sign-box input[type=password] { font-family: var(--font-mono, ui-monospace, monospace); letter-spacing: .4em; font-size: 18px; max-width: 220px; }
-.nomina-kiosk .sign-box textarea { min-height: 70px; }
-.nomina-kiosk .sign-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; align-items: center; }
-.nomina-kiosk .sign-hash { font-family: var(--font-mono, ui-monospace, monospace); font-size: 10.5px; color: #6e6a61; word-break: break-all; margin-top: 12px; }
-.nomina-kiosk .kbtn { border: 1px solid #cbc7bc; cursor: pointer; border-radius: 6px; font-family: inherit; font-size: 15px; font-weight: 600; padding: 12px 20px; background: #fbfaf7; color: #1a1917; }
-.nomina-kiosk .kbtn.success { background: #5c7040; border-color: #5c7040; color: #fff; }
-.nomina-kiosk .kbtn.warn { background: #a8702d; border-color: #a8702d; color: #fff; }
-.nomina-kiosk .kbtn:disabled { opacity: .4; cursor: not-allowed; }
 
 /* ─── Impresión ───────────────────────────────────────────────────────────── */
 @media print {

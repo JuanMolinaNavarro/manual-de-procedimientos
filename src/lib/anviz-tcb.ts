@@ -12,7 +12,7 @@
  */
 
 import { Socket } from 'node:net';
-import { MAX_REGISTROS_POR_TRAMA, OFFSET_RELOJ_MIN, type ModoDescarga } from './asistencia-datos';
+import { MAX_REGISTROS_POR_TRAMA, OFFSET_RELOJ_MIN, PUERTO_TCB, type ModoDescarga } from './asistencia-datos';
 
 // ─── Comandos ────────────────────────────────────────────────────────────────
 
@@ -259,13 +259,13 @@ export class ClienteAnviz {
       const s = new Socket();
       const timer = setTimeout(() => {
         s.destroy();
-        reject(new AnvizError(`Sin respuesta de ${this.opts.ip}:${this.opts.puerto ?? 5010} (timeout de conexión)`));
+        reject(new AnvizError(`Sin respuesta de ${this.opts.ip}:${this.opts.puerto ?? PUERTO_TCB} (timeout de conexión)`));
       }, this.timeoutMs);
       s.once('error', (e) => {
         clearTimeout(timer);
         reject(new AnvizError(`No se pudo conectar a ${this.opts.ip}: ${e.message}`));
       });
-      s.connect(this.opts.puerto ?? 5010, this.opts.ip, () => {
+      s.connect(this.opts.puerto ?? PUERTO_TCB, this.opts.ip, () => {
         clearTimeout(timer);
         s.removeAllListeners('error');
         s.on('data', (chunk) => this.onData(chunk));

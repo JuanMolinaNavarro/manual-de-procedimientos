@@ -1,18 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { writeFileSync, mkdirSync, unlinkSync, readFileSync } from 'fs';
-import { join, extname } from 'path';
-import { isAdmin, canEditModule } from '@/lib/admin-auth';
+import { join } from 'path';
+import { EXT_POR_MIME_IMAGEN, headersArchivo } from '@/lib/archivos';
+import { isAdmin, canEditModule, getUsuarioSesion } from '@/lib/admin-auth';
 import { getEmpleadoById, setFotoEmpleado } from '@/lib/organigrama';
 
 const FOTO_DIR = join(process.cwd(), 'uploads', 'organigrama', 'fotos');
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const FOTO_MAX_BYTES = 5 * 1024 * 1024;
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAdmin())) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
   const { id } = await params;
+  // Admin ve cualquier foto; el resto (rol `empleado`) solo la de su propia ficha.
+  if (!(await isAdmin())) {
+    const usuario = await getUsuarioSesion();
+    if (!usuario || usuario.empleado_id == null || usuario.empleado_id !== Number(id)) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+  }
   const empleado = await getEmpleadoById(Number(id));
   if (!empleado?.foto_archivo) {
     return NextResponse.json({ error: 'Sin foto' }, { status: 404 });
@@ -24,11 +30,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   } catch {
     return NextResponse.json({ error: 'Archivo no encontrado' }, { status: 404 });
   }
-  const ext = empleado.foto_archivo.split('.').pop() ?? 'png';
-  const mime = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
-  return new NextResponse(new Uint8Array(buffer), {
-    headers: { 'Content-Type': mime, 'Cache-Control': 'public, max-age=3600' },
-  });
+  // Privada: es la foto de una persona (antes `public`, cacheable por proxies intermedios).
+  return new NextResponse(new Uint8Array(buffer), { headers: headersArchivo(empleado.foto_archivo) });
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -49,6 +52,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       { status: 400 },
     );
   }
+  if (file.size > FOTO_MAX_BYTES) {
+    return NextResponse.json({ error: 'La foto no puede superar 5 MB' }, { status: 400 });
+  }
 
   // Borrar la foto anterior si existía.
   if (empleado.foto_archivo) {
@@ -57,7 +63,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     } catch {}
   }
 
-  const ext = extname(file.name) || `.${file.type.split('/')[1]}`;
+  const ext = EXT_POR_MIME_IMAGEN[file.type];
   const storedName = `${randomUUID()}${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
   mkdirSync(FOTO_DIR, { recursive: true });

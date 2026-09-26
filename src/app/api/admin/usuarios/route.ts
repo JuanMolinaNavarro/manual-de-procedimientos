@@ -1,8 +1,8 @@
 /**
  * API Route: /api/admin/usuarios
  *
- * GET - Lista usuarios (admin)
- * POST - Crea usuario (admin). Solo un superadmin puede crear superadmins.
+ * GET - Lista usuarios (solo superadmin)
+ * POST - Crea usuario (solo superadmin). Solo un superadmin puede crear superadmins.
  *        Opcionalmente vincula la ficha del organigrama: `empleado_id` (existente)
  *        o `area_id` (crea una ficha nueva en esa área, en transacción).
  */
@@ -10,36 +10,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
-import { isAdminRole, isSuperadmin, ROLES } from '@/lib/roles';
-import { getUsuarioSesion } from '@/lib/admin-auth';
+import { isSuperadmin, ROLES } from '@/lib/roles';
+import { getUsuarioSesion, puedeGestionarUsuariosSesion } from '@/lib/admin-auth';
+import { hashPassword, validarPasswordNueva } from '@/lib/password';
+import { SELECT_USUARIO } from '@/lib/usuarios-select';
 
-function getRoleFromSession(value: string | undefined) {
-  if (!value) return null;
-  const parts = value.split('|');
-  return parts.length > 1 ? parts[1] : null;
-}
-
+/** Gestión de usuarios: solo superadmin (rol de la base). Ver roles.ts › puedeGestionarUsuarios. */
 async function isAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('site_session');
-  const role = getRoleFromSession(session?.value);
-  return isAdminRole(role);
+  return puedeGestionarUsuariosSesion();
 }
-
-const INCLUDE_EMPLEADO = {
-  empleado: { select: { id: true, nombre: true, area: true } },
-} as const;
 
 export async function GET() {
   try {
     if (!await isAdmin()) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+      return NextResponse.json({ error: 'Solo un superadmin puede gestionar usuarios' }, { status: 403 });
     }
 
     const usuarios = await prisma.usuario.findMany({
       orderBy: { id: 'desc' },
-      include: INCLUDE_EMPLEADO,
+      select: SELECT_USUARIO,
     });
 
     return NextResponse.json(usuarios);
@@ -52,7 +41,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     if (!await isAdmin()) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+      return NextResponse.json({ error: 'Solo un superadmin puede gestionar usuarios' }, { status: 403 });
     }
 
     const body = (await request.json()) as {
@@ -75,6 +64,11 @@ export async function POST(request: NextRequest) {
         { error: 'Usuario y contrasena son requeridos' },
         { status: 400 }
       );
+    }
+
+    const errorPassword = validarPasswordNueva(password);
+    if (errorPassword) {
+      return NextResponse.json({ error: errorPassword }, { status: 400 });
     }
 
     if (!(ROLES as readonly string[]).includes(rol)) {
@@ -105,7 +99,7 @@ export async function POST(request: NextRequest) {
 
     const baseData = {
       usuario,
-      password,
+      password: await hashPassword(password),
       rol,
       nombre: nombre || null,
       apellido: apellido || null,
@@ -120,7 +114,7 @@ export async function POST(request: NextRequest) {
       }
       created = await prisma.usuario.create({
         data: { ...baseData, empleado_id: empleadoId },
-        include: INCLUDE_EMPLEADO,
+        select: SELECT_USUARIO,
       });
     } else if (areaId) {
       const area = await prisma.orgArea.findUnique({ where: { id: areaId } });
@@ -141,11 +135,11 @@ export async function POST(request: NextRequest) {
         });
         return tx.usuario.create({
           data: { ...baseData, empleado_id: ficha.id },
-          include: INCLUDE_EMPLEADO,
+          select: SELECT_USUARIO,
         });
       });
     } else {
-      created = await prisma.usuario.create({ data: baseData, include: INCLUDE_EMPLEADO });
+      created = await prisma.usuario.create({ data: baseData, select: SELECT_USUARIO });
     }
 
     return NextResponse.json(created, { status: 201 });

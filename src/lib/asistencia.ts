@@ -16,6 +16,7 @@ import {
   ESTADO_EMPLEADO_INACTIVO,
   esFechaImposible,
   FILAS_POR_PAGINA,
+  PUERTO_TCB,
   hoyLocal,
   sumarDias,
   armarResumen,
@@ -62,7 +63,7 @@ export async function crearReloj(d: DatosReloj) {
       data: {
         nombre: d.nombre.trim(),
         ip: d.ip.trim(),
-        puerto: d.puerto ?? 5010,
+        puerto: d.puerto ?? PUERTO_TCB,
         device_id: d.device_id,
         activo: d.activo ?? true,
         limpiar_nuevos: d.limpiar_nuevos ?? false,
@@ -77,7 +78,15 @@ export async function crearReloj(d: DatosReloj) {
 }
 
 export async function actualizarReloj(id: number, patch: Partial<DatosReloj>) {
-  await getReloj(id);
+  const actual = await getReloj(id);
+  // Mismas reglas que el alta: antes el PATCH aceptaba cualquier host/puerto y "probar"/"sync"
+  // abrían una conexión TCP del servidor hacia ahí.
+  validarReloj({
+    nombre: patch.nombre ?? actual.nombre,
+    ip: patch.ip ?? actual.ip,
+    puerto: patch.puerto ?? actual.puerto,
+    device_id: patch.device_id ?? actual.device_id,
+  } as DatosReloj);
   const data: Prisma.AsistenciaRelojUpdateInput = {};
   if (patch.nombre !== undefined) data.nombre = patch.nombre.trim();
   if (patch.ip !== undefined) data.ip = patch.ip.trim();
@@ -97,6 +106,9 @@ function validarReloj(d: DatosReloj) {
   if (!d.nombre?.trim()) throw new AsistenciaError('Falta el nombre del reloj');
   if (!/^\d{1,3}(\.\d{1,3}){3}$/.test((d.ip ?? '').trim())) throw new AsistenciaError('IP inválida');
   if (!Number.isInteger(d.device_id) || d.device_id <= 0) throw new AsistenciaError('device_id inválido');
+  if (d.puerto !== undefined && (!Number.isInteger(d.puerto) || d.puerto < 1 || d.puerto > 65535)) {
+    throw new AsistenciaError('Puerto inválido');
+  }
 }
 
 /** Prueba la conexión: info + contadores, sin guardar nada. */
@@ -267,7 +279,7 @@ export async function importarMdb(buffer: Buffer): Promise<ResultadoImport> {
       const reloj = await prisma.asistenciaReloj.upsert({
         where: { device_id: deviceId },
         update: { nombre, ...(ip ? { ip } : {}) },
-        create: { device_id: deviceId, nombre, ip: ip || '0.0.0.0', puerto: num(pick(row, 'commport')) ?? 5010, activo: false },
+        create: { device_id: deviceId, nombre, ip: ip || '0.0.0.0', puerto: num(pick(row, 'commport')) ?? PUERTO_TCB, activo: false },
       });
       relojPorSensor.set(deviceId, reloj.id);
       relojesTocados++;

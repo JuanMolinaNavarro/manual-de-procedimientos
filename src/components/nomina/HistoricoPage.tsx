@@ -75,7 +75,7 @@ export default function HistoricoPage() {
                       <TableCell className="whitespace-nowrap text-right">
                         <Button size="sm" variant="secondary" onClick={() => ir(r.periodo, '/admin/nomina/liquidacion')}><Eye className="mr-1 h-3.5 w-3.5" /> Ver detalle</Button>{' '}
                         <Button size="sm" variant="ghost" onClick={() => csv(r.periodo)}><Download className="mr-1 h-3.5 w-3.5" /> CSV</Button>{' '}
-                        <Button size="sm" variant="ghost" onClick={() => ir(r.periodo, '/admin/nomina/recibos')}><FileSignature className="mr-1 h-3.5 w-3.5" /> Firmas</Button>{' '}
+                        <Button size="sm" variant="ghost" onClick={() => ir(r.periodo, '/admin/gestion-recibos')}><FileSignature className="mr-1 h-3.5 w-3.5" /> Firmas</Button>{' '}
                         <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setReabrir(r)}><Unlock className="mr-1 h-3.5 w-3.5" /> Reabrir</Button>
                       </TableCell>
                     </TableRow>

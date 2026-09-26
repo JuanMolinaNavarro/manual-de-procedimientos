@@ -1,15 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAllLeads } from '@/lib/leads';
-import { cookies } from 'next/headers';
-import { isAdminRole } from '@/lib/roles';
-
-async function isAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('site_session');
-  if (!session?.value) return false;
-  const parts = session.value.split('|');
-  return parts.length > 1 && isAdminRole(parts[1]);
-}
+import { isAdmin } from '@/lib/admin-auth';
 
 export async function GET() {
   try {

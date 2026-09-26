@@ -6,7 +6,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdminRole } from '@/lib/roles';
 import {
   createBonificacion,
   getAllBonificaciones,
@@ -14,7 +13,7 @@ import {
   type CreateBonificacionData,
 } from '@/lib/bonificaciones';
 import { EMPRESAS, type Empresa } from '@/lib/empresas';
-import { cookies } from 'next/headers';
+import { haySesion, isAdmin } from '@/lib/admin-auth';
 
 // TypeScript no permite includes(string) sobre un union literal.
 const EMPRESAS_STRINGS: readonly string[] = EMPRESAS;
@@ -23,25 +22,6 @@ function isEmpresa(value: string): value is Empresa {
   return EMPRESAS_STRINGS.includes(value);
 }
 
-
-function getRoleFromSession(value: string | undefined) {
-  if (!value) return null;
-  const parts = value.split('|');
-  return parts.length > 1 ? parts[1] : null;
-}
-
-async function isSiteAuthed(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('site_session');
-  return Boolean(session?.value);
-}
-
-async function isAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('site_session');
-  const role = getRoleFromSession(session?.value);
-  return isAdminRole(role);
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -57,7 +37,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(bonificaciones);
     }
 
-    if (!await isSiteAuthed()) {
+    if (!await haySesion()) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 

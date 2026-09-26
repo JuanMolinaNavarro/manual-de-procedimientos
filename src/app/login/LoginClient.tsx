@@ -10,12 +10,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { isAdminRole } from '@/lib/roles';
+import { isAdminRole, isEmpleadoRole } from '@/lib/roles';
+import { rutaInternaSegura } from '@/lib/permisos-rutas';
 
 export default function SiteLoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const from = searchParams.get('from');
+  // Solo rutas del propio sitio: `?from=https://otro` sería un open redirect.
+  const from = rutaInternaSegura(searchParams.get('from'));
 
   const [usuario, setUsuario] = useState('');
   const [password, setPassword] = useState('');
@@ -40,9 +42,13 @@ export default function SiteLoginPage() {
       }
 
       const isAdmin = isAdminRole(data.rol);
-      const destination = isAdmin
-        ? (from?.startsWith('/admin') ? from : '/admin')
-        : (from ?? '/retencion/inicio');
+      // El empleado entra a su portal (/admin con solo sus módulos); el middleware
+      // no le deja abrir otra cosa, así que el `from` solo vale si es del portal.
+      const destination = isEmpleadoRole(data.rol)
+        ? (from === '/admin/mi-asistencia' || from === '/admin/mis-recibos' ? from : '/admin')
+        : isAdmin
+          ? (from?.startsWith('/admin') ? from : '/admin')
+          : (from ?? '/retencion/inicio');
       router.push(destination);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');

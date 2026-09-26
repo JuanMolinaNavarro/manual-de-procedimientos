@@ -7,6 +7,7 @@
  * Solo servidor. El cliente importa de acá únicamente tipos (`import type`).
  */
 
+import { hoyLocal } from './fechas';
 import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 import {
@@ -17,7 +18,6 @@ import {
   DEFAULT_PARAMS,
   METRICAS,
   PARAM_KEYS,
-  PIN_RE,
   mergeEmpresa,
   mergeParams,
   type Bono,
@@ -48,7 +48,17 @@ import {
   type RankingRow,
   type ReciboMeta,
 } from './nomina-calc';
-import { GENESIS, chainHash, pinHash, reciboHash, verificarCadena } from './nomina-hash';
+import { reciboHash, verificarCadena } from './nomina-hash';
+import {
+  PIN_BLOQUEO_MS,
+  PIN_MAX_FALLOS,
+  codigoAdhesion,
+  estadoBloqueo,
+  hashPin,
+  validarPinNuevo,
+  verificarPin,
+} from './nomina-pin';
+import { emailValido, normalizarEmail } from './recibos-aviso';
 
 export class NominaError extends Error {
   status: number;
@@ -71,6 +81,7 @@ export interface ConstanciaView {
   id: number;
   periodo: string;
   empleadoId: number;
+  reciboId: string;
   hash: string;
   prevHash: string;
   chainHash: string;
@@ -78,18 +89,25 @@ export interface ConstanciaView {
   conformidad: string;
   observaciones: string;
   canal: string;
-  firmante: { empId: number; nombre: string; cuil: string };
+  firmante: { empId: number; nombre: string; cuil: string; adhesion: string };
   dispositivo: string;
+  ip: string;
   leido: boolean;
 }
 
 export interface AdhesionView {
   empleadoId: number;
+  codigo: string | null;
+  /** Email que el trabajador declaró en el acta para los avisos de recibos. */
+  email: string | null;
   fecha: string;
   modo: string;
   cuil: string;
   pinCambiado: string | null;
-  acta: { nombreOriginal: string; tamano: number | null; subidaEn: string | null } | null;
+  /** Completa = con acta firmada subida. Sin acta la adhesión NO habilita firmas. */
+  completa: boolean;
+  bloqueadaHasta: string | null;
+  acta: { nombreOriginal: string; tamano: number | null; subidaEn: string | null; sha256: string | null } | null;
 }
 
 /** Liquidación como la ve la UI: con foto, hash y estado de firma (si está cerrada). */
@@ -157,28 +175,11 @@ export interface AdhesionRow {
   adhesion: AdhesionView | null;
 }
 
-export interface ReciboRow {
-  empleado: EmpleadoNomina;
-  liquidacionId: number;
-  neto: number;
-  adherido: boolean;
-  constancia: ConstanciaView | null;
-  /** null = sin constancia; false = el hash firmado ya no coincide con el cierre. */
-  hashOk: boolean | null;
-}
-
-export interface PeriodoRecibos {
-  periodo: string;
-  fechaCierre: string;
-  firmados: number;
-  rows: ReciboRow[];
-}
-
+/** Panel de adhesiones (Nómina › Recibos). Los recibos PDF y sus firmas: recibos-finnegans.ts. */
 export interface RecibosData {
   empresaOk: boolean;
   cadena: { total: number; rotos: number };
   adhesiones: AdhesionRow[];
-  periodos: PeriodoRecibos[];
 }
 
 export interface ReciboVista {
@@ -193,19 +194,22 @@ export interface ReciboVista {
   foto_archivo: string | null;
 }
 
+/** Recibo PDF (Finnegans) de una ficha, para la pestaña "Recibos" del organigrama. */
 export interface ReciboDeEmpleado {
-  liquidacionId: number;
+  id: string;
   organigramaId: number;
   organigramaNombre: string;
   periodo: string;
-  fechaCierre: string;
+  tipoLiquidacion: string;
   neto: number;
+  estado: string;
   constancia: { conformidad: string; fecha: string } | null;
 }
 
 export interface ActaDatos {
   empresa: { razonSocial: string; cuit: string; domicilio: string };
   trabajador: { id: number; nombre: string; cuil: string; categoria: string };
+  adhesion: { codigo: string | null; fecha: string; creadaEn: string; email: string | null } | null;
   organigramaId: number;
 }
 
@@ -252,30 +256,40 @@ const NOVEDAD_DB: Record<NovedadNumKey, keyof Omit<NovedadRowDb, 'notas'>> = {
 };
 
 type ConstanciaDb = {
-  id: number; periodo: string; empleado_id: number; hash: string; prev_hash: string; chain_hash: string; fecha: string;
-  conformidad: string; observaciones: string; canal: string; firmante: Prisma.JsonValue; dispositivo: string; leido: boolean;
+  id: number; periodo: string; empleado_id: number; recibo_id: string; hash: string; prev_hash: string; chain_hash: string;
+  fecha: string; conformidad: string; observaciones: string; canal: string; firmante: Prisma.JsonValue; dispositivo: string;
+  ip: string; leido: boolean;
 };
 
-function toConstancia(c: ConstanciaDb): ConstanciaView {
+export function toConstancia(c: ConstanciaDb): ConstanciaView {
   const f = (c.firmante && typeof c.firmante === 'object' ? c.firmante : {}) as Record<string, unknown>;
   return {
-    id: c.id, periodo: c.periodo, empleadoId: c.empleado_id, hash: c.hash, prevHash: c.prev_hash, chainHash: c.chain_hash,
-    fecha: c.fecha, conformidad: c.conformidad, observaciones: c.observaciones, canal: c.canal,
-    firmante: { empId: Number(f.empId ?? c.empleado_id), nombre: String(f.nombre ?? ''), cuil: String(f.cuil ?? '') },
-    dispositivo: c.dispositivo, leido: c.leido,
+    id: c.id, periodo: c.periodo, empleadoId: c.empleado_id, reciboId: c.recibo_id, hash: c.hash, prevHash: c.prev_hash,
+    chainHash: c.chain_hash, fecha: c.fecha, conformidad: c.conformidad, observaciones: c.observaciones, canal: c.canal,
+    firmante: {
+      empId: Number(f.empId ?? c.empleado_id), nombre: String(f.nombre ?? ''), cuil: String(f.cuil ?? ''),
+      adhesion: String(f.adhesion ?? ''),
+    },
+    dispositivo: c.dispositivo, ip: c.ip, leido: c.leido,
   };
 }
 
 type AdhesionDb = {
-  empleado_id: number; fecha: string; modo: string; cuil: string; pin_cambiado: string | null;
-  acta_archivo: string | null; acta_nombre_original: string | null; acta_tamano: number | null; acta_subida_en: Date | null;
+  empleado_id: number; codigo: string | null; email: string | null; fecha: string; modo: string; cuil: string; pin_cambiado: string | null;
+  pin_bloqueado_hasta: Date | null; acta_archivo: string | null; acta_nombre_original: string | null; acta_tamano: number | null;
+  acta_sha256: string | null; acta_subida_en: Date | null;
 };
 
 function toAdhesion(a: AdhesionDb): AdhesionView {
+  const bloqueo = a.pin_bloqueado_hasta && a.pin_bloqueado_hasta.getTime() > Date.now() ? a.pin_bloqueado_hasta.toISOString() : null;
   return {
-    empleadoId: a.empleado_id, fecha: a.fecha, modo: a.modo, cuil: a.cuil, pinCambiado: a.pin_cambiado,
+    empleadoId: a.empleado_id, codigo: a.codigo, email: a.email, fecha: a.fecha, modo: a.modo, cuil: a.cuil, pinCambiado: a.pin_cambiado,
+    completa: !!a.acta_archivo, bloqueadaHasta: bloqueo,
     acta: a.acta_archivo
-      ? { nombreOriginal: a.acta_nombre_original ?? 'acta.pdf', tamano: a.acta_tamano, subidaEn: a.acta_subida_en?.toISOString() ?? null }
+      ? {
+          nombreOriginal: a.acta_nombre_original ?? 'acta.pdf', tamano: a.acta_tamano,
+          subidaEn: a.acta_subida_en?.toISOString() ?? null, sha256: a.acta_sha256,
+        }
       : null,
   };
 }
@@ -585,13 +599,13 @@ function liquidarContexto(ctx: ContextoLiq, periodo: string): Liquidacion[] {
   }));
 }
 
-/** Pre-liquidación en vivo del período (sin cerrar). */
-export async function liquidarPeriodo(orgId: number, periodo: string): Promise<Liquidacion[]> {
-  return liquidarContexto(await contextoLiquidacion(orgId, periodo), periodo);
-}
-
+/**
+ * Constancia de firma de cada empleado en el período (la última, si firmó más de un
+ * recibo PDF de Finnegans ese mes). La firma es del recibo de Finnegans, no del
+ * cálculo propio: acá solo se informa.
+ */
 async function constanciasDe(orgId: number, periodo: string): Promise<Record<number, ConstanciaView>> {
-  const rows = await prisma.nominaConstancia.findMany({ where: { organigrama_id: orgId, periodo } });
+  const rows = await prisma.nominaConstancia.findMany({ where: { organigrama_id: orgId, periodo }, orderBy: [{ fecha: 'asc' }, { id: 'asc' }] });
   return Object.fromEntries(rows.map((c) => [c.empleado_id, toConstancia(c)]));
 }
 
@@ -642,6 +656,18 @@ export async function cerrarPeriodo(orgId: number, periodo: string, username: st
 
   const fechaCierre = new Date().toISOString();
   const maestroPorEmp = Object.fromEntries(ctx.incluidos.map((r) => [r.empleado.id, r.maestro]));
+  // Hashes y snapshots se calculan antes: dentro de la transacción queda un solo INSERT por
+  // tabla (antes era un create por empleado y una nómina grande podía pasar el timeout de 5 s).
+  const filas = liqs.map((l) => {
+    const snap: MaestroSnapshot = maestroSnapshot(maestroPorEmp[l.empId]);
+    const hash = reciboHash(reciboPayload(l, reciboMeta(l, ctx.config.empresa, snap, periodo), fechaCierre));
+    return {
+      empleado_id: l.empId, nombre: l.nombre, rol: l.rol, area: l.dept,
+      maestro_snapshot: snap as unknown as Prisma.InputJsonObject,
+      liquidacion: l as unknown as Prisma.InputJsonObject,
+      neto: l.neto, costo_empresa: l.costoEmpresa, hash,
+    };
+  });
   try {
     await prisma.$transaction(async (tx) => {
       const cierre = await tx.nominaCierre.create({
@@ -651,18 +677,7 @@ export async function cerrarPeriodo(orgId: number, periodo: string, username: st
           empresa_snapshot: ctx.config.empresa as unknown as Prisma.InputJsonObject,
         },
       });
-      for (const l of liqs) {
-        const snap: MaestroSnapshot = maestroSnapshot(maestroPorEmp[l.empId]);
-        const hash = reciboHash(reciboPayload(l, reciboMeta(l, ctx.config.empresa, snap, periodo), fechaCierre));
-        await tx.nominaLiquidacion.create({
-          data: {
-            cierre_id: cierre.id, empleado_id: l.empId, nombre: l.nombre, rol: l.rol, area: l.dept,
-            maestro_snapshot: snap as unknown as Prisma.InputJsonObject,
-            liquidacion: l as unknown as Prisma.InputJsonObject,
-            neto: l.neto, costo_empresa: l.costoEmpresa, hash,
-          },
-        });
-      }
+      await tx.nominaLiquidacion.createMany({ data: filas.map((f) => ({ ...f, cierre_id: cierre.id })) });
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new NominaError('El período ya está cerrado', 409);
@@ -701,7 +716,8 @@ export async function getEstado(orgId: number, periodo: string): Promise<EstadoP
     prisma.nominaCierre.findUnique({ where: { organigrama_id_periodo: { organigrama_id: orgId, periodo } }, include: { _count: { select: { liquidaciones: true } } } }),
   ]);
   const incluidos = maestro.filter((r) => r.maestro.incluir);
-  const firmados = cierre ? await prisma.nominaConstancia.count({ where: { organigrama_id: orgId, periodo } }) : 0;
+  // Firmas de los recibos PDF de Finnegans del período (no dependen del cierre del motor propio).
+  const firmados = await prisma.nominaConstancia.count({ where: { organigrama_id: orgId, periodo } });
   return {
     total: maestro.length, incluidos: incluidos.length, conBasico: incluidos.filter((r) => r.maestro.basico > 0).length,
     cerrado: !!cierre, fechaCierre: cierre?.fecha_cierre ?? null, firmados, enCierre: cierre?._count.liquidaciones ?? 0,
@@ -779,7 +795,7 @@ export async function otorgarBono(orgId: number, bonoId: number, periodo: string
   if (!rk.length || rk[0].valor <= 0) throw new NominaError('Sin ganador definido este mes');
   const win = rk[0].emp;
   const monto = Math.max(0, b.monto);
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyLocal();
   try {
     await prisma.$transaction(async (tx) => {
       await tx.nominaBonoOtorgado.create({
@@ -805,42 +821,130 @@ export async function otorgarBono(orgId: number, bonoId: number, periodo: string
 // ─── Recibos: adhesión, firma y constancias ──────────────────────────────────
 
 function validarPin(pin: unknown, pin2: unknown): string {
-  const p1 = typeof pin === 'string' ? pin.trim() : '';
-  const p2 = typeof pin2 === 'string' ? pin2.trim() : '';
-  if (!PIN_RE.test(p1)) throw new NominaError('El PIN debe tener entre 4 y 8 dígitos');
-  if (p1 !== p2) throw new NominaError('Los PIN no coinciden');
-  return p1;
+  const r = validarPinNuevo(pin, pin2);
+  if (!r.ok) throw new NominaError(r.error);
+  return r.pin;
 }
 
-export async function adherir(orgId: number, empleadoId: number, modo: unknown, pin: unknown, pin2: unknown, username: string | null): Promise<AdhesionView> {
+/**
+ * Adhesión presencial: el trabajador elige su PIN (dos veces) delante de RR.HH. y declara el
+ * email donde recibe los avisos de recibos (queda impreso en el acta). Queda PENDIENTE hasta
+ * que se sube el acta firmada en papel. Después firma sus recibos desde el portal.
+ */
+export async function adherir(orgId: number, empleadoId: number, email: unknown, pin: unknown, pin2: unknown, username: string | null): Promise<AdhesionView> {
   const empleado = await empleadoDeOrg(orgId, empleadoId);
   const m = toMaestro(await prisma.nominaEmpleado.findUnique({ where: { empleado_id: empleadoId } }), empleado.estado);
   if (!m.cuil) throw new NominaError('Cargá el CUIL en el Maestro antes de adherir');
-  const modoOk = modo === 'electronica' ? 'electronica' : 'papel';
+  if (!emailValido(email)) throw new NominaError('Ingresá un email válido: ahí le avisamos cuando tenga recibos para firmar');
+  const mail = normalizarEmail(email);
   const p = validarPin(pin, pin2);
   if (await prisma.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } })) throw new NominaError('El trabajador ya está adherido', 409);
-  const row = await prisma.nominaAdhesion.create({
-    data: {
-      empleado_id: empleadoId, organigrama_id: orgId, fecha: new Date().toISOString().slice(0, 10), modo: modoOk,
-      cuil: m.cuil, pin_hash: pinHash(p, m.cuil), created_by: username,
-    },
+  const pinHash = await hashPin(p, m.cuil);
+  const row = await prisma.$transaction(async (tx) => {
+    const creada = await tx.nominaAdhesion.create({
+      data: {
+        empleado_id: empleadoId, organigrama_id: orgId, fecha: hoyLocal(), modo: 'papel',
+        cuil: m.cuil, email: mail, pin_hash: pinHash, created_by: username,
+      },
+    });
+    // La ficha del organigrama toma el email si no tenía uno cargado.
+    await tx.orgEmpleado.updateMany({ where: { id: empleadoId, OR: [{ email: null }, { email: '' }] }, data: { email: mail } });
+    return tx.nominaAdhesion.update({ where: { id: creada.id }, data: { codigo: codigoAdhesion(creada) } });
   });
   return toAdhesion(row);
 }
 
-export async function cambiarPin(orgId: number, empleadoId: number, pin: unknown, pin2: unknown): Promise<void> {
-  const a = await prisma.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } });
-  if (!a || a.organigrama_id !== orgId) throw new NominaError('El trabajador no está adherido', 404);
-  const p = validarPin(pin, pin2);
-  await prisma.nominaAdhesion.update({ where: { empleado_id: empleadoId }, data: { pin_hash: pinHash(p, a.cuil), pin_cambiado: new Date().toISOString() } });
+/**
+ * Firmas hechas con la adhesión vigente (constancias del empleado desde que adhirió). Si hay
+ * alguna, el acta escaneada es su respaldo y no se puede quitar ni reemplazar: para corregir
+ * se revoca y se renueva la adhesión (el acta vieja queda en el historial).
+ */
+async function firmasConAdhesion(a: { empleado_id: number; created_at: Date }): Promise<number> {
+  return prisma.nominaConstancia.count({ where: { empleado_id: a.empleado_id, created_at: { gte: a.created_at } } });
 }
 
-/** Revoca la adhesión; devuelve el nombre del acta guardada (para borrar el archivo). */
-export async function revocarAdhesion(orgId: number, empleadoId: number): Promise<{ actaArchivo: string | null }> {
+export interface MiAdhesionView {
+  estado: 'sin_adhesion' | 'pendiente_acta' | 'completa';
+  codigo: string | null;
+  email: string | null;
+  fecha: string | null;
+  pinCambiado: string | null;
+  bloqueadaHasta: string | null;
+}
+
+/** Estado de la adhesión del propio trabajador (portal). */
+export async function miAdhesion(empleadoId: number): Promise<MiAdhesionView> {
+  const a = await prisma.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } });
+  if (!a) return { estado: 'sin_adhesion', codigo: null, email: null, fecha: null, pinCambiado: null, bloqueadaHasta: null };
+  const v = toAdhesion(a);
+  return {
+    estado: v.completa ? 'completa' : 'pendiente_acta',
+    codigo: v.codigo, email: v.email, fecha: v.fecha, pinCambiado: v.pinCambiado, bloqueadaHasta: v.bloqueadaHasta,
+  };
+}
+
+/**
+ * Cambio de PIN por AUTOGESTIÓN (portal): el trabajador ingresa su PIN actual y el nuevo dos
+ * veces. RR.HH. no puede cambiar PINs. El PIN actual comparte el bloqueo de la firma (5 → 15
+ * min) para que este formulario no sirva para adivinarlo. Cada cambio queda en
+ * `NominaPinCambio`. El código de adhesión no cambia: la cadena de atribución es acta → PIN
+ * original → cada cambio autenticado con el PIN anterior. Si lo olvidó, se renueva la
+ * adhesión (presencial, acta nueva).
+ */
+export async function cambiarPinPropio(
+  empleadoId: number,
+  input: { pinActual: unknown; pin: unknown; pin2: unknown },
+  meta: { dispositivo: string; usuario: string | null },
+): Promise<void> {
+  const a = await prisma.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } });
+  if (!a) throw new NominaError('No tenés una adhesión al recibo digital: la hace RR.HH. en persona', 409);
+  const bloqueo = estadoBloqueo(a.pin_bloqueado_hasta);
+  if (bloqueo.bloqueado) {
+    throw new NominaError(`Demasiados PIN incorrectos: esperá ${Math.ceil(bloqueo.segundos / 60)} min`, 429);
+  }
+  const actual = typeof input.pinActual === 'string' ? input.pinActual.trim() : '';
+  if (!actual) throw new NominaError('Ingresá tu PIN actual', 400);
+  const nuevo = validarPinNuevo(input.pin, input.pin2);
+  if (!nuevo.ok) throw new NominaError(nuevo.error, 400);
+  await comprobarPin(a.id, actual, a.cuil, a.pin_hash, 'PIN actual incorrecto', 'Demasiados PIN incorrectos: esperá unos minutos');
+  if (nuevo.pin === actual) throw new NominaError('El PIN nuevo tiene que ser distinto del actual', 400);
+  const pinHash = await hashPin(nuevo.pin, a.cuil);
+  await prisma.$transaction([
+    prisma.nominaAdhesion.update({
+      where: { id: a.id },
+      data: {
+        pin_hash: pinHash, pin_cambiado: new Date().toISOString(),
+        pin_cambiado_por: 'el trabajador (portal)', pin_fallos: 0, pin_bloqueado_hasta: null,
+      },
+    }),
+    prisma.nominaPinCambio.create({
+      data: {
+        empleado_id: empleadoId, codigo_adhesion: a.codigo, canal: 'portal',
+        dispositivo: meta.dispositivo.slice(0, 200), usuario: meta.usuario,
+      },
+    }),
+  ]);
+}
+
+/**
+ * Revoca la adhesión (baja del recibo digital, o renovación porque olvidó el PIN). NO borra
+ * nada: la archiva en `NominaAdhesionRevocada` con su código y su acta escaneada (respaldo de
+ * las firmas ya hechas). Después se puede adherir de nuevo (presencial, acta nueva).
+ */
+export async function revocarAdhesion(orgId: number, empleadoId: number, username: string | null, motivo: unknown): Promise<void> {
   const a = await prisma.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } });
   if (!a || a.organigrama_id !== orgId) throw new NominaError('El trabajador no está adherido', 404);
-  await prisma.nominaAdhesion.delete({ where: { empleado_id: empleadoId } }); // las constancias se conservan
-  return { actaArchivo: a.acta_archivo };
+  const m = typeof motivo === 'string' ? motivo.trim().slice(0, 500) : '';
+  await prisma.$transaction([
+    prisma.nominaAdhesionRevocada.create({
+      data: {
+        empleado_id: a.empleado_id, organigrama_id: a.organigrama_id, codigo: a.codigo, fecha: a.fecha, cuil: a.cuil,
+        acta_archivo: a.acta_archivo, acta_nombre_original: a.acta_nombre_original, acta_sha256: a.acta_sha256,
+        adherida_por: a.created_by, adherida_en: a.created_at, revocada_por: username, motivo: m,
+      },
+    }),
+    prisma.nominaAdhesion.delete({ where: { id: a.id } }), // las constancias se conservan
+  ]);
 }
 
 export async function getAdhesion(orgId: number, empleadoId: number): Promise<{ view: AdhesionView; actaArchivo: string | null }> {
@@ -850,12 +954,18 @@ export async function getAdhesion(orgId: number, empleadoId: number): Promise<{ 
 }
 
 /** Registra el acta escaneada; devuelve el archivo anterior (para borrarlo). */
-export async function setActa(orgId: number, empleadoId: number, acta: { archivo: string; nombreOriginal: string; tamano: number }): Promise<{ anterior: string | null; view: AdhesionView }> {
+export async function setActa(orgId: number, empleadoId: number, acta: { archivo: string; nombreOriginal: string; tamano: number; sha256: string }): Promise<{ anterior: string | null; view: AdhesionView }> {
   const a = await prisma.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } });
   if (!a || a.organigrama_id !== orgId) throw new NominaError('El trabajador no está adherido', 404);
+  if (a.acta_archivo && (await firmasConAdhesion(a)) > 0) {
+    throw new NominaError('Ya hay recibos firmados con esta adhesión: el acta no se reemplaza. Para corregirla, revocá y renová la adhesión', 409);
+  }
   const row = await prisma.nominaAdhesion.update({
     where: { empleado_id: empleadoId },
-    data: { acta_archivo: acta.archivo, acta_nombre_original: acta.nombreOriginal, acta_tamano: acta.tamano, acta_subida_en: new Date() },
+    data: {
+      acta_archivo: acta.archivo, acta_nombre_original: acta.nombreOriginal, acta_tamano: acta.tamano,
+      acta_sha256: acta.sha256, acta_subida_en: new Date(),
+    },
   });
   return { anterior: a.acta_archivo, view: toAdhesion(row) };
 }
@@ -863,9 +973,12 @@ export async function setActa(orgId: number, empleadoId: number, acta: { archivo
 export async function clearActa(orgId: number, empleadoId: number): Promise<{ anterior: string | null }> {
   const a = await prisma.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } });
   if (!a || a.organigrama_id !== orgId) throw new NominaError('El trabajador no está adherido', 404);
+  if ((await firmasConAdhesion(a)) > 0) {
+    throw new NominaError('Ya hay recibos firmados con esta adhesión: el acta es su respaldo y no se puede quitar', 409);
+  }
   await prisma.nominaAdhesion.update({
     where: { empleado_id: empleadoId },
-    data: { acta_archivo: null, acta_nombre_original: null, acta_tamano: null, acta_subida_en: null },
+    data: { acta_archivo: null, acta_nombre_original: null, acta_tamano: null, acta_sha256: null, acta_subida_en: null },
   });
   return { anterior: a.acta_archivo };
 }
@@ -873,89 +986,18 @@ export async function clearActa(orgId: number, empleadoId: number): Promise<{ an
 export async function getActaDatos(orgId: number, empleadoId: number): Promise<ActaDatos> {
   const [empleado, config] = await Promise.all([empleadoDeOrg(orgId, empleadoId), getConfig(orgId)]);
   const m = toMaestro(await prisma.nominaEmpleado.findUnique({ where: { empleado_id: empleadoId } }), empleado.estado);
+  const a = await prisma.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } });
   return {
     empresa: { razonSocial: config.empresa.razonSocial, cuit: config.empresa.cuit, domicilio: config.empresa.domicilio },
-    trabajador: { id: empleado.id, nombre: empleado.nombre, cuil: m.cuil, categoria: m.categoria },
+    trabajador: { id: empleado.id, nombre: empleado.nombre, cuil: a?.cuil ?? m.cuil, categoria: m.categoria },
+    adhesion: a && a.organigrama_id === orgId ? { codigo: a.codigo, fecha: a.fecha, creadaEn: a.created_at.toISOString(), email: a.email } : null,
     organigramaId: orgId,
   };
 }
 
-// Freno de fuerza bruta sobre el PIN (4–8 dígitos): 5 fallos → 60 s de espera.
-const pinFallos = new Map<number, { n: number; hasta: number }>();
-const PIN_MAX_FALLOS = 5, PIN_BLOQUEO_MS = 60_000;
-
-function checkPinThrottle(empleadoId: number) {
-  const f = pinFallos.get(empleadoId);
-  if (f && f.n >= PIN_MAX_FALLOS && Date.now() < f.hasta) {
-    throw new NominaError(`Demasiados intentos: esperá ${Math.ceil((f.hasta - Date.now()) / 1000)} s`, 429);
-  }
-}
-function pinFallo(empleadoId: number) {
-  const f = pinFallos.get(empleadoId) ?? { n: 0, hasta: 0 };
-  f.n = Date.now() < f.hasta ? f.n + 1 : f.n >= PIN_MAX_FALLOS ? 1 : f.n + 1;
-  if (f.n >= PIN_MAX_FALLOS) f.hasta = Date.now() + PIN_BLOQUEO_MS;
-  pinFallos.set(empleadoId, f);
-}
-
-export interface FirmaInput {
-  pin: unknown;
-  conformidad: unknown;
-  observaciones: unknown;
-  leido: unknown;
-  dispositivo: string;
-}
-
-/**
- * Firma en kiosco: verifica el PIN contra la adhesión y registra la constancia
- * encadenada con la anterior del organigrama. El lock advisory serializa las
- * firmas concurrentes para que la cadena nunca se bifurque.
- */
-export async function firmarKiosco(orgId: number, periodo: string, empleadoId: number, input: FirmaInput): Promise<ConstanciaView> {
-  const cierre = await prisma.nominaCierre.findUnique({
-    where: { organigrama_id_periodo: { organigrama_id: orgId, periodo } },
-    include: { liquidaciones: { where: { empleado_id: empleadoId } } },
-  });
-  if (!cierre) throw new NominaError('El período no está cerrado', 409);
-  const liq = cierre.liquidaciones[0];
-  if (!liq) throw new NominaError('El trabajador no está en ese cierre', 404);
-  const adh = await prisma.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } });
-  if (!adh || adh.organigrama_id !== orgId) throw new NominaError('El trabajador no adhirió al recibo digital', 409);
-  if (await prisma.nominaConstancia.findUnique({ where: { organigrama_id_periodo_empleado_id: { organigrama_id: orgId, periodo, empleado_id: empleadoId } } })) {
-    throw new NominaError('Este recibo ya está firmado', 409);
-  }
-  if (input.leido !== true) throw new NominaError('Marcá que recibiste y leíste el recibo');
-  const pin = typeof input.pin === 'string' ? input.pin.trim() : '';
-  if (!pin) throw new NominaError('Ingresá tu PIN');
-  checkPinThrottle(empleadoId);
-  if (pinHash(pin, adh.cuil) !== adh.pin_hash) {
-    pinFallo(empleadoId);
-    throw new NominaError('PIN incorrecto');
-  }
-  pinFallos.delete(empleadoId);
-  const conformidad = input.conformidad === 'disconforme' ? 'disconforme' : 'conforme';
-  const observaciones = (typeof input.observaciones === 'string' ? input.observaciones.trim() : '').slice(0, 2000);
-  if (conformidad === 'disconforme' && !observaciones) throw new NominaError('Indicá qué observás para firmar en disconformidad');
-
-  const row = await prisma.$transaction(async (tx) => {
-    // Prisma manda el número como bigint (la firma (int, int) exige el cast) y
-    // no sabe deserializar el `void` que devuelve la función: $executeRaw ignora
-    // el resultado.
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('nomina_cadena'), ${orgId}::int)`;
-    const last = await tx.nominaConstancia.findFirst({ where: { organigrama_id: orgId }, orderBy: [{ fecha: 'desc' }, { id: 'desc' }] });
-    const fecha = new Date().toISOString();
-    const prev = last?.chain_hash ?? GENESIS;
-    const base = { hash: liq.hash, fecha, empleado_id: empleadoId, periodo, conformidad, observaciones };
-    return tx.nominaConstancia.create({
-      data: {
-        organigrama_id: orgId, periodo, empleado_id: empleadoId, hash: liq.hash, prev_hash: prev, chain_hash: chainHash(prev, base),
-        fecha, conformidad, observaciones, canal: 'kiosco',
-        firmante: { empId: empleadoId, nombre: liq.nombre, cuil: adh.cuil },
-        dispositivo: input.dispositivo.slice(0, 80), leido: true,
-      },
-    });
-  });
-  return toConstancia(row);
-}
+// La firma de los recibos (PDF de Finnegans) vive en recibos-finnegans.ts › firmarRecibo:
+// el trabajador firma desde el portal (su celular) con usuario + PIN (scrypt, nomina-pin.ts)
+// y bloqueo persistente. El recibo calculado por el motor propio NO se firma.
 
 export async function verificarCadenaOrg(orgId: number): Promise<{ total: number; rotos: number }> {
   const rows = await prisma.nominaConstancia.findMany({ where: { organigrama_id: orgId }, orderBy: [{ fecha: 'asc' }, { id: 'asc' }] });
@@ -963,30 +1005,13 @@ export async function verificarCadenaOrg(orgId: number): Promise<{ total: number
 }
 
 export async function getRecibos(orgId: number): Promise<RecibosData> {
-  const [config, maestro, adhesiones, cadena, cierres] = await Promise.all([
+  const [config, maestro, adhesiones, cadena] = await Promise.all([
     getConfig(orgId), getMaestro(orgId), adhesionesDe(orgId), verificarCadenaOrg(orgId),
-    prisma.nominaCierre.findMany({
-      where: { organigrama_id: orgId },
-      orderBy: { periodo: 'desc' },
-      include: { liquidaciones: { include: { empleado: { select: SELECT_EMPLEADO } }, orderBy: { id: 'asc' } } },
-    }),
   ]);
-  const constancias = await prisma.nominaConstancia.findMany({ where: { organigrama_id: orgId } });
-  const cst = new Map(constancias.map((c) => [c.periodo + '|' + c.empleado_id, c]));
   return {
     empresaOk: !!(config.empresa.razonSocial && config.empresa.cuit),
     cadena,
     adhesiones: maestro.map((r) => ({ empleado: r.empleado, cuil: r.maestro.cuil, adhesion: adhesiones[r.empleado.id] ?? null })),
-    periodos: cierres.map((c) => {
-      const rows: ReciboRow[] = c.liquidaciones.map((l) => {
-        const k = cst.get(c.periodo + '|' + l.empleado_id);
-        return {
-          empleado: toEmpleado(l.empleado), liquidacionId: l.id, neto: l.neto, adherido: !!adhesiones[l.empleado_id],
-          constancia: k ? toConstancia(k) : null, hashOk: k ? k.hash === l.hash : null,
-        };
-      });
-      return { periodo: c.periodo, fechaCierre: c.fecha_cierre, firmados: rows.filter((r) => r.constancia).length, rows };
-    }),
   };
 }
 
@@ -1004,10 +1029,10 @@ export async function getReciboVista(orgId: number, periodo: string, empleadoId:
     const l = liqDesdeSnapshot(row);
     const empresa = mergeEmpresa(cierre.empresa_snapshot);
     const snap = row.maestro_snapshot as unknown as MaestroSnapshot;
-    const k = await prisma.nominaConstancia.findUnique({ where: { organigrama_id_periodo_empleado_id: { organigrama_id: orgId, periodo, empleado_id: empleadoId } } });
+    // El recibo del motor propio es simulación: no se firma (la constancia es del PDF de Finnegans).
     return {
       periodo, cerrado: true, fechaCierre: cierre.fecha_cierre, liquidacion: l, meta: reciboMeta(l, empresa, snap, periodo),
-      hash: row.hash, constancia: k ? toConstancia(k) : null, adhesion: adh ? toAdhesion(adh) : null, foto_archivo: empleado.foto_archivo,
+      hash: row.hash, constancia: null, adhesion: adh ? toAdhesion(adh) : null, foto_archivo: empleado.foto_archivo,
     };
   }
   const ctx = await contextoLiquidacion(orgId, periodo);
@@ -1023,24 +1048,24 @@ export async function getReciboVista(orgId: number, periodo: string, empleadoId:
   };
 }
 
-/** Recibos cerrados de una ficha (pestaña "Recibos" del organigrama). */
+/** Recibos PDF (Finnegans) de una ficha, con su firma (pestaña "Recibos" del organigrama). */
 export async function getRecibosDeEmpleado(empleadoId: number): Promise<ReciboDeEmpleado[]> {
-  const rows = await prisma.nominaLiquidacion.findMany({
+  const rows = await prisma.nominaReciboPdf.findMany({
     where: { empleado_id: empleadoId },
-    include: { cierre: { include: { organigrama: { select: { id: true, nombre: true } } } } },
-    orderBy: { cierre: { periodo: 'desc' } },
+    include: { constancia: { select: { conformidad: true, fecha: true } } },
+    orderBy: [{ periodo: 'desc' }, { created_at: 'desc' }],
   });
   if (!rows.length) return [];
-  const constancias = await prisma.nominaConstancia.findMany({ where: { empleado_id: empleadoId }, select: { organigrama_id: true, periodo: true, conformidad: true, fecha: true } });
-  const cst = new Map(constancias.map((c) => [c.organigrama_id + '|' + c.periodo, c]));
-  return rows.map((r) => {
-    const k = cst.get(r.cierre.organigrama_id + '|' + r.cierre.periodo);
-    return {
-      liquidacionId: r.id, organigramaId: r.cierre.organigrama.id, organigramaNombre: r.cierre.organigrama.nombre,
-      periodo: r.cierre.periodo, fechaCierre: r.cierre.fecha_cierre, neto: r.neto,
-      constancia: k ? { conformidad: k.conformidad, fecha: k.fecha } : null,
-    };
+  const orgs = await prisma.organigrama.findMany({
+    where: { id: { in: [...new Set(rows.map((r) => r.organigrama_id))] } },
+    select: { id: true, nombre: true },
   });
+  const nombreOrg = new Map(orgs.map((o) => [o.id, o.nombre]));
+  return rows.map((r) => ({
+    id: r.id, organigramaId: r.organigrama_id, organigramaNombre: nombreOrg.get(r.organigrama_id) ?? '',
+    periodo: r.periodo, tipoLiquidacion: r.tipo_liquidacion, neto: r.neto, estado: r.estado,
+    constancia: r.constancia ? { conformidad: r.constancia.conformidad, fecha: r.constancia.fecha } : null,
+  }));
 }
 
 /**
@@ -1050,10 +1075,51 @@ export async function getRecibosDeEmpleado(empleadoId: number): Promise<ReciboDe
  */
 export async function tieneHistorialNomina(empleadoId?: number): Promise<boolean> {
   const where = empleadoId ? { empleado_id: empleadoId } : {};
-  const [liq, adh, cst] = await Promise.all([
+  const [liq, adh, cst, rec, rev] = await Promise.all([
     prisma.nominaLiquidacion.count({ where }),
     prisma.nominaAdhesion.count({ where }),
     prisma.nominaConstancia.count({ where }),
+    prisma.nominaReciboPdf.count({ where }),
+    prisma.nominaAdhesionRevocada.count({ where }),
   ]);
-  return liq + adh + cst > 0;
+  return liq + adh + cst + rec + rev > 0;
+}
+
+/**
+ * Verifica un PIN contra la adhesión con bloqueo atómico. El intento se RESERVA en la base
+ * antes de calcular el scrypt (`pin_fallos + 1` solo si no está bloqueada ni llegó al máximo),
+ * así N pedidos en paralelo no pueden probar más de `PIN_MAX_FALLOS` PINs: antes se leía el
+ * contador, se verificaba y recién después se escribía. Bien → contador a 0; mal y era el
+ * último intento → bloqueo de `PIN_BLOQUEO_MS`. Tira 401 (con intentos restantes) o 429.
+ */
+export async function comprobarPin(
+  adhesionId: number,
+  pin: string,
+  cuil: string,
+  pinHash: string,
+  msgIncorrecto: string,
+  msgBloqueado: string,
+): Promise<void> {
+  // Prisma guarda DateTime como timestamp sin zona, en UTC.
+  const filas = await prisma.$queryRaw<{ pin_fallos: number }[]>`
+    UPDATE nomina_adhesiones SET pin_fallos = pin_fallos + 1
+    WHERE id = ${adhesionId}
+      AND pin_fallos < ${PIN_MAX_FALLOS}
+      AND (pin_bloqueado_hasta IS NULL OR pin_bloqueado_hasta <= (now() AT TIME ZONE 'UTC'))
+    RETURNING pin_fallos`;
+  const intento = filas[0]?.pin_fallos;
+  if (intento == null) throw new NominaError(msgBloqueado, 429);
+
+  if (await verificarPin(pin, cuil, pinHash)) {
+    await prisma.nominaAdhesion.update({ where: { id: adhesionId }, data: { pin_fallos: 0, pin_bloqueado_hasta: null } });
+    return;
+  }
+  if (intento >= PIN_MAX_FALLOS) {
+    await prisma.nominaAdhesion.update({
+      where: { id: adhesionId },
+      data: { pin_fallos: 0, pin_bloqueado_hasta: new Date(Date.now() + PIN_BLOQUEO_MS) },
+    });
+    throw new NominaError(`${msgIncorrecto}. Se bloqueó por ${PIN_BLOQUEO_MS / 60_000} minutos`, 429);
+  }
+  throw new NominaError(`${msgIncorrecto} (${PIN_MAX_FALLOS - intento} intento(s) antes del bloqueo)`, 401);
 }

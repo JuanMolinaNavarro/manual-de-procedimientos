@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
-import { prisma } from '@/lib/prisma';
-import { getModulosForUser } from '@/lib/modulos';
-import { isSuperadmin } from '@/lib/roles';
+import { getSesion } from '@/lib/admin-auth';
+import { getModulosForUser, modulosEfectivos } from '@/lib/modulos';
+import { isEmpleadoRole } from '@/lib/roles';
 import AdminLogoutButton from '@/components/AdminLogoutButton';
 import ThemeToggle from '@/components/ThemeToggle';
 import AdminSidebar from '@/components/AdminSidebar';
@@ -18,19 +17,10 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const cookieStore = await cookies();
-  const sessionValue = cookieStore.get('site_session')?.value;
-  const usuario = sessionValue ? sessionValue.split('|')[0] : null;
+  const usuarioRecord = await getSesion();
 
-  const usuarioRecord = usuario
-    ? await prisma.usuario.findUnique({
-        where: { usuario },
-        select: { nombre: true, apellido: true, usuario: true, modulos: true, rol: true },
-      })
-    : null;
-
-  // Superadmin ve todos los módulos ([] = sin restricción).
-  const modulos = isSuperadmin(usuarioRecord?.rol) ? [] : usuarioRecord?.modulos ?? [];
+  // Superadmin ve todos los módulos ([] = sin restricción); empleado, solo su portal.
+  const modulos = modulosEfectivos(usuarioRecord?.rol, usuarioRecord?.modulos);
   const allowedNavLinks = getModulosForUser(modulos);
   const fallbackHref = allowedNavLinks[0]?.href ?? '/admin';
 
@@ -38,7 +28,7 @@ export default async function AdminLayout({
     ? [usuarioRecord.nombre, usuarioRecord.apellido].filter(Boolean).join(' ').trim() || usuarioRecord.usuario
     : null;
 
-  const isAuthed = Boolean(sessionValue);
+  const isAuthed = Boolean(usuarioRecord);
 
   return (
     <div className="min-h-screen bg-background">
@@ -48,7 +38,11 @@ export default async function AdminLayout({
       <header className="border-b border-border bg-card">
         <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
-            <AdminSidebar nombreCompleto={nombreCompleto} navLinks={allowedNavLinks} />
+            <AdminSidebar
+              nombreCompleto={nombreCompleto}
+              navLinks={allowedNavLinks}
+              titulo={isEmpleadoRole(usuarioRecord?.rol) ? 'Aurelius' : undefined}
+            />
             {/* El logo es blanco: en tema claro se invierte para que se vea. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -56,7 +50,8 @@ export default async function AdminLayout({
               alt="AURELIUS"
               className="h-9 w-9 object-contain invert dark:invert-0"
             />
-            <h1 className="font-[family-name:var(--font-playfair)] text-2xl font-semibold tracking-wide text-foreground">
+            {/* En teléfonos angostos queda solo el logo: el título no entra junto a los botones. */}
+            <h1 className="hidden font-[family-name:var(--font-playfair)] text-2xl font-semibold tracking-wide text-foreground min-[420px]:block">
               AURELIUS
             </h1>
           </div>

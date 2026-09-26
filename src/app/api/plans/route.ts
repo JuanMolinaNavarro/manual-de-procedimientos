@@ -1,22 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { getPlanConfig, upsertPlanConfig, type PlanConfigData } from '@/lib/planes';
 import { isEmpresa } from '@/lib/empresas';
-import { isAdminRole } from '@/lib/roles';
+import { isAdmin } from '@/lib/admin-auth';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
-
-async function isAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('site_session');
-  if (!session?.value) return false;
-  const parts = session.value.split('|');
-  return parts.length > 1 && isAdminRole(parts[1]);
-}
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 200, headers: CORS_HEADERS });

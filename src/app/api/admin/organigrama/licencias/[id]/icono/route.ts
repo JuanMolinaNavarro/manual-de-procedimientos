@@ -3,7 +3,8 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { canEditModule } from '@/lib/admin-auth';
 import { getLicenciaById } from '@/lib/organigrama';
-import { LICENCIAS_DIR, mimeDeIcono } from '@/lib/licencias-icono';
+import { LICENCIAS_DIR } from '@/lib/licencias-icono';
+import { headersArchivo } from '@/lib/archivos';
 
 /** Sirve el ícono (favicon descargado o imagen subida) de la licencia. */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -21,10 +22,5 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   } catch {
     return NextResponse.json({ error: 'Archivo no encontrado' }, { status: 404 });
   }
-  return new NextResponse(new Uint8Array(buffer), {
-    headers: {
-      'Content-Type': mimeDeIcono(licencia.icono_archivo),
-      'Cache-Control': 'private, max-age=3600',
-    },
-  });
+  return new NextResponse(new Uint8Array(buffer), { headers: headersArchivo(licencia.icono_archivo) });
 }

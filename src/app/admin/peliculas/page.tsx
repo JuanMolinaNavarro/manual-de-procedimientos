@@ -63,7 +63,6 @@ export default function PeliculasPage() {
       setSubmittedQuery(pending);
       doSearch(pending, 1);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggleActive = async (id: number, isActive: boolean) => {

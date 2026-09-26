@@ -19,6 +19,7 @@ interface EmpleadoVinculado {
 interface Usuario {
   id: number;
   usuario: string;
+  /** Solo para el formulario: nueva contraseña (vacía = no cambiarla). La API nunca la devuelve. */
   password: string;
   nombre: string | null;
   apellido: string | null;
@@ -75,8 +76,8 @@ export default function EditarUsuarioPage() {
 
         if (!usuarioRes.ok) throw new Error('Error al cargar el usuario');
 
-        const data = (await usuarioRes.json()) as Usuario;
-        setFormData(data);
+        const data = (await usuarioRes.json()) as Omit<Usuario, 'password'>;
+        setFormData({ ...data, password: '' });
         setPuedeEditarOrg((data.modulos_edit ?? []).includes('organigrama'));
         setEmpleadoSel(data.empleado_id ? String(data.empleado_id) : '');
 
@@ -226,13 +227,19 @@ export default function EditarUsuarioPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Contrasena</Label>
+              <Label htmlFor="password">Nueva contraseña</Label>
               <Input
                 id="password"
                 value={formData.password}
                 onChange={(event) => handleChange('password', event.target.value)}
-                required
+                placeholder="Dejala vacía para no cambiarla"
+                autoComplete="new-password"
+                minLength={8}
               />
+              <p className="text-xs text-muted-foreground">
+                Las contraseñas se guardan cifradas y no se pueden ver. Si alguien se olvida la suya,
+                asignale una nueva. Cambiarla cierra sus sesiones abiertas.
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -263,6 +270,7 @@ export default function EditarUsuarioPage() {
               >
                 <option value="agente">Agente</option>
                 <option value="admin">Admin</option>
+                <option value="empleado">Empleado (solo Mi asistencia y Recibos)</option>
                 {(soySuperadmin || formData.rol === 'superadmin') && (
                   <option value="superadmin">Superadmin</option>
                 )}

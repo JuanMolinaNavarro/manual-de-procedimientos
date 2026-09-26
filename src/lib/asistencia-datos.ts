@@ -3,6 +3,8 @@
  * Sin dependencias de servidor: se importa desde cliente y servidor.
  */
 
+import { OFFSET_AR_MIN, hoyLocal } from './fechas';
+
 /** Tipo de marca (byte "record type" del reloj; tabla Status de CrossChex). */
 export const TIPOS_MARCA: Record<number, string> = {
   0: 'Entrada',
@@ -51,7 +53,7 @@ export function esFechaImposible(fechaHoraIso: string, ahora = Date.now()): bool
 }
 
 /** Zona horaria fija de los relojes (Argentina, sin horario de verano). */
-export const OFFSET_RELOJ_MIN = -180;
+export const OFFSET_RELOJ_MIN = OFFSET_AR_MIN;
 
 /** Modo de descarga de registros del reloj. */
 export type ModoDescarga = 'nuevos' | 'todos';
@@ -69,10 +71,8 @@ export interface FiltrosFichadas {
   soloIncompletos?: boolean;
 }
 
-/** Hoy en hora local de Argentina como yyyy-mm-dd. */
-export function hoyLocal(ahora = new Date()): string {
-  return new Date(ahora.getTime() + OFFSET_RELOJ_MIN * 60_000).toISOString().slice(0, 10);
-}
+/** Hoy en hora local de Argentina como yyyy-mm-dd (vive en `fechas.ts`). */
+export { hoyLocal };
 
 /** Primer día del mes de `fecha` (yyyy-mm-dd). */
 export function inicioDeMes(fecha: string): string {
@@ -352,12 +352,6 @@ export function fmtHoraCorta(iso: string): string {
 export function fmtFechaHora(iso: string | null): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ_RELOJ });
-}
-
-/** 05/09 08:32 — para las tarjetas de relojes, donde el año sobra. */
-export function fmtFechaCorta(iso: string | null): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ_RELOJ });
 }
 
 /**

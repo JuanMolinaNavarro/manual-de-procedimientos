@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { consultarAbonadoPorDni, IspbossError } from '@/lib/ispboss';
+import { haySesion } from '@/lib/admin-auth';
 
 // Siempre dinámico: depende del query param y no debe cachearse.
 export const dynamic = 'force-dynamic';
@@ -7,10 +8,13 @@ export const dynamic = 'force-dynamic';
 /**
  * GET /api/carga-ventas/abonado?dni=<documento>
  *
- * Protegido por el middleware (requiere sesión). Actúa como proxy a ISPBoss
- * para no exponer la API key al navegador.
+ * Requiere sesión (el proxy además deja afuera al rol `empleado`). Actúa como proxy a
+ * ISPBoss para no exponer la API key al navegador.
  */
 export async function GET(request: NextRequest) {
+  if (!(await haySesion())) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  }
   const dni = (request.nextUrl.searchParams.get('dni') ?? '').trim();
 
   if (!/^\d{6,15}$/.test(dni)) {

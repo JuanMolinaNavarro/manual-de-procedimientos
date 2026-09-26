@@ -4,6 +4,7 @@
  * Contiene operaciones CRUD y lógica de filtrado por empresa y vigencia.
  */
 
+import { hoyLocal } from './fechas';
 import { prisma } from './prisma';
 import { type Empresa } from './empresas';
 
@@ -45,7 +46,8 @@ export interface UpdateBonificacionData {
 export async function getBonificacionesActivas(
   empresa?: string | null
 ): Promise<Bonificacion[]> {
-  const today = new Date().toISOString().split('T')[0];
+  // Día de Argentina, no de UTC (después de las 21 h UTC ya es mañana).
+  const today = hoyLocal();
 
   return prisma.bonificacion.findMany({
     where: {
@@ -119,14 +121,6 @@ export async function softDeleteBonificacion(id: number): Promise<boolean> {
   const result = await prisma.bonificacion.updateMany({
     where: { id },
     data: { activa: false },
-  });
-  return result.count > 0;
-}
-
-export async function activateBonificacion(id: number): Promise<boolean> {
-  const result = await prisma.bonificacion.updateMany({
-    where: { id },
-    data: { activa: true },
   });
   return result.count > 0;
 }

@@ -96,8 +96,29 @@ model Usuario {
   empleado     OrgEmpleado? @relation("UsuarioEmpleado", fields: [empleado_id], references: [id], onDelete: SetNull)
   created_at   DateTime     @default(now())
   updated_at   DateTime     @updatedAt
+  sesiones     Sesion[]
+  // Bloqueo de login por contraseñas incorrectas (ver src/lib/login-limite.ts).
+  login_fallos         Int       @default(0)
+  login_bloqueado_hasta DateTime?
 
   @@map("usuarios")
+}
+
+// Sesión del panel. La cookie `site_session` lleva un token aleatorio; acá se guarda solo su
+// sha256 (si se filtra la base no hay sesiones vivas que robar). Rol, estado y permisos se leen
+// SIEMPRE del Usuario, nunca de la cookie. Ver src/lib/sesion.ts.
+model Sesion {
+  id         String    @id // sha256 hex del token de la cookie
+  usuario_id Int
+  usuario    Usuario   @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  expira     DateTime
+  revocada   DateTime?
+  ip         String?
+  user_agent String?
+  created_at DateTime  @default(now())
+
+  @@index([usuario_id])
+  @@map("sesiones")
 }
 
 model SportsEvent {
@@ -160,6 +181,7 @@ model Lead {
   resultado  String?
   asignado   String?
   created_at DateTime @default(now())
+  @@index([created_at])
 
   @@map("leads")
 }
@@ -260,6 +282,8 @@ model SaltoImporte {
 
   contrato_comprador ContratoComprador? @relation(fields: [contrato_comprador_id], references: [id])
   contrato_vendedor  ContratoVendedor?  @relation(fields: [contrato_vendedor_id], references: [id])
+  @@index([contrato_comprador_id])
+  @@index([contrato_vendedor_id])
 
   @@map("saltos_importe")
 }
@@ -277,38 +301,10 @@ model ArchivoContrato {
 
   contrato_comprador ContratoComprador? @relation(fields: [contrato_comprador_id], references: [id], onDelete: Cascade)
   contrato_vendedor  ContratoVendedor?  @relation(fields: [contrato_vendedor_id], references: [id], onDelete: Cascade)
+  @@index([contrato_comprador_id])
+  @@index([contrato_vendedor_id])
 
   @@map("archivos_contrato")
-}
-
-model Factura {
-  id                Int      @id @default(autoincrement())
-  nombre_original   String
-  nombre_archivo    String
-  tipo_mime         String?
-  tamano            Int?
-  proveedor         String?
-  numero_factura    String?
-  fecha_emision     String?
-  fecha_vencimiento String?
-  monto_total       String?
-  monto_iva         String?
-  tipo_servicio     String?
-  periodo           String?
-  error_mensaje     String?
-  created_by        String?
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
-
-  tipo_flujo               String?
-  empresa_destino          String?
-  estado_carga             String    @default("pendiente")
-  finnegans_numero_interno String?
-  carga_error              String?
-  carga_intentos           Int       @default(0)
-  carga_at                 DateTime?
-
-  @@map("facturas")
 }
 
 // ─── Organigrama corporativo ────────────────────────────────────────────────
@@ -347,10 +343,8 @@ model OrgEmpleado {
   foto_archivo     String? // filename en uploads/organigrama/fotos
   estado           String  @default("active") // active | inactive
   sede             String?
-  horario          String?
   modalidad        String?
   guardias         String?
-  horarios         Json? // [{dia, valor}] horario por día de la semana
   actualizado      String?
   summary          String?
   antiguedad       String?
@@ -370,7 +364,6 @@ model OrgEmpleado {
   soft_skills        Json? // [{name,rating}]
   skills             Json? // string[]
   projects           Json? // string[]
-  proyectos_actuales Json? // []
 
   // estado del lienzo (posición libre arrastrada; null = anclado a su área)
   free_x Float?
@@ -401,6 +394,7 @@ model OrgEmpleado {
   nomina_liquidaciones   NominaLiquidacion[]
   nomina_adhesion        NominaAdhesion?
   nomina_constancias     NominaConstancia[]
+  nomina_recibos_pdf     NominaReciboPdf[]
   nomina_bonos_otorgados NominaBonoOtorgado[]
 
   // Asistencia: personas del reloj biométrico vinculadas a esta ficha y el
@@ -412,6 +406,8 @@ model OrgEmpleado {
   updated_by String?
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
+  @@index([organigrama_id])
+  @@index([manager_id])
 
   @@map("org_empleados")
 }
@@ -493,6 +489,8 @@ model OrgLinea {
   color          String   @default("#86868b")
   etiqueta       String?
   created_at     DateTime @default(now())
+  @@index([from_id])
+  @@index([to_id])
 
   @@map("org_lineas")
 }
@@ -774,14 +772,20 @@ model NominaAdhesion {
   id                   Int       @id @default(autoincrement())
   empleado_id          Int       @unique
   organigrama_id       Int
+  codigo               String?   @unique // ADH-000123-<8 hex>: se imprime en el acta y ata papel ↔ registro
   fecha                String // ISO yyyy-mm-dd
-  modo                 String // papel | electronica
-  cuil                 String // CUIL congelado al adherir (base del pinHash)
-  pin_hash             String
+  modo                 String    @default("papel") // siempre papel: la adhesión es presencial, con acta firmada
+  cuil                 String // CUIL congelado al adherir (entra en el hash del PIN)
+  email                String? // email que el trabajador declara en el acta para los avisos de recibos
+  pin_hash             String // scrypt$N$r$p$salt$hash (nomina-pin.ts); nunca el PIN
   pin_cambiado         String? // ISO datetime
-  acta_archivo         String? // <uuid>.pdf en uploads/nomina/actas
+  pin_cambiado_por     String?
+  pin_fallos           Int       @default(0) // PIN incorrectos seguidos (bloqueo persistente)
+  pin_bloqueado_hasta  DateTime?
+  acta_archivo         String? // <uuid>.pdf en uploads/nomina/actas. Sin acta: adhesión PENDIENTE (no firma)
   acta_nombre_original String?
   acta_tamano          Int?
+  acta_sha256          String? // hash del escaneo del acta firmada en papel
   acta_subida_en       DateTime?
   created_by           String?
   created_at           DateTime  @default(now())
@@ -799,26 +803,207 @@ model NominaAdhesion {
 model NominaConstancia {
   id             Int      @id @default(autoincrement())
   organigrama_id Int
-  periodo        String
+  periodo        String // copia del recibo (listados)
   empleado_id    Int
-  hash           String
+  recibo_id      String   @unique // NominaReciboPdf firmado: una constancia por recibo
+  hash           String // SHA-256 del PDF del recibo, byte a byte
   prev_hash      String
   chain_hash     String
   fecha          String // ISO datetime (generada dentro del lock de la cadena)
   conformidad    String // conforme | disconforme
   observaciones  String   @default("")
-  canal          String   @default("kiosco")
-  firmante       Json // {empId, nombre, cuil}
+  canal          String   @default("portal") // portal: el trabajador firma desde su celular con usuario + PIN
+  firmante       Json // {empId, nombre, cuil, adhesion}
   dispositivo    String   @default("")
+  ip             String   @default("") // IP desde la que firmó
   leido          Boolean  @default(true)
   created_at     DateTime @default(now())
 
-  organigrama Organigrama @relation(fields: [organigrama_id], references: [id], onDelete: Restrict)
-  empleado    OrgEmpleado @relation(fields: [empleado_id], references: [id], onDelete: Restrict)
+  organigrama Organigrama       @relation(fields: [organigrama_id], references: [id], onDelete: Restrict)
+  empleado    OrgEmpleado       @relation(fields: [empleado_id], references: [id], onDelete: Restrict)
+  recibo      NominaReciboPdf   @relation(fields: [recibo_id], references: [id], onDelete: Restrict)
+  caso        NominaCasoRecibo?
 
-  @@unique([organigrama_id, periodo, empleado_id])
   @@index([organigrama_id, fecha])
+  @@index([organigrama_id, periodo])
   @@map("nomina_constancias")
+}
+
+// ─── Recibos de sueldo emitidos por Finnegans (PDF oficial) ─────────────────
+// El recibo legal lo emite Finnegans; Aurelius lo distribuye. Ver CLAUDE.md
+// "Recibos de Finnegans". Independiente del motor propio (NominaCierre).
+
+// Una liquidación de Finnegans (transacción del subtipo LIQSUELDOS): una empresa,
+// un tipo de liquidación y un período, con N legajos. Sale de RESUMENLIQ.
+model NominaFinnLiquidacion {
+  id               Int       @id @default(autoincrement())
+  transaccion_id   Int       @unique // TRANSACCIONID = primaryKey de report/execute
+  organigrama_id   Int? // organigrama cuyo NominaConfig.empresa.cuit == empresa_cuit
+  empresa_cuit     String
+  empresa_nombre   String
+  nro_liquidacion  Int
+  tipo_liquidacion String
+  periodo          String // yyyy-mm (de FECHAHASTA)
+  fecha_desde      String // ISO yyyy-mm-dd
+  fecha_hasta      String
+  fecha_pago       String    @default("")
+  legajos          Int
+  filas            Json // filas de RESUMENLIQ de esta transacción (una por legajo)
+  estado           String    @default("pendiente") // pendiente | importada | con_diferencias
+  diferencias      Json?
+  sabana_archivo   String? // <transaccion_id>.pdf en uploads/nomina/sabanas
+  sabana_sha256    String?
+  importada_en     DateTime?
+  importada_por    String?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  recibos NominaReciboPdf[]
+
+  @@index([organigrama_id, periodo])
+  @@index([periodo])
+  @@map("nomina_finn_liquidaciones")
+}
+
+// El recibo de una persona: una o más páginas de la sábana, guardadas como PDF propio.
+model NominaReciboPdf {
+  id                    String    @id @default(uuid()) // opaco: es el que viaja en la URL
+  liquidacion_id        Int
+  organigrama_id        Int
+  empleado_id           Int
+  liquidacion_legajo_id Int       @unique // LIQUIDACIONLEGAJOID de Finnegans
+  cuil                  String
+  periodo               String // yyyy-mm
+  tipo_liquidacion      String
+  neto                  Float
+  pagina                Int // primera página dentro de la sábana (1-based)
+  archivo               String // <yyyy>/<uuid>.pdf en uploads/nomina/recibos
+  sha256                String // SHA-256 del PDF byte a byte
+  bytes                 Int
+  estado                String    @default("disponible") // disponible | accedido | firmado | papel ("no retirado" se deriva)
+  accedido_en           DateTime?
+  notificado_en         DateTime? // primer aviso por mail: desde acá corren los 15 días de "no retirado"
+  papel_archivo         String? // escaneo del recibo impreso y firmado a mano (uploads/nomina/papel)
+  papel_sha256          String?
+  papel_registrado_en   DateTime?
+  papel_registrado_por  String?
+  created_at            DateTime  @default(now()) // publicación = puesta a disposición
+
+  liquidacion NominaFinnLiquidacion @relation(fields: [liquidacion_id], references: [id], onDelete: Restrict)
+  empleado    OrgEmpleado           @relation(fields: [empleado_id], references: [id], onDelete: Restrict)
+  constancia  NominaConstancia?
+
+  @@index([empleado_id])
+  @@index([organigrama_id, periodo])
+  @@map("nomina_recibos_pdf")
+}
+
+// Adhesión revocada (o renovada porque el trabajador olvidó su PIN). Se archiva en vez de
+// borrarse: el acta escaneada es el respaldo de las firmas hechas con esa adhesión y se
+// conserva junto con su código (el que figura en `NominaConstancia.firmante.adhesion`).
+model NominaAdhesionRevocada {
+  id                   Int      @id @default(autoincrement())
+  empleado_id          Int
+  organigrama_id       Int
+  codigo               String?
+  fecha                String // fecha de la adhesión original (yyyy-mm-dd)
+  cuil                 String
+  acta_archivo         String?
+  acta_nombre_original String?
+  acta_sha256          String?
+  adherida_por         String?
+  adherida_en          DateTime
+  revocada_en          DateTime @default(now())
+  revocada_por         String?
+  motivo               String   @default("")
+
+  @@index([empleado_id])
+  @@map("nomina_adhesiones_revocadas")
+}
+
+// Cada cambio de PIN. Solo por autogestión del trabajador (portal, con su PIN actual):
+// RR.HH. no puede cambiar PINs. Si lo olvida, se renueva la adhesión (presencial, acta nueva).
+model NominaPinCambio {
+  id              Int      @id @default(autoincrement())
+  empleado_id     Int
+  codigo_adhesion String?
+  canal           String   @default("portal")
+  dispositivo     String   @default("")
+  usuario         String?
+  fecha           DateTime @default(now())
+
+  @@index([empleado_id])
+  @@map("nomina_pin_cambios")
+}
+
+// Disconformidad de una firma: la sigue RR.HH. (reunión, ajuste). La constancia nunca
+// se modifica; la resolución se anota acá.
+model NominaCasoRecibo {
+  id             Int       @id @default(autoincrement())
+  constancia_id  Int       @unique
+  organigrama_id Int
+  empleado_id    Int
+  estado         String    @default("abierto") // abierto | resuelto
+  notas          String    @default("")
+  resuelto_en    DateTime?
+  resuelto_por   String?
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  constancia NominaConstancia @relation(fields: [constancia_id], references: [id], onDelete: Restrict)
+
+  @@index([organigrama_id, estado])
+  @@map("nomina_casos_recibo")
+}
+
+// Aviso por mail "tus recibos están disponibles" (botón de RR.HH. por empresa y período).
+// Sin adjuntos ni importes: solo el enlace al portal, donde se firman. Cada envío queda
+// registrado con sus destinatarios: es la prueba de la puesta a disposición.
+model NominaAviso {
+  id             Int      @id @default(autoincrement())
+  organigrama_id Int
+  periodo        String
+  modo           String // smtp | prueba (sin SMTP configurado: se guarda el .eml y no se envía)
+  enviados       Int
+  fallidos       Int
+  enviado_por    String?
+  created_at     DateTime @default(now())
+
+  destinatarios NominaAvisoDestinatario[]
+
+  @@index([organigrama_id, periodo])
+  @@map("nomina_avisos")
+}
+
+model NominaAvisoDestinatario {
+  id          Int    @id @default(autoincrement())
+  aviso_id    Int
+  empleado_id Int
+  email       String
+  recibos     Int // recibos pendientes que incluía el aviso
+  estado      String // enviado | error
+  error       String @default("")
+  message_id  String @default("")
+
+  aviso NominaAviso @relation(fields: [aviso_id], references: [id], onDelete: Cascade)
+
+  @@index([empleado_id])
+  @@map("nomina_aviso_destinatarios")
+}
+
+// Cada interacción PAGA con la API de Finnegans (reportes y report/execute).
+// Sirve para ver el consumo del mes y cortar al llegar a FINNEGANS_TOPE_MENSUAL.
+model NominaFinnLlamada {
+  id       Int      @id @default(autoincrement())
+  endpoint String
+  detalle  String   @default("")
+  ok       Boolean
+  http     Int?
+  usuario  String?
+  fecha    DateTime @default(now())
+
+  @@index([fecha])
+  @@map("nomina_finn_llamadas")
 }
 
 // ─── Asistencia (relojes biométricos Anviz) ────────────────────────────────
@@ -866,6 +1051,7 @@ model AsistenciaPersona {
   updated_at   DateTime @updatedAt
 
   empleado OrgEmpleado? @relation(fields: [empleado_id], references: [id], onDelete: SetNull)
+  @@index([empleado_id])
 
   @@map("asistencia_personas")
 }

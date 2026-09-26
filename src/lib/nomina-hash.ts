@@ -3,9 +3,10 @@
  * node:crypto. El cliente nunca calcula hashes, los recibe de la API.
  *
  * Evidencia de cada firma: quién (empId + CUIL, PIN verificado), qué (SHA-256
- * del recibo canónico), cuándo (fecha ISO), cómo (canal, conformidad,
+ * del PDF del recibo de Finnegans + su id), cuándo (fecha ISO), cómo (conformidad,
  * observaciones) y encadenado con la constancia anterior (chainHash) para
- * detectar alteraciones.
+ * detectar alteraciones. El hash del PIN vive en `nomina-pin.ts` (scrypt).
+ * `reciboHash` queda para el recibo simulado del motor propio (ya no se firma).
  */
 
 import { createHash } from 'node:crypto';
@@ -15,11 +16,6 @@ export const GENESIS = '0'.repeat(64);
 
 export function sha256(s: string): string {
   return createHash('sha256').update(s, 'utf8').digest('hex');
-}
-
-/** Hash del PIN ligado al CUIL (solo dígitos). Nunca se guarda el PIN. */
-export function pinHash(pin: string, cuil: string): string {
-  return sha256('pin:' + String(pin).trim() + ':' + String(cuil || '').replace(/\D/g, ''));
 }
 
 export function reciboHash(payload: ReciboPayload): string {
@@ -33,12 +29,15 @@ export interface ConstanciaMin {
   fecha: string;
   empleado_id: number;
   periodo: string;
+  recibo_id: string;
   conformidad: string;
   observaciones: string;
 }
 
 export function chainHash(prev: string, c: Omit<ConstanciaMin, 'prev_hash' | 'chain_hash'>): string {
-  return sha256(prev + '|' + c.hash + '|' + c.fecha + '|' + c.empleado_id + '|' + c.periodo + '|' + c.conformidad + '|' + (c.observaciones || ''));
+  return sha256(
+    [prev, c.hash, c.fecha, c.empleado_id, c.periodo, c.recibo_id, c.conformidad, c.observaciones || ''].join('|'),
+  );
 }
 
 /** Verifica una cadena ya ordenada (fecha asc, id asc). */

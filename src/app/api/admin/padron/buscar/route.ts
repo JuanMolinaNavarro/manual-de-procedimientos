@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { buscarPadron } from '@/lib/padron';
 import { isEmpresa } from '@/lib/empresas';
-import { isAdminRole } from '@/lib/roles';
+import { isAdmin } from '@/lib/admin-auth';
 
 export const dynamic = 'force-dynamic';
-
-async function isAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  return isAdminRole(cookieStore.get('site_session')?.value?.split('|')[1]);
-}
 
 /** GET /api/admin/padron/buscar?empresa=&dni=&nombre=&domicilio=&page= */
 export async function GET(request: NextRequest) {

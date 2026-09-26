@@ -76,7 +76,7 @@ export default function CompradoresPage() {
           <CardHeader>
             <CardTitle>Sin contratos</CardTitle>
             <CardDescription>
-              No hay contratos de comprador registrados. Haga clic en "+ Nuevo contrato" para agregar uno.
+              No hay contratos de comprador registrados. Haga clic en &quot;+ Nuevo contrato&quot; para agregar uno.
             </CardDescription>
           </CardHeader>
         </Card>

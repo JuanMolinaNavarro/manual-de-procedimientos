@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getUsuarioSesion } from '@/lib/admin-auth';
-import { handle, parseMes } from '@/lib/asistencia-api';
+import { handleSesion, parseMes } from '@/lib/asistencia-api';
 import { miAsistencia } from '@/lib/asistencia-horarios';
 
 export const dynamic = 'force-dynamic';
@@ -11,7 +11,8 @@ export const dynamic = 'force-dynamic';
  * suyo. Query: `mes=yyyy-mm` (default actual).
  */
 export async function GET(request: Request) {
-  return handle('GET /api/admin/mi-asistencia', async () => {
+  // Solo sesión (no admin): la usa también el rol `empleado`.
+  return handleSesion('GET /api/admin/mi-asistencia', async () => {
     const usuario = await getUsuarioSesion();
     if (!usuario) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     if (usuario.empleado_id == null) return NextResponse.json({ vinculado: false, usuario: usuario.usuario });

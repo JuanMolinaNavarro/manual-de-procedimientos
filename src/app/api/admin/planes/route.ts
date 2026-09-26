@@ -1,20 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { getPlanConfig, upsertPlanConfig, type PlanConfigData } from '@/lib/planes';
 import { isEmpresa } from '@/lib/empresas';
-import { isAdminRole } from '@/lib/roles';
-
-function getRoleFromSession(value: string | undefined) {
-  if (!value) return null;
-  const parts = value.split('|');
-  return parts.length > 1 ? parts[1] : null;
-}
-
-async function isAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('site_session');
-  return isAdminRole(getRoleFromSession(session?.value));
-}
+import { isAdmin } from '@/lib/admin-auth';
 
 export async function GET(request: NextRequest) {
   if (!await isAdmin()) {

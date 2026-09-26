@@ -23,7 +23,6 @@ import {
   DIAS_SEMANA_CORTO,
   DIAS_SEMANA_LARGO,
   ESTADOS_DIA,
-  describirHorario,
   fmtHorasMin,
   ultimaVersion,
   type CeldaDia,

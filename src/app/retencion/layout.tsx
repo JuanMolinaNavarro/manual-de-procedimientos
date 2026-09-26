@@ -1,6 +1,5 @@
 ﻿import Link from 'next/link';
-import { cookies } from 'next/headers';
-import { prisma } from '@/lib/prisma';
+import { getSesion } from '@/lib/admin-auth';
 import ThemeToggle from '@/components/ThemeToggle';
 import SiteLogoutButton from '@/components/SiteLogoutButton';
 import { isAdminRole } from '@/lib/roles';
@@ -10,19 +9,9 @@ export default async function RetencionLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const cookieStore = await cookies();
-  const sessionValue = cookieStore.get('site_session')?.value;
-  const usuario = sessionValue ? sessionValue.split('|')[0] : null;
-  const role = sessionValue ? sessionValue.split('|')[1] : null;
-  const isAuthed = Boolean(sessionValue);
-  const isAdmin = isAdminRole(role);
-
-  const usuarioRecord = usuario
-    ? await prisma.usuario.findUnique({
-        where: { usuario },
-        select: { nombre: true, apellido: true, usuario: true },
-      })
-    : null;
+  const usuarioRecord = await getSesion();
+  const isAuthed = Boolean(usuarioRecord);
+  const isAdmin = isAdminRole(usuarioRecord?.rol);
 
   const nombreCompleto = usuarioRecord
     ? [usuarioRecord.nombre, usuarioRecord.apellido].filter(Boolean).join(' ').trim() || usuarioRecord.usuario
