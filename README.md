@@ -1,6 +1,6 @@
 # Aurelius
 
-Panel interno: manual de retención para agentes y módulos de administración (bonificaciones, organigrama,
+Panel interno de administración (bonificaciones, organigrama,
 asistencia con relojes Anviz, nómina, recibos de sueldo de Finnegans con firma desde el portal, proyectos,
 señales IP, ventas, etc.).
 
@@ -20,5 +20,8 @@ npm run dev                  # http://localhost:3000
 ## Producción
 
 `docker compose up -d --build` con un `.env` completo (ver `env.template`; `POSTGRES_PASSWORD` es obligatoria).
+
+El manual de retención para los agentes es un proyecto aparte (`manual-retencion`); lee las
+bonificaciones activas de `GET /api/bonificaciones` de este panel.
 
 La arquitectura, las reglas de negocio y las decisiones de cada módulo están en [`CLAUDE.md`](CLAUDE.md).

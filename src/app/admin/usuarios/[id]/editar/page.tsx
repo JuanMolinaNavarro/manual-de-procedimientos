@@ -268,7 +268,6 @@ export default function EditarUsuarioPage() {
                 onChange={(event) => handleChange('rol', event.target.value)}
                 className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <option value="agente">Agente</option>
                 <option value="admin">Admin</option>
                 <option value="empleado">Empleado (solo Mi asistencia y Recibos)</option>
                 {(soySuperadmin || formData.rol === 'superadmin') && (

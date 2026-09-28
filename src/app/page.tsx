@@ -5,5 +5,5 @@
 import { redirect } from 'next/navigation';
 
 export default function Home() {
-  redirect('/retencion/inicio');
+  redirect('/admin');
 }

@@ -73,7 +73,7 @@ describe('puedeUsarApi', () => {
 describe('rutaInternaSegura', () => {
   it('acepta rutas del sitio y rechaza otros hosts', () => {
     expect(rutaInternaSegura('/admin/mis-recibos')).toBe('/admin/mis-recibos');
-    expect(rutaInternaSegura('/retencion/inicio?x=1')).toBe('/retencion/inicio?x=1');
+    expect(rutaInternaSegura('/admin/asistencia?tab=calendario')).toBe('/admin/asistencia?tab=calendario');
     expect(rutaInternaSegura('https://evil.example')).toBeNull();
     expect(rutaInternaSegura('//evil.example')).toBeNull();
     expect(rutaInternaSegura('/\\evil.example')).toBeNull();

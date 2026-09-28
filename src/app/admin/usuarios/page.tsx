@@ -63,7 +63,7 @@ export default function UsuariosAdminPage() {
   const [password, setPassword] = useState('');
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
-  const [rol, setRol] = useState('agente');
+  const [rol, setRol] = useState('admin');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -184,7 +184,7 @@ export default function UsuariosAdminPage() {
       setPassword('');
       setNombre('');
       setApellido('');
-      setRol('agente');
+      setRol('admin');
       setModoVinculo('ninguno');
       setEmpleadoId('');
       setAreaId('');
@@ -214,7 +214,7 @@ export default function UsuariosAdminPage() {
                 id="usuario"
                 value={usuario}
                 onChange={(event) => setUsuario(event.target.value)}
-                placeholder="Ej: agente01"
+                placeholder="Ej: jperez"
                 required
               />
             </div>
@@ -258,7 +258,6 @@ export default function UsuariosAdminPage() {
                 onChange={(event) => setRol(event.target.value)}
                 className={SELECT_CLASS}
               >
-                <option value="agente">Agente</option>
                 <option value="admin">Admin</option>
                 <option value="empleado">Empleado (solo Mi asistencia y Recibos)</option>
                 {esSuperadmin && <option value="superadmin">Superadmin</option>}

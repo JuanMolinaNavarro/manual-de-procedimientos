@@ -53,7 +53,7 @@ export const REGLAS_API: readonly Regla[] = [
   // Portal personal: cada ruta resuelve la ficha SOLO de la sesión (sin módulo).
   { prefijo: '/api/admin/mi-asistencia', modulos: 'admin' },
   { prefijo: '/api/admin/mis-recibos', modulos: 'admin' },
-  // Fuera de /api/admin: solo las escrituras exigen admin (GET lo usan los agentes).
+  // Fuera de /api/admin: solo las escrituras exigen admin (la lectura de activas es pública).
   { prefijo: '/api/bonificaciones', modulos: ['bonificaciones'] },
   { prefijo: '/api/plans', modulos: ['planes'] },
 ];

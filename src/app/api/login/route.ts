@@ -11,6 +11,7 @@ import { prisma } from '@/lib/prisma';
 import { COOKIE_SESION, SESION_HORAS, crearSesion, revocarSesion } from '@/lib/sesion';
 import { hashPassword, verificarPassword } from '@/lib/password';
 import { bloqueoVigente, esperaIp, falloUsuario, ipCliente, registrarFalloIp } from '@/lib/login-limite';
+import { rolValido } from '@/lib/roles';
 
 const CREDENCIALES_INVALIDAS = 'Credenciales invalidas';
 
@@ -76,6 +77,10 @@ export async function POST(request: NextRequest) {
 
     if (record.isActive !== true) {
       return NextResponse.json({ error: 'Usuario inactivo' }, { status: 403 });
+    }
+    // El rol `agente` se retiró con el manual de retención (ahora es un proyecto aparte, sin login).
+    if (!rolValido(record.rol)) {
+      return NextResponse.json({ error: 'Tu usuario no tiene acceso al panel' }, { status: 403 });
     }
 
     await prisma.usuario.update({

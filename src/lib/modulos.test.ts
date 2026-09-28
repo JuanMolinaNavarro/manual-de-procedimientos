@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { EMPLEADO_MODULOS, canAccessPath, getModulosForUser, modulosEfectivos } from './modulos';
-import { isAdminRole, puedeGestionarPin, puedeGestionarUsuarios, rutaPermitidaEmpleado } from './roles';
+import { isAdminRole, puedeGestionarPin, puedeGestionarUsuarios, rolValido, rutaPermitidaEmpleado } from './roles';
 
 describe('modulosEfectivos', () => {
   it('empleado: siempre sus dos módulos, aunque tenga [] (que sería "todos")', () => {
@@ -50,7 +50,7 @@ describe('rol empleado', () => {
 
   it.each([
     '/',
-    '/retencion/inicio',
+    '/carga-ventas',
     '/admin/nomina',
     '/admin/nomina/recibos',
     '/admin/gestion-recibos',
@@ -76,6 +76,12 @@ describe('separación de funciones', () => {
     expect(puedeGestionarPin('superadmin')).toBe(false);
     expect(puedeGestionarPin('admin')).toBe(true);
     for (const r of ['empleado', 'agente', undefined]) expect(puedeGestionarPin(r)).toBe(false);
+  });
+  it('el rol agente (del manual separado) ya no existe', () => {
+    expect(rolValido('admin')).toBe(true);
+    expect(rolValido('empleado')).toBe(true);
+    expect(rolValido('agente')).toBe(false);
+    expect(rolValido(null)).toBe(false);
   });
   it('el módulo usuarios solo lo ve el superadmin', () => {
     expect(modulosEfectivos('admin', ['usuarios', 'organigrama'])).toEqual(['organigrama']);

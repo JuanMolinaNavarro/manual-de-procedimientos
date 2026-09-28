@@ -1,7 +1,9 @@
 /**
  * API Route: /api/bonificaciones
  *
- * GET - Obtiene bonificaciones activas filtradas por empresa
+ * GET - Bonificaciones activas (opcionalmente por empresa). Público y con CORS: lo lee el manual
+ *       de retención, que es un proyecto aparte y sin login. `?all=true` (todas, también
+ *       inactivas) es solo del panel admin.
  * POST - Crea una nueva bonificación (requiere autenticación admin)
  */
 
@@ -13,13 +15,24 @@ import {
   type CreateBonificacionData,
 } from '@/lib/bonificaciones';
 import { EMPRESAS, type Empresa } from '@/lib/empresas';
-import { haySesion, isAdmin } from '@/lib/admin-auth';
+import { isAdmin } from '@/lib/admin-auth';
 
 // TypeScript no permite includes(string) sobre un union literal.
 const EMPRESAS_STRINGS: readonly string[] = EMPRESAS;
 
 function isEmpresa(value: string): value is Empresa {
   return EMPRESAS_STRINGS.includes(value);
+}
+
+// Solo para la lectura pública de activas (el manual de retención corre en otro origen).
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
 }
 
 
@@ -37,14 +50,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(bonificaciones);
     }
 
-    if (!await haySesion()) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-
     if (empresaRaw && !isEmpresa(empresaRaw)) {
       return NextResponse.json(
         { error: 'La empresa indicada no es válida' },
-        { status: 400 }
+        { status: 400, headers: CORS_HEADERS }
       );
     }
 
@@ -52,7 +61,7 @@ export async function GET(request: NextRequest) {
       empresaRaw && isEmpresa(empresaRaw) ? empresaRaw : null;
 
     const bonificaciones = await getBonificacionesActivas(empresa);
-    return NextResponse.json(bonificaciones);
+    return NextResponse.json(bonificaciones, { headers: CORS_HEADERS });
   } catch (error) {
     console.error('Error en GET /api/bonificaciones:', error);
     return NextResponse.json(

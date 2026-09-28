@@ -86,7 +86,7 @@ model Usuario {
   password     String
   nombre       String?
   apellido     String?
-  rol          String       @default("agente")
+  rol          String       @default("admin")
   isActive     Boolean      @default(true)
   modulos      String[]     @default([])
   modulos_edit String[]     @default([])

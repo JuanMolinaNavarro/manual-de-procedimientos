@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     };
     const usuario = body.usuario?.trim();
     const password = body.password?.trim();
-    const rol = body.rol?.trim() || 'agente';
+    const rol = body.rol?.trim() || 'admin';
     const nombre = body.nombre?.trim();
     const apellido = body.apellido?.trim();
 

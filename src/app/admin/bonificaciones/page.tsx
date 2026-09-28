@@ -110,7 +110,7 @@ export default function BonificacionesPage() {
         <div>
           <h2 className="text-2xl font-bold text-foreground">Bonificaciones</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Administre las bonificaciones disponibles para los agentes
+            Administre las bonificaciones que muestra el manual de retención
           </p>
         </div>
         <Button onClick={() => router.push('/admin/bonificaciones/nueva')}>

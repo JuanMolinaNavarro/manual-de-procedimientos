@@ -43,7 +43,7 @@ const MODULE_META: Record<
   },
   usuarios: {
     icon: <Users className="h-8 w-8" />,
-    description: 'Administrar cuentas, roles y permisos de los agentes.',
+    description: 'Administrar cuentas, roles y permisos de los usuarios.',
   },
   peliculas: {
     icon: <Film className="h-8 w-8" />,

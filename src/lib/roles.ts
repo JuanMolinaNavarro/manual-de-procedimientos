@@ -1,7 +1,6 @@
 /**
  * Roles del sistema. Puro (sin imports) para poder usarse desde el middleware.
  *
- * - `agente`: solo el manual de retención.
  * - `admin`: panel admin, restringido por `modulos` / `modulos_edit`.
  * - `superadmin`: acceso total — todos los módulos, edición de organigrama
  *   implícita y visibilidad de todos los proyectos.
@@ -9,8 +8,16 @@
  *   la ficha vinculada a su usuario. NO es admin: las APIs de `/api/admin/**` le
  *   responden 403 salvo las personales de `rutaPermitidaEmpleado`.
  */
-export const ROLES = ['agente', 'admin', 'superadmin', 'empleado'] as const;
+export const ROLES = ['admin', 'superadmin', 'empleado'] as const;
 export type Rol = (typeof ROLES)[number];
+
+/**
+ * ¿El rol existe? El rol `agente` (solo el manual de retención) se retiró junto con el manual,
+ * que pasó a un proyecto aparte: un usuario viejo con ese rol no entra a nada.
+ */
+export function rolValido(rol: string | null | undefined): rol is Rol {
+  return (ROLES as readonly string[]).includes(rol ?? '');
+}
 
 export function isAdminRole(rol: string | null | undefined): boolean {
   return rol === 'admin' || rol === 'superadmin';
