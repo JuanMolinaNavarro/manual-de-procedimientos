@@ -70,6 +70,13 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
       if (r.sinOrganigrama.length > 0) {
         toast.warning(`Sin organigrama vinculado por CUIT: ${r.sinOrganigrama.map((s) => s.empresa).join(', ')}`);
       }
+      if (r.conProblemas.length > 0) {
+        toast.warning(
+          `Finnegans devolvió datos incompletos en ${r.conProblemas.length} liquidación(es); no se indexaron: ` +
+            r.conProblemas.map((p) => p.motivo).join(' · '),
+          { duration: 15_000 },
+        );
+      }
       lst.reload();
       setAbierto(true);
     } catch (e) {

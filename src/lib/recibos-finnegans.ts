@@ -23,7 +23,8 @@ import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 import { NominaError, comprobarPin, toConstancia, type ConstanciaView } from './nomina';
 import { PERIODO_RE } from './nomina-datos';
-import { GENESIS, chainHash } from './nomina-hash';
+import { FORMATO_CADENA, GENESIS, chainHash } from './nomina-hash';
+import { canonicalJson } from './nomina-calc';
 import { estadoBloqueo } from './nomina-pin';
 import { getResumenLiq, getSabana, TeamplaceError, type InfoLlamada } from './teamplace';
 import {
@@ -36,7 +37,7 @@ import {
   type FilaResumenLiq,
 } from './recibos-finnegans-calc';
 import { extraerTextos, partirPorGrupos } from './recibos-pdf';
-import { appUrl, enviarMail, modoMail, type ModoMail, type ResultadoMail } from './mail';
+import { appUrl, appUrlConfigurada, enviarMail, modoMail, type ModoMail } from './mail';
 import { armarMailAviso, emailValido } from './recibos-aviso';
 
 export const SABANAS_DIR = join(process.cwd(), 'uploads', 'nomina', 'sabanas');
@@ -72,8 +73,20 @@ export async function consumoMes(): Promise<ConsumoMes> {
   return { usadas, tope: topeMensual() };
 }
 
+/**
+ * Las llamadas pagas van de a una: si no, dos pedidos a la vez leen el mismo consumo y juntos
+ * pasan el tope. Hay un solo proceso de Node, así que alcanza con encadenar promesas.
+ */
+let colaPagas: Promise<unknown> = Promise.resolve();
+
 /** Corre una llamada paga: corta si se llegó al tope y registra cada interacción. */
-async function llamadaPaga<T>(usuario: string | null, fn: (on: (i: InfoLlamada) => Promise<void>) => Promise<T>): Promise<T> {
+function llamadaPaga<T>(usuario: string | null, fn: (on: (i: InfoLlamada) => Promise<void>) => Promise<T>): Promise<T> {
+  const turno = colaPagas.then(() => llamadaPagaSinCola(usuario, fn));
+  colaPagas = turno.catch(() => undefined);
+  return turno;
+}
+
+async function llamadaPagaSinCola<T>(usuario: string | null, fn: (on: (i: InfoLlamada) => Promise<void>) => Promise<T>): Promise<T> {
   const { usadas, tope } = await consumoMes();
   if (usadas >= tope) {
     throw new NominaError(
@@ -118,24 +131,53 @@ export interface ResultadoBusqueda {
   liquidaciones: number;
   nuevas: number;
   sinOrganigrama: { empresa: string; cuit: string }[];
+  /** Transacciones que Finnegans devolvió con datos incompletos: no se indexaron. */
+  conProblemas: { transaccion: string; motivo: string }[];
+}
+
+function borrarSabana(archivo: string | null): void {
+  if (!archivo) return;
+  try {
+    unlinkSync(join(SABANAS_DIR, archivo));
+  } catch {
+    /* ya no estaba */
+  }
 }
 
 /**
  * Consulta RESUMENLIQ del mes (1 llamada paga) y registra/actualiza una liquidación
- * por transacción. Las ya importadas no se tocan.
+ * por transacción. Las ya importadas no se tocan. Una transacción con filas incompletas no
+ * tira abajo las demás: se saltea y se informa en `conProblemas`. Si una liquidación no
+ * importada cambió en Finnegans (se rehízo), se descarta su sábana guardada y sus diferencias
+ * viejas: el próximo intento baja la sábana nueva.
  */
 export async function buscarLiquidaciones(periodo: string, usuario: string | null): Promise<ResultadoBusqueda> {
   if (!PERIODO_RE.test(periodo)) throw new NominaError('Período inválido (yyyy-mm)', 400);
   const { desde, hasta } = rangoDelPeriodo(periodo);
   const filas = await llamadaPaga(usuario, (on) => getResumenLiq(desde, hasta, on));
 
-  const porTx = new Map<number, FilaResumenLiq[]>();
+  const porTx = new Map<string, FilaResumenLiq[]>();
   for (const f of filas) {
-    const tx = Number(f.TRANSACCIONID);
+    const tx = String(f.TRANSACCIONID ?? '').trim();
     porTx.set(tx, [...(porTx.get(tx) ?? []), f]);
   }
-  const indice = agruparPorTransaccion(filas);
+  const indice: ReturnType<typeof agruparPorTransaccion> = [];
+  const conProblemas: ResultadoBusqueda['conProblemas'] = [];
+  for (const [tx, filasTx] of porTx) {
+    try {
+      indice.push(...agruparPorTransaccion(filasTx));
+    } catch (e) {
+      conProblemas.push({ transaccion: tx || '?', motivo: e instanceof Error ? e.message : 'Datos incompletos' });
+    }
+  }
   const orgs = await organigramasPorCuit();
+  const existentes = new Map(
+    (
+      await prisma.nominaFinnLiquidacion.findMany({
+        where: { transaccion_id: { in: indice.map((l) => l.transaccionId) } },
+      })
+    ).map((l) => [l.transaccion_id, l]),
+  );
   let nuevas = 0;
   const sinOrg = new Map<string, string>();
 
@@ -153,15 +195,23 @@ export async function buscarLiquidaciones(periodo: string, usuario: string | nul
       fecha_hasta: l.fechaHasta,
       fecha_pago: l.fechaPago,
       legajos: l.legajos.length,
-      filas: (porTx.get(l.transaccionId) ?? []) as object[],
+      filas: (porTx.get(String(l.transaccionId)) ?? []) as object[],
     };
-    const existente = await prisma.nominaFinnLiquidacion.findUnique({ where: { transaccion_id: l.transaccionId } });
+    const existente = existentes.get(l.transaccionId);
     if (!existente) {
       await prisma.nominaFinnLiquidacion.create({ data: { transaccion_id: l.transaccionId, ...datos } });
       nuevas++;
     } else if (existente.estado !== 'importada') {
-      // Puede haberse rehecho en Finnegans antes de importarla: se refresca el índice.
-      await prisma.nominaFinnLiquidacion.update({ where: { id: existente.id }, data: datos });
+      // Puede haberse rehecho en Finnegans antes de importarla: se refresca el índice y, si
+      // cambió, la sábana guardada y las diferencias ya no valen.
+      const cambio = canonicalJson(existente.filas) !== canonicalJson(datos.filas);
+      await prisma.nominaFinnLiquidacion.update({
+        where: { id: existente.id },
+        data: cambio
+          ? { ...datos, sabana_archivo: null, sabana_sha256: null, estado: 'pendiente', diferencias: Prisma.DbNull }
+          : datos,
+      });
+      if (cambio) borrarSabana(existente.sabana_archivo);
     }
   }
   return {
@@ -169,6 +219,7 @@ export async function buscarLiquidaciones(periodo: string, usuario: string | nul
     liquidaciones: indice.length,
     nuevas,
     sinOrganigrama: [...sinOrg].map(([cuit, empresa]) => ({ empresa, cuit })),
+    conProblemas,
   };
 }
 
@@ -236,7 +287,26 @@ function sabanaGuardada(archivo: string | null, hash: string | null): Uint8Array
   return sha256(buf) === hash ? buf : null;
 }
 
+/** Importaciones en curso (transaccion_id). Un solo proceso de Node: alcanza con memoria. */
+const importando = new Set<number>();
+
+/**
+ * Importa una liquidación. Dos pedidos a la vez sobre la misma transacción pagaban dos veces la
+ * sábana y el segundo terminaba en un error de clave duplicada: ahora el segundo recibe 409.
+ */
 export async function importarLiquidacion(transaccionId: number, usuario: string | null): Promise<ResultadoImportacion> {
+  if (importando.has(transaccionId)) {
+    throw new NominaError('Esta liquidación ya se está importando: esperá a que termine', 409);
+  }
+  importando.add(transaccionId);
+  try {
+    return await importarLiquidacionSinCandado(transaccionId, usuario);
+  } finally {
+    importando.delete(transaccionId);
+  }
+}
+
+async function importarLiquidacionSinCandado(transaccionId: number, usuario: string | null): Promise<ResultadoImportacion> {
   const liq = await prisma.nominaFinnLiquidacion.findUnique({ where: { transaccion_id: transaccionId } });
   if (!liq) throw new NominaError('La liquidación no está en el índice: buscá primero las liquidaciones del mes.', 404);
   if (liq.estado === 'importada') {
@@ -354,6 +424,9 @@ export async function importarLiquidacion(transaccionId: number, usuario: string
         /* ya no estaba */
       }
     }
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      throw new NominaError('Algún recibo de esta liquidación ya estaba publicado: volvé a cargar la lista', 409);
+    }
     throw e;
   }
 }
@@ -398,9 +471,9 @@ export interface MiReciboView {
   firma: { conformidad: string; fecha: string } | null;
 }
 
-export async function misRecibos(empleadoId: number): Promise<MiReciboView[]> {
+export async function misRecibos(empleadoId: number, soloId?: string): Promise<MiReciboView[]> {
   const rows = await prisma.nominaReciboPdf.findMany({
-    where: { empleado_id: empleadoId },
+    where: { empleado_id: empleadoId, ...(soloId ? { id: soloId } : {}) },
     include: {
       liquidacion: { select: { empresa_nombre: true, nro_liquidacion: true, fecha_pago: true } },
       constancia: { select: { conformidad: true, fecha: true } },
@@ -440,10 +513,11 @@ export async function reciboPropio(empleadoId: number, id: string): Promise<{ pd
   const r = await reciboDelEmpleado(empleadoId, id);
   const pdf = leerReciboVerificado(r);
   if (!r.accedido_en) {
-    await prisma.nominaReciboPdf.update({
-      where: { id },
-      data: { accedido_en: new Date(), ...(r.estado === 'disponible' ? { estado: 'accedido' } : {}) },
-    });
+    // Condicionales: si mientras tanto se firmó o se registró el papel, no se retrocede el estado.
+    await prisma.$transaction([
+      prisma.nominaReciboPdf.updateMany({ where: { id, accedido_en: null }, data: { accedido_en: new Date() } }),
+      prisma.nominaReciboPdf.updateMany({ where: { id, estado: 'disponible' }, data: { estado: 'accedido' } }),
+    ]);
   }
   return { pdf, nombre: nombreArchivo(r) };
 }
@@ -488,6 +562,8 @@ export async function firmarRecibo(empleadoId: number, reciboId: string, input: 
   }
 
   leerReciboVerificado(r); // 409 si el PDF cambió: no se firma algo distinto de lo publicado
+  // "Leído" tiene que tener respaldo: el PDF se le entregó al menos una vez (accedido_en).
+  if (!r.accedido_en) throw new NominaError('Abrí el recibo antes de firmarlo', 409);
 
   const bloqueo = estadoBloqueo(adh.pin_bloqueado_hasta);
   if (bloqueo.bloqueado) {
@@ -507,21 +583,40 @@ export async function firmarRecibo(empleadoId: number, reciboId: string, input: 
     const row = await prisma.$transaction(async (tx) => {
       // Serializa las firmas del organigrama: la cadena nunca se bifurca.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('nomina_cadena'), ${orgId}::int)`;
-      const actual = await tx.nominaReciboPdf.findUnique({ where: { id: r.id }, select: { estado: true } });
-      if (actual?.estado === 'firmado' || actual?.estado === 'papel') throw new NominaError('Este recibo ya está firmado', 409);
+      // Recibo y adhesión bloqueados hasta el commit: la entrega en papel, quitar el acta y
+      // revocar la adhesión esperan, y ven el resultado de la firma.
+      const [actual] = await tx.$queryRaw<{ estado: string }[]>`
+        SELECT estado FROM nomina_recibos_pdf WHERE id = ${r.id} FOR UPDATE`;
+      if (actual?.estado === 'firmado') throw new NominaError('Este recibo ya está firmado', 409);
+      if (actual?.estado === 'papel') throw new NominaError('Este recibo se te entregó en papel: no se firma en el portal', 409);
+      const [adhAhora] = await tx.$queryRaw<{ id: number; acta_archivo: string | null }[]>`
+        SELECT id, acta_archivo FROM nomina_adhesiones WHERE empleado_id = ${r.empleado_id} FOR UPDATE`;
+      if (!adhAhora || adhAhora.id !== adh.id || !adhAhora.acta_archivo) {
+        throw new NominaError('Tu adhesión cambió mientras firmabas: volvé a cargar la página', 409);
+      }
       const last = await tx.nominaConstancia.findFirst({ where: { organigrama_id: orgId }, orderBy: [{ fecha: 'desc' }, { id: 'desc' }] });
       const fecha = new Date().toISOString();
       const prev = last?.chain_hash ?? GENESIS;
-      const base = { hash: r.sha256, fecha, empleado_id: r.empleado_id, periodo: r.periodo, recibo_id: r.id, conformidad, observaciones };
+      const firmante = { empId: r.empleado_id, nombre: r.empleado.nombre, cuil: adh.cuil, adhesion: adh.codigo ?? '' };
+      const evidencia = {
+        canal: 'portal', firmante, dispositivo: input.dispositivo.slice(0, 200), ip: input.ip.slice(0, 64), leido: true,
+      };
+      const base = {
+        hash: r.sha256, fecha, empleado_id: r.empleado_id, periodo: r.periodo, recibo_id: r.id, conformidad, observaciones,
+        formato: FORMATO_CADENA, ...evidencia,
+      };
       const c = await tx.nominaConstancia.create({
         data: {
           organigrama_id: orgId, periodo: r.periodo, empleado_id: r.empleado_id, recibo_id: r.id, hash: r.sha256,
-          prev_hash: prev, chain_hash: chainHash(prev, base), fecha, conformidad, observaciones, canal: 'portal',
-          firmante: { empId: r.empleado_id, nombre: r.empleado.nombre, cuil: adh.cuil, adhesion: adh.codigo ?? '' },
-          dispositivo: input.dispositivo.slice(0, 200), ip: input.ip.slice(0, 64), leido: true,
+          prev_hash: prev, chain_hash: chainHash(prev, base), fecha, conformidad, observaciones,
+          formato: FORMATO_CADENA, ...evidencia,
         },
       });
-      await tx.nominaReciboPdf.update({ where: { id: r.id }, data: { estado: 'firmado' } });
+      const firmado = await tx.nominaReciboPdf.updateMany({
+        where: { id: r.id, estado: { in: ['disponible', 'accedido'] } },
+        data: { estado: 'firmado' },
+      });
+      if (firmado.count !== 1) throw new NominaError('Este recibo ya está firmado', 409);
       if (conformidad === 'disconforme') {
         await tx.nominaCasoRecibo.create({ data: { constancia_id: c.id, organigrama_id: orgId, empleado_id: r.empleado_id } });
       }
@@ -539,7 +634,7 @@ export async function firmarRecibo(empleadoId: number, reciboId: string, input: 
 /** Datos del recibo propio para la pantalla de firma (sin el PDF). */
 export async function reciboParaFirmar(empleadoId: number, id: string): Promise<MiReciboView & { sha256: string }> {
   const r = await reciboDelEmpleado(empleadoId, id);
-  const [vista] = (await misRecibos(empleadoId)).filter((x) => x.id === r.id);
+  const [vista] = await misRecibos(empleadoId, r.id);
   return { ...vista, sha256: r.sha256 };
 }
 
@@ -564,7 +659,7 @@ export interface DestinatarioAviso {
 export interface SinAviso {
   empleadoId: number;
   nombre: string;
-  motivo: 'sin_adhesion' | 'pendiente_acta' | 'sin_email';
+  motivo: 'sin_adhesion' | 'pendiente_acta' | 'sin_email' | 'sin_usuario';
   recibos: number;
 }
 
@@ -576,8 +671,9 @@ export interface PreviaAviso {
 
 /**
  * Quiénes recibirían el aviso: personas del organigrama con recibos del período sin firmar ni
- * entregar en papel. Solo se avisa a quien tiene la adhesión completa y email declarado; el
- * resto figura en `sinAviso` (se le entrega en papel o hay que completar su adhesión).
+ * entregar en papel. Solo se avisa a quien tiene la adhesión completa, email declarado y un
+ * usuario activo del portal (el mail le dice que entre con su usuario); el resto figura en
+ * `sinAviso` (se le entrega en papel o hay que completar su adhesión / crearle el usuario).
  */
 export async function previaAviso(orgId: number, periodo: string): Promise<PreviaAviso> {
   if (!PERIODO_RE.test(periodo)) throw new NominaError('Período inválido (yyyy-mm)', 400);
@@ -592,12 +688,21 @@ export async function previaAviso(orgId: number, periodo: string): Promise<Previ
     if (r.notificado_en) p.avisados++;
     porPersona.set(r.empleado_id, p);
   }
+  const conUsuario = new Set(
+    (
+      await prisma.usuario.findMany({
+        where: { empleado_id: { in: [...porPersona.keys()] }, isActive: true },
+        select: { empleado_id: true },
+      })
+    ).map((u) => u.empleado_id),
+  );
   const destinatarios: DestinatarioAviso[] = [];
   const sinAviso: SinAviso[] = [];
   for (const [empleadoId, p] of porPersona) {
     if (!p.adh) sinAviso.push({ empleadoId, nombre: p.nombre, motivo: 'sin_adhesion', recibos: p.recibos });
     else if (!p.adh.acta_archivo) sinAviso.push({ empleadoId, nombre: p.nombre, motivo: 'pendiente_acta', recibos: p.recibos });
     else if (!emailValido(p.adh.email)) sinAviso.push({ empleadoId, nombre: p.nombre, motivo: 'sin_email', recibos: p.recibos });
+    else if (!conUsuario.has(empleadoId)) sinAviso.push({ empleadoId, nombre: p.nombre, motivo: 'sin_usuario', recibos: p.recibos });
     else destinatarios.push({ empleadoId, nombre: p.nombre, email: p.adh.email, recibos: p.recibos, yaAvisado: p.avisados === p.recibos });
   }
   const orden = (a: { nombre: string }, b: { nombre: string }) => a.nombre.localeCompare(b.nombre, 'es');
@@ -612,54 +717,94 @@ export interface ResultadoAviso {
   sinAviso: number;
 }
 
+/** Avisos en curso (organigrama:período). Hay un solo proceso de Node: alcanza con memoria. */
+const avisosEnCurso = new Set<string>();
+
 /**
- * Manda el aviso a todos los destinatarios de `previaAviso` (botón de RR.HH.). Registra el
- * envío y sus destinatarios (prueba de la puesta a disposición) y marca `notificado_en` en los
- * recibos avisados que todavía no lo tenían. Volver a apretarlo reenvía a los pendientes
- * (sirve de recordatorio); la fecha del primer aviso no se pisa.
+ * En producción no se "avisa" sin SMTP (el modo prueba solo guarda el .eml) ni sin APP_URL (el
+ * enlace del mail apuntaría a localhost): el aviso es la prueba de la puesta a disposición.
+ */
+function exigirMailReal(modo: ModoMail): void {
+  if (process.env.NODE_ENV !== 'production') return;
+  if (modo === 'prueba') {
+    throw new NominaError('Falta configurar el SMTP (SMTP_HOST): sin él los mails no salen y no se puede avisar.', 409);
+  }
+  if (!appUrlConfigurada()) {
+    throw new NominaError('Falta configurar APP_URL: el enlace del mail no llevaría a Aurelius.', 409);
+  }
+}
+
+/** Razón social del empleador (Nómina › Parámetros); si no está cargada, el nombre del organigrama. */
+async function nombreEmpresa(orgId: number): Promise<string> {
+  const [config, org] = await Promise.all([
+    prisma.nominaConfig.findUnique({ where: { organigrama_id: orgId }, select: { empresa: true } }),
+    prisma.organigrama.findUnique({ where: { id: orgId }, select: { nombre: true } }),
+  ]);
+  const razon = (config?.empresa as { razonSocial?: unknown } | null)?.razonSocial;
+  return (typeof razon === 'string' && razon.trim()) || org?.nombre || '';
+}
+
+/**
+ * Manda el aviso a todos los destinatarios de `previaAviso` (botón de RR.HH.). El envío y cada
+ * destinatario quedan registrados a medida que salen (si el proceso se corta a mitad, lo enviado
+ * ya consta) y se marca `notificado_en` en los recibos avisados que todavía no lo tenían: desde
+ * ahí corren los 15 días de "no retirado". En modo prueba (desarrollo, sin SMTP) se registra el
+ * aviso pero **no** se marca `notificado_en`: nadie recibió nada. Volver a apretarlo reenvía a
+ * los pendientes (recordatorio); la fecha del primer aviso no se pisa. Un aviso por
+ * organigrama y período a la vez.
  */
 export async function enviarAviso(orgId: number, periodo: string, usuario: string | null): Promise<ResultadoAviso> {
-  const previa = await previaAviso(orgId, periodo);
-  if (previa.destinatarios.length === 0) {
-    throw new NominaError('No hay a quién avisar: nadie con recibos pendientes tiene la adhesión completa y email', 409);
+  const clave = `${orgId}:${periodo}`;
+  if (avisosEnCurso.has(clave)) {
+    throw new NominaError('Ya se está enviando el aviso de este mes: esperá a que termine', 409);
   }
-  const org = await prisma.organigrama.findUnique({ where: { id: orgId }, select: { nombre: true } });
-  const url = `${appUrl()}/admin/mis-recibos`;
-  const resultados: { d: DestinatarioAviso; r: ResultadoMail }[] = [];
-  for (const d of previa.destinatarios) {
-    const mail = armarMailAviso({ nombre: d.nombre, empresa: org?.nombre ?? '', periodo, recibos: d.recibos, url });
-    resultados.push({ d, r: await enviarMail({ to: d.email, ...mail }) });
-  }
-  const ahora = new Date();
-  const okIds = resultados.filter((x) => x.r.ok).map((x) => x.d.empleadoId);
-  const aviso = await prisma.$transaction(async (tx) => {
-    const a = await tx.nominaAviso.create({
-      data: {
-        organigrama_id: orgId, periodo, modo: previa.modo, enviado_por: usuario,
-        enviados: okIds.length, fallidos: resultados.length - okIds.length,
-        destinatarios: {
-          create: resultados.map(({ d, r }) => ({
-            empleado_id: d.empleadoId, email: d.email, recibos: d.recibos,
-            estado: r.ok ? 'enviado' : 'error', error: r.ok ? '' : r.error, message_id: r.ok ? r.messageId : '',
-          })),
-        },
-      },
-    });
-    if (okIds.length) {
-      await tx.nominaReciboPdf.updateMany({
-        where: { organigrama_id: orgId, periodo, empleado_id: { in: okIds }, estado: { in: ['disponible', 'accedido'] }, notificado_en: null },
-        data: { notificado_en: ahora },
-      });
+  avisosEnCurso.add(clave);
+  try {
+    const previa = await previaAviso(orgId, periodo);
+    if (previa.destinatarios.length === 0) {
+      throw new NominaError('No hay a quién avisar: nadie con recibos pendientes tiene la adhesión completa, email y usuario', 409);
     }
-    return a;
-  });
-  return {
-    avisoId: aviso.id,
-    modo: previa.modo,
-    enviados: okIds.length,
-    fallidos: resultados.filter((x) => !x.r.ok).map(({ d, r }) => ({ nombre: d.nombre, error: r.ok ? '' : r.error })),
-    sinAviso: previa.sinAviso.length,
-  };
+    exigirMailReal(previa.modo);
+    const empresa = await nombreEmpresa(orgId);
+    const url = `${appUrl()}/admin/mis-recibos`;
+    const aviso = await prisma.nominaAviso.create({
+      data: { organigrama_id: orgId, periodo, modo: previa.modo, enviado_por: usuario, enviados: 0, fallidos: 0 },
+    });
+    let enviados = 0;
+    const fallidos: { nombre: string; error: string }[] = [];
+    for (const d of previa.destinatarios) {
+      const mail = armarMailAviso({ nombre: d.nombre, empresa, periodo, recibos: d.recibos, url });
+      const r = await enviarMail({ to: d.email, ...mail });
+      await prisma.$transaction([
+        prisma.nominaAvisoDestinatario.create({
+          data: {
+            aviso_id: aviso.id, empleado_id: d.empleadoId, email: d.email, recibos: d.recibos,
+            estado: r.ok ? 'enviado' : 'error', error: r.ok ? '' : r.error, message_id: r.ok ? r.messageId : '',
+          },
+        }),
+        prisma.nominaAviso.update({
+          where: { id: aviso.id },
+          data: r.ok ? { enviados: { increment: 1 } } : { fallidos: { increment: 1 } },
+        }),
+        ...(r.ok && previa.modo === 'smtp'
+          ? [
+              prisma.nominaReciboPdf.updateMany({
+                where: {
+                  organigrama_id: orgId, periodo, empleado_id: d.empleadoId,
+                  estado: { in: ['disponible', 'accedido'] }, notificado_en: null,
+                },
+                data: { notificado_en: new Date() },
+              }),
+            ]
+          : []),
+      ]);
+      if (r.ok) enviados++;
+      else fallidos.push({ nombre: d.nombre, error: r.error });
+    }
+    return { avisoId: aviso.id, modo: previa.modo, enviados, fallidos, sinAviso: previa.sinAviso.length };
+  } finally {
+    avisosEnCurso.delete(clave);
+  }
 }
 
 export interface AvisoView {
@@ -836,6 +981,10 @@ export async function actualizarCaso(id: number, data: { notas?: unknown; resolv
   if (!c) throw new NominaError('Caso no encontrado', 404);
   const notas = typeof data.notas === 'string' ? data.notas.trim().slice(0, 4000) : undefined;
   const resolver = data.resolver === true;
+  // Resuelto = cerrado: las notas son el registro de cómo se resolvió y no se pisan.
+  if (c.estado === 'resuelto' && notas !== undefined && notas !== c.notas) {
+    throw new NominaError('El caso ya está resuelto: sus notas no se modifican', 409);
+  }
   if (resolver && !(notas ?? c.notas)) throw new NominaError('Anotá cómo se resolvió antes de cerrar el caso', 400);
   await prisma.nominaCasoRecibo.update({
     where: { id },

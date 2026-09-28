@@ -12,6 +12,7 @@ import { puedeGestionarPinSesion } from '@/lib/admin-auth';
 import { handle, parseId, parseOrgId } from '@/lib/nomina-api';
 import { NominaError, clearActa, getAdhesion, setActa } from '@/lib/nomina';
 import { ACTAS_DIR, ACTA_MAX_BYTES } from '@/lib/nomina-actas';
+import { headersArchivo } from '@/lib/archivos';
 
 type Ctx = { params: Promise<{ empleadoId: string }> };
 
@@ -39,14 +40,9 @@ export async function GET(request: NextRequest, { params }: Ctx) {
     } catch {
       throw new NominaError('El archivo del acta no está disponible', 404);
     }
-    const nombre = view.acta.nombreOriginal;
-    const ascii = nombre.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, "'");
+    // Sin caché: la URL es la misma aunque el acta se reemplace o la adhesión se renueve.
     return new NextResponse(new Uint8Array(buffer), {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(nombre)}`,
-        'Cache-Control': 'private, max-age=3600',
-      },
+      headers: headersArchivo(actaArchivo, { nombreDescarga: view.acta.nombreOriginal, cache: 'private, no-store' }),
     });
   });
 }

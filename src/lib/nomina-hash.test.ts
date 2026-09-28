@@ -77,3 +77,34 @@ describe('cadena de constancias', () => {
     expect(verificarCadena([])).toEqual({ total: 0, rotos: 0 });
   });
 });
+
+describe('cadena v2 (firmante, ip, dispositivo, canal, leído)', () => {
+  const base = {
+    hash: 'a'.repeat(64), fecha: '2026-09-01T10:00:00.000Z', empleado_id: 7, periodo: '2026-08', recibo_id: 'r1',
+    conformidad: 'conforme', observaciones: '', firmante: { empId: 7, nombre: 'Ana', cuil: '20111111112', adhesion: 'ADH-1' },
+    ip: '10.0.0.5', dispositivo: 'Android', canal: 'portal', leido: true,
+  };
+  const armar = (formato: number): ConstanciaMin => {
+    const c = { ...base, formato };
+    return { ...c, prev_hash: GENESIS, chain_hash: chainHash(GENESIS, c) };
+  };
+  it('en v2, cambiar la IP o el firmante rompe la cadena', () => {
+    const v2 = armar(2);
+    expect(verificarCadena([v2]).rotos).toBe(0);
+    expect(verificarCadena([{ ...v2, ip: '1.2.3.4' }]).rotos).toBe(1);
+    expect(verificarCadena([{ ...v2, firmante: { ...base.firmante, cuil: '27999999999' } }]).rotos).toBe(1);
+  });
+  it('las constancias v1 se siguen verificando con su fórmula', () => {
+    const v1 = armar(1);
+    expect(verificarCadena([v1]).rotos).toBe(0);
+    // En v1 esos campos no entraban en el hash.
+    expect(verificarCadena([{ ...v1, ip: '1.2.3.4' }]).rotos).toBe(0);
+    // Sin `formato` (como las filas de antes de la columna) = v1.
+    expect(verificarCadena([{ ...v1, formato: undefined }]).rotos).toBe(0);
+  });
+  it('el hash no depende del orden de claves del firmante (jsonb)', () => {
+    const c = { ...base, formato: 2 };
+    const reordenado = { ...c, firmante: { adhesion: 'ADH-1', cuil: '20111111112', nombre: 'Ana', empId: 7 } };
+    expect(chainHash(GENESIS, reordenado)).toBe(chainHash(GENESIS, c));
+  });
+});

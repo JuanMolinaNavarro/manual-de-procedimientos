@@ -817,6 +817,7 @@ model NominaConstancia {
   dispositivo    String   @default("")
   ip             String   @default("") // IP desde la que firmó
   leido          Boolean  @default(true)
+  formato        Int      @default(1) // fórmula del chain_hash (nomina-hash.ts): 1 las viejas, 2 incluye firmante/ip/dispositivo/canal/leído
   created_at     DateTime @default(now())
 
   organigrama Organigrama       @relation(fields: [organigrama_id], references: [id], onDelete: Restrict)

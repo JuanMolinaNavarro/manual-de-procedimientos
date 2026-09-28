@@ -46,6 +46,16 @@ function cfg() {
 }
 
 const TOKEN_TTL_MS = 4 * 60 * 1000;
+
+// Sin timeout, un Finnegans colgado dejaba el pedido esperando minutos (maxDuration no aplica
+// fuera de Vercel). La sábana es un PDF con todos los legajos: tiene más margen.
+const TIMEOUT_TOKEN_MS = 30_000;
+const TIMEOUT_REPORTE_MS = 60_000;
+const TIMEOUT_SABANA_MS = 180_000;
+
+function esTimeout(e: unknown): boolean {
+  return e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError');
+}
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
 export async function getToken(force = false): Promise<string> {
@@ -54,8 +64,14 @@ export async function getToken(force = false): Promise<string> {
   const url =
     `${tokenUrl}?grant_type=client_credentials` +
     `&client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}`;
-  const res = await fetch(url, { cache: 'no-store' });
-  const text = (await res.text()).trim();
+  let res: Response;
+  let text: string;
+  try {
+    res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(TIMEOUT_TOKEN_MS) });
+    text = (await res.text()).trim();
+  } catch (e) {
+    throw new TeamplaceError(esTimeout(e) ? 'Finnegans no respondió a tiempo (token).' : 'No se pudo conectar con Finnegans.');
+  }
   // Éxito = token en texto plano. Error = JSON tipo {"error":"credentials not found"}.
   if (!res.ok || text.startsWith('{') || !text) {
     throw new TeamplaceError('No se pudo obtener el token de Finnegans (revisar las keys).', res.status);
@@ -83,18 +99,20 @@ async function pedir(
   params: Params,
   endpoint: string,
   detalle: string,
-  onLlamada?: OnLlamada,
+  onLlamada: OnLlamada | undefined,
+  timeoutMs: number,
 ): Promise<{ res: Response; body: Uint8Array }> {
   for (let intento = 0; intento < 2; intento++) {
     const token = await getToken(intento > 0);
     let res: Response;
+    let body: Uint8Array;
     try {
-      res = await fetch(armarUrl(base, path, token, params), { cache: 'no-store' });
-    } catch {
+      res = await fetch(armarUrl(base, path, token, params), { cache: 'no-store', signal: AbortSignal.timeout(timeoutMs) });
+      body = new Uint8Array(await res.arrayBuffer());
+    } catch (e) {
       await onLlamada?.({ endpoint, detalle, ok: false, http: null });
-      throw new TeamplaceError('No se pudo conectar con Finnegans.');
+      throw new TeamplaceError(esTimeout(e) ? `Finnegans no respondió a tiempo (${endpoint}).` : 'No se pudo conectar con Finnegans.');
     }
-    const body = new Uint8Array(await res.arrayBuffer());
     const cuerpo = new TextDecoder().decode(body.subarray(0, 300));
     // Cada HTTP contra un endpoint pago cuenta como interacción (conservador).
     const tokenInvalido = esTokenInvalido(cuerpo);
@@ -118,6 +136,7 @@ export async function getResumenLiq(desde: string, hasta: string, onLlamada?: On
     'reports/RESUMENLIQ',
     `${desde}..${hasta}`,
     onLlamada,
+    TIMEOUT_REPORTE_MS,
   );
   let data: unknown;
   try {
@@ -145,6 +164,7 @@ export async function getSabana(transaccionId: number, onLlamada?: OnLlamada): P
     'custom/transaction/report/execute',
     `tx ${transaccionId}`,
     onLlamada,
+    TIMEOUT_SABANA_MS,
   );
   if (!res.ok) throw new TeamplaceError(`La descarga de la liquidación falló (HTTP ${res.status}).`, res.status);
   const r = clasificarRespuestaPdf(body);

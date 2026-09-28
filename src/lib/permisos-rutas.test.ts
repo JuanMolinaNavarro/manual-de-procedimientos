@@ -50,8 +50,15 @@ describe('puedeUsarApi', () => {
   it('lectura cruzada: el organigrama lee horarios y abre recibos, pero no escribe', () => {
     expect(puedeUsarApi('/api/admin/asistencia/horarios', 'GET', 'admin', ['organigrama'])).toBe(true);
     expect(puedeUsarApi('/api/admin/asistencia/horarios', 'POST', 'admin', ['organigrama'])).toBe(false);
-    expect(puedeUsarApi('/api/admin/nomina/firma/recibos/1/pdf', 'GET', 'admin', ['organigrama'])).toBe(true);
+    const pdf = '/api/admin/nomina/firma/recibos/0b6f1c2e-6a1d-4c1e-9d59-3f1c2a4b5d6e/pdf';
+    expect(puedeUsarApi(pdf, 'GET', 'admin', ['organigrama'])).toBe(true);
+    expect(puedeUsarApi(pdf, 'GET', 'admin', ['gestion-recibos'])).toBe(true);
     expect(puedeUsarApi('/api/admin/nomina/firma/aviso', 'POST', 'admin', ['organigrama'])).toBe(false);
+  });
+  it('el organigrama solo abre el PDF: el resto de firma es de RR.HH.', () => {
+    for (const p of ['panel', 'casos', 'aviso', 'recibos/0b6f1c2e-6a1d-4c1e-9d59-3f1c2a4b5d6e/papel']) {
+      expect(puedeUsarApi(`/api/admin/nomina/firma/${p}`, 'GET', 'admin', ['organigrama'])).toBe(false);
+    }
   });
   it('lo de RR.HH. de recibos es solo de Gestión de recibos', () => {
     expect(puedeUsarApi('/api/admin/nomina/finnegans/liquidaciones/buscar', 'POST', 'admin', ['nomina-tablero'])).toBe(false);

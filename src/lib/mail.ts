@@ -23,6 +23,11 @@ export function modoMail(): ModoMail {
   return process.env.SMTP_HOST ? 'smtp' : 'prueba';
 }
 
+/** ¿Está configurada la URL pública? Sin ella los enlaces apuntan a localhost. */
+export function appUrlConfigurada(): boolean {
+  return !!process.env.APP_URL?.trim();
+}
+
 /** URL pública de la app para los enlaces (sin barra final). */
 export function appUrl(): string {
   return (process.env.APP_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
@@ -42,6 +47,10 @@ function smtp(): Transporter {
       port,
       secure: process.env.SMTP_SECURE === 'true' || port === 465,
       auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS ?? '' } : undefined,
+      // Sin estos topes un SMTP que no contesta deja el aviso colgado hasta 10 minutos por mail.
+      connectionTimeout: 15_000,
+      greetingTimeout: 15_000,
+      socketTimeout: 30_000,
     });
   }
   return transporte;

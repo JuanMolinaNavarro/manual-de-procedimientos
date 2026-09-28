@@ -3,6 +3,7 @@ import {
   agruparPorTransaccion,
   asignarPaginas,
   clasificarRespuestaPdf,
+  contieneImporte,
   estadoEntrega,
   validarFirmaInput,
   fechaIso,
@@ -98,6 +99,23 @@ describe('asignarPaginas', () => {
   it('detecta un neto distinto', () => {
     const r = asignarPaginas([pag(A, 1053625), pag(B, 1)], esperados, EMPRESA);
     expect(r.diferencias).toEqual(['El neto de Dos, Beto no coincide con el de Finnegans (1.313.744,50).']);
+  });
+  it('el neto tiene que estar completo, no como parte de otro importe', () => {
+    const ana = [{ liquidacionLegajoId: 1, cuil: A, neto: 5000, nombre: 'Uno, Ana' }];
+    const pagina = (importe: string) => `CUIL 20-11111111-2 Neto ${importe}`;
+    expect(asignarPaginas([pagina('15.000,00')], ana, EMPRESA).diferencias).toHaveLength(1);
+    expect(asignarPaginas([pagina('5.000,00')], ana, EMPRESA).diferencias).toEqual([]);
+  });
+});
+
+describe('contieneImporte', () => {
+  it('no confunde un importe con el final o el principio de otro', () => {
+    expect(contieneImporte('Neto 15.000,00', '5.000,00')).toBe(false);
+    expect(contieneImporte('Neto 1.053.625,00', '625,00')).toBe(false);
+    expect(contieneImporte('Neto 5.000,001', '5.000,00')).toBe(false);
+    expect(contieneImporte('Neto 5.000,00 pesos', '5.000,00')).toBe(true);
+    expect(contieneImporte('NETO:5.000,00', '5.000,00')).toBe(true);
+    expect(contieneImporte('Neto -5.000,00', '-5.000,00')).toBe(true);
   });
 });
 

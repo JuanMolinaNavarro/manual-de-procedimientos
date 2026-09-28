@@ -840,6 +840,7 @@ export async function adherir(orgId: number, empleadoId: number, email: unknown,
   const p = validarPin(pin, pin2);
   if (await prisma.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } })) throw new NominaError('El trabajador ya está adherido', 409);
   const pinHash = await hashPin(p, m.cuil);
+  // Doble envío (dos clics): el segundo choca con el unique de empleado_id → 409, no 500.
   const row = await prisma.$transaction(async (tx) => {
     const creada = await tx.nominaAdhesion.create({
       data: {
@@ -850,6 +851,11 @@ export async function adherir(orgId: number, empleadoId: number, email: unknown,
     // La ficha del organigrama toma el email si no tenía uno cargado.
     await tx.orgEmpleado.updateMany({ where: { id: empleadoId, OR: [{ email: null }, { email: '' }] }, data: { email: mail } });
     return tx.nominaAdhesion.update({ where: { id: creada.id }, data: { codigo: codigoAdhesion(creada) } });
+  }).catch((e) => {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      throw new NominaError('El trabajador ya está adherido', 409);
+    }
+    throw e;
   });
   return toAdhesion(row);
 }
@@ -859,8 +865,22 @@ export async function adherir(orgId: number, empleadoId: number, email: unknown,
  * alguna, el acta escaneada es su respaldo y no se puede quitar ni reemplazar: para corregir
  * se revoca y se renueva la adhesión (el acta vieja queda en el historial).
  */
-async function firmasConAdhesion(a: { empleado_id: number; created_at: Date }): Promise<number> {
-  return prisma.nominaConstancia.count({ where: { empleado_id: a.empleado_id, created_at: { gte: a.created_at } } });
+async function firmasConAdhesion(
+  a: { empleado_id: number; created_at: Date },
+  db: Pick<Prisma.TransactionClient, 'nominaConstancia'> = prisma,
+): Promise<number> {
+  return db.nominaConstancia.count({ where: { empleado_id: a.empleado_id, created_at: { gte: a.created_at } } });
+}
+
+/**
+ * Adhesión bloqueada (FOR UPDATE) dentro de una transacción: la firma bloquea la misma fila, así
+ * que quitar/reemplazar el acta o revocar no se cruzan con una firma en curso.
+ */
+async function adhesionBloqueada(tx: Prisma.TransactionClient, orgId: number, empleadoId: number) {
+  await tx.$queryRaw`SELECT id FROM nomina_adhesiones WHERE empleado_id = ${empleadoId} FOR UPDATE`;
+  const a = await tx.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } });
+  if (!a || a.organigrama_id !== orgId) throw new NominaError('El trabajador no está adherido', 404);
+  return a;
 }
 
 export interface MiAdhesionView {
@@ -932,19 +952,18 @@ export async function cambiarPinPropio(
  * las firmas ya hechas). Después se puede adherir de nuevo (presencial, acta nueva).
  */
 export async function revocarAdhesion(orgId: number, empleadoId: number, username: string | null, motivo: unknown): Promise<void> {
-  const a = await prisma.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } });
-  if (!a || a.organigrama_id !== orgId) throw new NominaError('El trabajador no está adherido', 404);
   const m = typeof motivo === 'string' ? motivo.trim().slice(0, 500) : '';
-  await prisma.$transaction([
-    prisma.nominaAdhesionRevocada.create({
+  await prisma.$transaction(async (tx) => {
+    const a = await adhesionBloqueada(tx, orgId, empleadoId);
+    await tx.nominaAdhesionRevocada.create({
       data: {
         empleado_id: a.empleado_id, organigrama_id: a.organigrama_id, codigo: a.codigo, fecha: a.fecha, cuil: a.cuil,
         acta_archivo: a.acta_archivo, acta_nombre_original: a.acta_nombre_original, acta_sha256: a.acta_sha256,
         adherida_por: a.created_by, adherida_en: a.created_at, revocada_por: username, motivo: m,
       },
-    }),
-    prisma.nominaAdhesion.delete({ where: { id: a.id } }), // las constancias se conservan
-  ]);
+    });
+    await tx.nominaAdhesion.delete({ where: { id: a.id } }); // las constancias se conservan
+  });
 }
 
 export async function getAdhesion(orgId: number, empleadoId: number): Promise<{ view: AdhesionView; actaArchivo: string | null }> {
@@ -955,32 +974,34 @@ export async function getAdhesion(orgId: number, empleadoId: number): Promise<{ 
 
 /** Registra el acta escaneada; devuelve el archivo anterior (para borrarlo). */
 export async function setActa(orgId: number, empleadoId: number, acta: { archivo: string; nombreOriginal: string; tamano: number; sha256: string }): Promise<{ anterior: string | null; view: AdhesionView }> {
-  const a = await prisma.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } });
-  if (!a || a.organigrama_id !== orgId) throw new NominaError('El trabajador no está adherido', 404);
-  if (a.acta_archivo && (await firmasConAdhesion(a)) > 0) {
-    throw new NominaError('Ya hay recibos firmados con esta adhesión: el acta no se reemplaza. Para corregirla, revocá y renová la adhesión', 409);
-  }
-  const row = await prisma.nominaAdhesion.update({
-    where: { empleado_id: empleadoId },
-    data: {
-      acta_archivo: acta.archivo, acta_nombre_original: acta.nombreOriginal, acta_tamano: acta.tamano,
-      acta_sha256: acta.sha256, acta_subida_en: new Date(),
-    },
+  return prisma.$transaction(async (tx) => {
+    const a = await adhesionBloqueada(tx, orgId, empleadoId);
+    if (a.acta_archivo && (await firmasConAdhesion(a, tx)) > 0) {
+      throw new NominaError('Ya hay recibos firmados con esta adhesión: el acta no se reemplaza. Para corregirla, revocá y renová la adhesión', 409);
+    }
+    const row = await tx.nominaAdhesion.update({
+      where: { empleado_id: empleadoId },
+      data: {
+        acta_archivo: acta.archivo, acta_nombre_original: acta.nombreOriginal, acta_tamano: acta.tamano,
+        acta_sha256: acta.sha256, acta_subida_en: new Date(),
+      },
+    });
+    return { anterior: a.acta_archivo, view: toAdhesion(row) };
   });
-  return { anterior: a.acta_archivo, view: toAdhesion(row) };
 }
 
 export async function clearActa(orgId: number, empleadoId: number): Promise<{ anterior: string | null }> {
-  const a = await prisma.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } });
-  if (!a || a.organigrama_id !== orgId) throw new NominaError('El trabajador no está adherido', 404);
-  if ((await firmasConAdhesion(a)) > 0) {
-    throw new NominaError('Ya hay recibos firmados con esta adhesión: el acta es su respaldo y no se puede quitar', 409);
-  }
-  await prisma.nominaAdhesion.update({
-    where: { empleado_id: empleadoId },
-    data: { acta_archivo: null, acta_nombre_original: null, acta_tamano: null, acta_sha256: null, acta_subida_en: null },
+  return prisma.$transaction(async (tx) => {
+    const a = await adhesionBloqueada(tx, orgId, empleadoId);
+    if ((await firmasConAdhesion(a, tx)) > 0) {
+      throw new NominaError('Ya hay recibos firmados con esta adhesión: el acta es su respaldo y no se puede quitar', 409);
+    }
+    await tx.nominaAdhesion.update({
+      where: { empleado_id: empleadoId },
+      data: { acta_archivo: null, acta_nombre_original: null, acta_tamano: null, acta_sha256: null, acta_subida_en: null },
+    });
+    return { anterior: a.acta_archivo };
   });
-  return { anterior: a.acta_archivo };
 }
 
 export async function getActaDatos(orgId: number, empleadoId: number): Promise<ActaDatos> {

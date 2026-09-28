@@ -121,6 +121,16 @@ export function agruparPorTransaccion(filas: FilaResumenLiq[]): LiquidacionIndic
   return [...porTx.values()].sort((a, b) => a.transaccionId - b.transaccionId);
 }
 
+/**
+ * ¿El texto trae ese importe completo? Con `includes` a secas, `5.000,00` aparecía dentro de
+ * `15.000,00` (y `625,00` dentro de `1.053.625,00`): un recibo con otro neto pasaba el control.
+ * El importe no puede tener un dígito, punto o coma pegado antes ni un dígito o coma después.
+ */
+export function contieneImporte(txt: string, importe: string): boolean {
+  const esc = importe.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?<![\\d.,])${esc}(?![\\d,])`).test(txt);
+}
+
 /** Tokens con forma de CUIT/CUIL (con o sin guiones) → 11 dígitos. */
 export function tokensCuil(txt: string): string[] {
   return [...txt.matchAll(/(?<!\d)(\d{2})-?(\d{8})-?(\d)(?!\d)/g)].map((m) => m[1] + m[2] + m[3]);
@@ -187,7 +197,7 @@ export function asignarPaginas(
   for (const g of grupos) {
     const e = porCuil.get(g.cuil)!;
     const txt = g.paginas.map((p) => textos[p]).join(' ');
-    if (!txt.includes(formatoNeto(e.neto))) {
+    if (!contieneImporte(txt, formatoNeto(e.neto))) {
       diferencias.push(`El neto de ${e.nombre || e.cuil} no coincide con el de Finnegans (${formatoNeto(e.neto)}).`);
     }
   }

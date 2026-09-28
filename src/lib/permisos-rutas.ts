@@ -48,8 +48,7 @@ export const REGLAS_API: readonly Regla[] = [
   { prefijo: '/api/admin/nomina/adhesiones', modulos: ['gestion-recibos'] },
   { prefijo: '/api/admin/nomina/acta-datos', modulos: ['gestion-recibos'] },
   { prefijo: '/api/admin/nomina/finnegans', modulos: ['gestion-recibos'] },
-  // La pestaña Recibos de la ficha del organigrama abre el PDF.
-  { prefijo: '/api/admin/nomina/firma', modulos: ['gestion-recibos'], lectura: ['organigrama'] },
+  { prefijo: '/api/admin/nomina/firma', modulos: ['gestion-recibos'] },
   // Portal personal: cada ruta resuelve la ficha SOLO de la sesión (sin módulo).
   { prefijo: '/api/admin/mi-asistencia', modulos: 'admin' },
   { prefijo: '/api/admin/mis-recibos', modulos: 'admin' },
@@ -61,12 +60,20 @@ export const REGLAS_API: readonly Regla[] = [
 /** Foto de una ficha: se muestra en Organigrama, Asistencia, Nómina, Proyectos… (cualquier admin). */
 const FOTO_FICHA_RE = /^\/api\/admin\/organigrama\/empleados\/\d+\/foto$/;
 
+/**
+ * PDF de un recibo: además de Gestión de recibos, lo abre la pestaña Recibos de la ficha del
+ * organigrama (solo lectura). Solo el PDF: el resto de `/firma` (panel con netos, IPs y
+ * constancias, disconformidades, emails del aviso, escaneos en papel) es de RR.HH.
+ */
+const PDF_RECIBO_RE = /^\/api\/admin\/nomina\/firma\/recibos\/[0-9a-f-]{36}\/pdf$/i;
+
 function coincide(pathname: string, prefijo: string): boolean {
   return pathname === prefijo || pathname.startsWith(prefijo + '/');
 }
 
 export function reglaApi(pathname: string): Regla | null {
   if (FOTO_FICHA_RE.test(pathname)) return { prefijo: pathname, modulos: 'admin', lectura: [] };
+  if (PDF_RECIBO_RE.test(pathname)) return { prefijo: pathname, modulos: ['gestion-recibos'], lectura: ['organigrama'] };
   let mejor: Regla | null = null;
   for (const r of REGLAS_API) {
     if (coincide(pathname, r.prefijo) && (!mejor || r.prefijo.length > mejor.prefijo.length)) mejor = r;

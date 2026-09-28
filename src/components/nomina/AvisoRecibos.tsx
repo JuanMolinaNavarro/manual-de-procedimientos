@@ -25,6 +25,7 @@ const MOTIVO: Record<SinAviso['motivo'], string> = {
   sin_adhesion: 'Sin adhesión',
   pendiente_acta: 'Falta subir el acta',
   sin_email: 'Sin email',
+  sin_usuario: 'Sin usuario del portal',
 };
 
 export default function PasoAviso({ onEnviado }: { onEnviado: () => void }) {
