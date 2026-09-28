@@ -41,9 +41,11 @@ export default function MisRecibosPage() {
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
+    let vivo = true;
     nominaFetch<Respuesta>('/api/admin/mis-recibos')
-      .then((d) => setData(d))
-      .catch((e: unknown) => setError(mensajeError(e)));
+      .then((d) => { if (vivo) { setData(d); setError(null); } })
+      .catch((e: unknown) => { if (vivo) setError(mensajeError(e)); });
+    return () => { vivo = false; };
   }, [version]);
 
   const v = data?.vinculado ? data : null;
@@ -100,7 +102,8 @@ export default function MisRecibosPage() {
 
       {v && v.recibos.length === 0 && (
         <Empty title="Todavía no tenés recibos">
-          Cuando RR.HH. publique la liquidación, tu recibo aparece acá y te llega un aviso por mail.
+          Cuando RR.HH. publique la liquidación, tu recibo aparece acá
+          {v.adhesion.estado === 'completa' ? ' y te llega un aviso por mail' : ''}.
         </Empty>
       )}
 
@@ -112,7 +115,12 @@ export default function MisRecibosPage() {
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-2 font-semibold capitalize text-foreground">
                     {fmtMes(r.periodo)}
-                    {!r.accedidoEn && <span className="h-2 w-2 rounded-full bg-primary" aria-label="Nuevo" />}
+                    {!r.accedidoEn && (
+                      <>
+                        <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
+                        <span className="sr-only">(nuevo, sin abrir)</span>
+                      </>
+                    )}
                   </p>
                   <p className="truncate text-sm text-muted-foreground">{r.tipoLiquidacion}</p>
                 </div>

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Paso 2 de Nómina › Recibos: avisar por mail que los recibos del mes están disponibles. El
+ * Paso 2 de Gestión de recibos: avisar por mail que los recibos del mes están disponibles. El
  * mail no lleva el recibo ni importes, solo el enlace al portal, donde cada uno lo firma con su
  * PIN. Antes de enviar se ve a quién le llega y a quién no (y por qué); cada envío queda
  * registrado como prueba de la puesta a disposición.
@@ -20,6 +20,7 @@ import type { AvisoView, PreviaAviso, ResultadoAviso, SinAviso } from '@/lib/rec
 import { mensajeError, nominaFetch } from './api';
 import { useNomina, useNominaData } from './NominaContext';
 import { PasoCard, type EstadoPaso } from './PasoCard';
+import { Banner, ErrorCarga } from './ui';
 
 const MOTIVO: Record<SinAviso['motivo'], string> = {
   sin_adhesion: 'Sin adhesión',
@@ -34,12 +35,17 @@ export default function PasoAviso({ onEnviado }: { onEnviado: () => void }) {
   const q = useNominaData<PreviaAviso & { historial: AvisoView[] }>(url);
   const [abierto, setAbierto] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  // Resultado del último envío hecho desde esta pantalla (con los fallidos por nombre), solo
+  // mientras se siga viendo la misma empresa y mes.
+  const [envio, setEnvio] = useState<{ url: string | null; r: ResultadoAviso } | null>(null);
+  const ultimoEnvio = envio && envio.url === url ? envio.r : null;
 
   const d = q.data;
   const total = d?.destinatarios.length ?? 0;
   const nuevos = d ? d.destinatarios.filter((x) => !x.yaAvisado).length : 0;
   const ultimo = d?.historial[0];
-  const hayRecibos = !!d && total + d.sinAviso.length > 0;
+  const hayRecibos = !!d && d.recibosDelPeriodo > 0;
+  const hayPendientes = !!d && total + d.sinAviso.length > 0;
 
   async function enviar() {
     setEnviando(true);
@@ -50,6 +56,7 @@ export default function PasoAviso({ onEnviado }: { onEnviado: () => void }) {
       });
       if (r.fallidos.length) toast.warning(`${r.enviados} aviso(s) enviados, ${r.fallidos.length} con error`);
       else toast.success(`${r.enviados} aviso(s) ${r.modo === 'prueba' ? 'generados en modo prueba (no se enviaron)' : 'enviados'}`);
+      setEnvio({ url, r });
       q.reload();
       onEnviado();
     } catch (e) {
@@ -60,6 +67,8 @@ export default function PasoAviso({ onEnviado }: { onEnviado: () => void }) {
   }
 
   const estado: EstadoPaso = !hayRecibos ? 'bloqueado'
+    : !hayPendientes ? 'hecho'
+    : ultimoEnvio?.fallidos.length ? 'atencion'
     : ultimo && nuevos === 0 ? 'hecho'
     : 'pendiente';
 
@@ -73,15 +82,16 @@ export default function PasoAviso({ onEnviado }: { onEnviado: () => void }) {
         n={2}
         titulo="Avisar por mail"
         estado={estado}
-        accion={hayRecibos && (
+        accion={hayPendientes && (
           <Button size="sm" variant={estado === 'hecho' ? 'outline' : 'default'} disabled={!total || enviando} onClick={() => setAbierto(true)}>
             <Mail className="mr-1.5 h-4 w-4" />
             {enviando ? 'Enviando…' : !total ? 'Nadie para avisar' : nuevos ? `Avisar a ${nuevos}` : 'Enviar recordatorio'}
           </Button>
         )}
       >
-        {!d ? <p>Cargando…</p>
+        {!d ? (q.error ? <ErrorCarga error={q.error} onReintentar={q.reload} /> : <p>Cargando…</p>)
           : !hayRecibos ? <p>Primero importá los recibos del mes.</p>
+          : !hayPendientes ? <p>Todos los recibos del mes están firmados o entregados en papel: no queda nadie para avisar.</p>
           : (
             <>
               <p>
@@ -91,6 +101,14 @@ export default function PasoAviso({ onEnviado }: { onEnviado: () => void }) {
               </p>
               <p>{total} con email · {d.sinAviso.length} sin aviso (van en papel)</p>
               {d.modo === 'prueba' && <p className="text-amber-700 dark:text-amber-300">Modo prueba: los mails no salen.</p>}
+              {ultimoEnvio && ultimoEnvio.fallidos.length > 0 && (
+                <Banner variant="warn">
+                  <b>No les llegó el aviso a {ultimoEnvio.fallidos.length}:</b>
+                  <ul className="mt-1 max-h-32 list-disc overflow-y-auto pl-5 text-xs">
+                    {ultimoEnvio.fallidos.map((f) => <li key={f.nombre}>{f.nombre}: {f.error || 'error al enviar'}</li>)}
+                  </ul>
+                </Banner>
+              )}
             </>
           )}
       </PasoCard>
@@ -128,11 +146,22 @@ export default function PasoAviso({ onEnviado }: { onEnviado: () => void }) {
           {d && d.historial.length > 0 && (
             <details className="rounded-md border border-border p-3 text-sm">
               <summary className="cursor-pointer font-medium">Avisos anteriores ({d.historial.length})</summary>
-              <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+              <ul className="mt-2 max-h-56 space-y-1.5 overflow-y-auto text-xs text-muted-foreground">
                 {d.historial.map((a) => (
                   <li key={a.id}>
-                    {fechaHora(a.fecha)} · {a.enviados} enviado(s){a.fallidos ? ` · ${a.fallidos} con error` : ''}
-                    {a.modo === 'prueba' ? ' · prueba' : ''}{a.enviadoPor ? ` · ${a.enviadoPor}` : ''}
+                    <details>
+                      <summary className="cursor-pointer">
+                        {fechaHora(a.fecha)} · {a.enviados} enviado(s){a.fallidos ? ` · ${a.fallidos} con error` : ''}
+                        {a.modo === 'prueba' ? ' · prueba (no salió)' : ''}{a.enviadoPor ? ` · ${a.enviadoPor}` : ''}
+                      </summary>
+                      <ul className="mt-1 space-y-0.5 pl-4">
+                        {a.destinatarios.map((x, i) => (
+                          <li key={i} className={x.estado === 'error' ? 'text-destructive' : undefined}>
+                            {x.nombre} · {x.email}{x.estado === 'error' ? ` · error: ${x.error || 'sin detalle'}` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
                   </li>
                 ))}
               </ul>

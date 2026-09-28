@@ -6,7 +6,7 @@
  * disconformidad (con observaciones) y firma con su PIN. La ficha sale de la sesión.
  */
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { ArrowLeft, CheckCircle2, Download } from 'lucide-react';
@@ -52,6 +52,9 @@ export default function FirmarReciboPage({ id }: { id: string }) {
   const [constancia, setConstancia] = useState<ConstanciaView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
+  // El recibo que ya se dibujó entero en pantalla (la firma se habilita recién ahí). Guardado por
+  // id: si se navega a otro recibo, el componente se reutiliza con el estado anterior.
+  const [dibujado, setDibujado] = useState<string | null>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -74,7 +77,7 @@ export default function FirmarReciboPage({ id }: { id: string }) {
 
   const visor = (
     <div className="overflow-hidden rounded-xl border border-border bg-muted/30 p-2">
-      <VisorPdf url={pdf} />
+      <VisorPdf url={pdf} onListo={() => setDibujado(id)} />
     </div>
   );
 
@@ -129,7 +132,12 @@ export default function FirmarReciboPage({ id }: { id: string }) {
             <>
               <Paso n={1} titulo="Leé tu recibo">{visor}</Paso>
               <Paso n={2} titulo="Firmalo con tu PIN">
-                <FormularioFirma id={id} onFirmado={() => { window.scrollTo({ top: 0, behavior: 'smooth' }); setVersion((n) => n + 1); }} />
+                <FormularioFirma
+                  key={id}
+                  id={id}
+                  pdfListo={dibujado === id}
+                  onFirmado={() => { window.scrollTo({ top: 0, behavior: 'smooth' }); setVersion((n) => n + 1); }}
+                />
               </Paso>
             </>
           ) : visor}
@@ -144,12 +152,22 @@ export default function FirmarReciboPage({ id }: { id: string }) {
   );
 }
 
-function OpcionConformidad({ activa, titulo, detalle, onClick }: { activa: boolean; titulo: string; detalle: string; onClick: () => void }) {
+function OpcionConformidad({ activa, enfocable, titulo, detalle, onClick, boton }: {
+  activa: boolean;
+  /** Tab entra al grupo por la opción elegida (o la primera si no hay): "roving tabindex". */
+  enfocable: boolean;
+  titulo: string;
+  detalle: string;
+  onClick: () => void;
+  boton: (b: HTMLButtonElement | null) => void;
+}) {
   return (
     <button
+      ref={boton}
       type="button"
       role="radio"
       aria-checked={activa}
+      tabIndex={enfocable ? 0 : -1}
       onClick={onClick}
       className={cn(
         'flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors',
@@ -167,18 +185,33 @@ function OpcionConformidad({ activa, titulo, detalle, onClick }: { activa: boole
   );
 }
 
-function FormularioFirma({ id, onFirmado }: { id: string; onFirmado: () => void }) {
+const OPCIONES = ['conforme', 'disconforme'] as const;
+
+function FormularioFirma({ id, pdfListo, onFirmado }: { id: string; pdfListo: boolean; onFirmado: () => void }) {
   const [leido, setLeido] = useState(false);
   const [conformidad, setConformidad] = useState<'conforme' | 'disconforme' | null>(null);
   const [observaciones, setObservaciones] = useState('');
   const [pin, setPin] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [firmado, setFirmado] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const botones = useRef<(HTMLButtonElement | null)[]>([]);
 
-  const listo = leido && !!conformidad && /^\d{4,8}$/.test(pin) && (conformidad === 'conforme' || observaciones.trim() !== '');
+  const listo = pdfListo && leido && !!conformidad && /^\d{4,8}$/.test(pin) && (conformidad === 'conforme' || observaciones.trim() !== '');
+
+  // Flechas dentro del grupo de conformidad, como un radio nativo.
+  function teclas(e: KeyboardEvent<HTMLDivElement>) {
+    const paso = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 0;
+    if (!paso) return;
+    e.preventDefault();
+    const actual = conformidad ? OPCIONES.indexOf(conformidad) : -1;
+    const sig = (actual + paso + OPCIONES.length) % OPCIONES.length;
+    setConformidad(OPCIONES[sig]);
+    botones.current[sig]?.focus();
+  }
 
   async function firmar() {
-    if (!listo || enviando) return;
+    if (!listo || enviando || firmado) return;
     setEnviando(true);
     setError(null);
     try {
@@ -187,6 +220,7 @@ function FormularioFirma({ id, onFirmado }: { id: string; onFirmado: () => void 
         body: JSON.stringify({ pin, conformidad, observaciones, leido: true }),
       });
       toast.success('Recibo firmado');
+      setFirmado(true); // el formulario se cierra ya: un segundo toque no vuelve a firmar
       onFirmado();
     } catch (e) {
       setError(mensajeError(e));
@@ -196,25 +230,41 @@ function FormularioFirma({ id, onFirmado }: { id: string; onFirmado: () => void 
     }
   }
 
+  if (firmado) {
+    return (
+      <div className="flex items-center gap-3 rounded-xl bg-emerald-500/10 p-4 text-sm text-foreground" role="status">
+        <CheckCircle2 className="h-6 w-6 shrink-0 text-emerald-600" />
+        Recibo firmado. Cargando la constancia…
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5 rounded-xl border border-border bg-card p-4">
-      <label className="flex items-start gap-3 text-sm">
-        <Checkbox checked={leido} onCheckedChange={(v) => setLeido(v === true)} className="mt-0.5" />
-        <span>Recibí este recibo de sueldo y lo leí completo.</span>
+      <label className={cn('flex items-start gap-3 text-sm', !pdfListo && 'text-muted-foreground')}>
+        <Checkbox checked={leido} disabled={!pdfListo} onCheckedChange={(v) => setLeido(v === true)} className="mt-0.5" />
+        <span>
+          Recibí este recibo de sueldo y lo leí completo.
+          {!pdfListo && <span className="block text-xs">Esperá a que se muestre el recibo arriba.</span>}
+        </span>
       </label>
 
-      <div className="space-y-2" role="radiogroup" aria-label="Conformidad">
+      <div className="space-y-2" role="radiogroup" aria-label="Conformidad" onKeyDown={teclas}>
         <OpcionConformidad
           activa={conformidad === 'conforme'}
+          enfocable={conformidad !== 'disconforme'}
           titulo="Firmo en conformidad"
           detalle="Estoy de acuerdo con lo liquidado."
           onClick={() => setConformidad('conforme')}
+          boton={(b) => { botones.current[0] = b; }}
         />
         <OpcionConformidad
           activa={conformidad === 'disconforme'}
+          enfocable={conformidad === 'disconforme'}
           titulo="Firmo en disconformidad"
           detalle="Lo recibo, pero hay algo que quiero observar. No pierdo ningún derecho y RR.HH. se va a comunicar conmigo."
           onClick={() => setConformidad('disconforme')}
+          boton={(b) => { botones.current[1] = b; }}
         />
       </div>
 

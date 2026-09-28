@@ -124,6 +124,26 @@ export function FlagRow({ tipo, children }: { tipo: 'error' | 'warn' | 'ok'; chi
 }
 
 /** Estado de carga/errores uniforme; devuelve null cuando hay datos. */
+/**
+ * Error al cargar un bloque, con reintento. Sin esto la pantalla se quedaba en "Cargando…" (o
+ * en blanco) para siempre cuando la API respondía un error.
+ */
+export function ErrorCarga({ error, onReintentar }: { error: string; onReintentar?: () => void }) {
+  return (
+    <p className="text-sm text-destructive" role="alert">
+      No se pudo cargar: {error}
+      {onReintentar && (
+        <>
+          {' '}
+          <button type="button" className="font-medium underline underline-offset-2" onClick={onReintentar}>
+            Reintentar
+          </button>
+        </>
+      )}
+    </p>
+  );
+}
+
 export function Estado({ loading, error, sinOrg }: { loading: boolean; error: string | null; sinOrg?: boolean }) {
   if (sinOrg) return <Empty title="Elegí una empresa">Creá un organigrama en el módulo Organigrama para empezar a liquidar.</Empty>;
   if (error) return <Banner variant="warn">{error}</Banner>;

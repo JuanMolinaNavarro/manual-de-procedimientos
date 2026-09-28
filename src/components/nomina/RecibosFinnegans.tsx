@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Paso 1 de Nómina › Recibos: traer los recibos oficiales (PDF) de Finnegans. La tarjeta
+ * Paso 1 de Gestión de recibos: traer los recibos oficiales (PDF) de Finnegans. La tarjeta
  * resume cuántas liquidaciones del período hay y cuántas se importaron; el detalle y las
  * acciones viven en un diálogo.
  *
@@ -24,7 +24,7 @@ import type { LiquidacionFinnView, ConsumoMes, ResultadoBusqueda, ResultadoImpor
 import { mensajeError, nominaFetch } from './api';
 import { useNomina, useNominaData } from './NominaContext';
 import { PasoCard, type EstadoPaso } from './PasoCard';
-import { Banner } from './ui';
+import { Banner, ErrorCarga } from './ui';
 
 interface Listado {
   liquidaciones: LiquidacionFinnView[];
@@ -50,7 +50,9 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
   const [abierto, setAbierto] = useState(false);
   const [confirmarBuscar, setConfirmarBuscar] = useState(false);
   const [ocupado, setOcupado] = useState<string | null>(null);
-  const [diferencias, setDiferencias] = useState<{ nro: number; items: string[] } | null>(null);
+  // Las diferencias mostradas son de la empresa y el mes en pantalla: al cambiar, se ocultan.
+  const [difGuardadas, setDiferencias] = useState<{ url: string | null; nro: number; items: string[] } | null>(null);
+  const diferencias = difGuardadas && difGuardadas.url === url ? difGuardadas : null;
 
   const d = lst.data;
   const consumo = d?.consumo;
@@ -98,7 +100,7 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
         setDiferencias(null);
       } else {
         toast.error('La liquidación tiene diferencias: no se publicó ningún recibo');
-        setDiferencias({ nro: l.nroLiquidacion, items: r.diferencias });
+        setDiferencias({ url, nro: l.nroLiquidacion, items: r.diferencias });
       }
       lst.reload();
       onCambio();
@@ -125,12 +127,12 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
             {estado === 'hecho' ? 'Ver liquidaciones' : 'Importar'}
           </Button>
         ) : (
-          <Button size="sm" disabled={ocupado != null || !d} onClick={() => setConfirmarBuscar(true)}>
+          <Button size="sm" disabled={ocupado != null || (!d && !lst.error)} onClick={() => setConfirmarBuscar(true)}>
             <RefreshCw className="mr-1.5 h-4 w-4" /> {ocupado === 'buscar' ? 'Buscando…' : 'Buscar en Finnegans'}
           </Button>
         )}
       >
-        {!d ? <p>Cargando…</p>
+        {!d ? (lst.error ? <ErrorCarga error={lst.error} onReintentar={lst.reload} /> : <p>Cargando…</p>)
           : !liqs.length ? <p>Todavía no hay liquidaciones de {periodLabel(periodo)} para esta empresa. No todas liquidan todos los meses.</p>
           : (
             <>
@@ -178,7 +180,7 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
                     </div>
                     <Badge variant={e.variant}>{e.label}</Badge>
                     {l.estado === 'con_diferencias' && l.diferencias.length > 0 && (
-                      <button type="button" className="text-xs text-muted-foreground underline" onClick={() => setDiferencias({ nro: l.nroLiquidacion, items: l.diferencias })}>
+                      <button type="button" className="text-xs text-muted-foreground underline" onClick={() => setDiferencias({ url, nro: l.nroLiquidacion, items: l.diferencias })}>
                         ver diferencias
                       </button>
                     )}

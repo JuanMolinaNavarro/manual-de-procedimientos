@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Nómina › Recibos › pestaña "Adhesiones": quién adhirió al recibo digital. La adhesión es
+ * Gestión de recibos › pestaña "Adhesiones": quién adhirió al recibo digital. La adhesión es
  * presencial (email + PIN que tipea el trabajador), se imprime el acta, se firma en papel y se
  * sube escaneada; sin acta queda pendiente y no firma. Cada fila muestra la acción que toca
  * (Adherir / Subir acta) y el resto va en el menú.
@@ -45,6 +45,7 @@ export default function AdhesionesTabla({ adhesiones, onCambio }: { adhesiones: 
   const [adherir, setAdherir] = useState<EmpleadoNomina | null>(null);
   const [revocar, setRevocar] = useState<EmpleadoNomina | null>(null);
   const [motivo, setMotivo] = useState('');
+  const [quitar, setQuitar] = useState<EmpleadoNomina | null>(null);
   const [subiendo, setSubiendo] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const actaPara = useRef<number | null>(null);
@@ -143,7 +144,7 @@ export default function AdhesionesTabla({ adhesiones, onCambio }: { adhesiones: 
                           <a href={actaUrl(e.id)} target="_blank" rel="noopener"><FileText className="h-4 w-4" /> Ver acta escaneada</a>
                         </DropdownMenuItem>
                         {puedeGestionarPin && (
-                          <DropdownMenuItem onSelect={() => void quitarActa(e.id)}><Trash2 className="h-4 w-4" /> Quitar acta</DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => setQuitar(e)}><Trash2 className="h-4 w-4" /> Quitar acta…</DropdownMenuItem>
                         )}
                       </>
                     )}
@@ -169,7 +170,23 @@ export default function AdhesionesTabla({ adhesiones, onCambio }: { adhesiones: 
 
       <AdhesionDialog organigramaId={organigramaId} empleado={adherir} onClose={() => setAdherir(null)} onOk={onCambio} />
 
-      <AlertDialog open={!!revocar} onOpenChange={(o) => !o && setRevocar(null)}>
+      <AlertDialog open={!!quitar} onOpenChange={(o) => !o && setQuitar(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Quitar el acta de {quitar?.nombre}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se borra el escaneo del acta y la adhesión vuelve a quedar <b>pendiente</b>: no va a poder firmar hasta que se suba
+              de nuevo. Usalo solo si se subió un archivo equivocado (si ya firmó algún recibo, el acta no se puede quitar).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { const e = quitar; setQuitar(null); if (e) void quitarActa(e.id); }}>Quitar acta</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!revocar} onOpenChange={(o) => { if (!o) { setRevocar(null); setMotivo(''); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Revocar la adhesión de {revocar?.nombre}</AlertDialogTitle>

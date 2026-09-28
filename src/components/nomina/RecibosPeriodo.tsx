@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Nómina › Recibos › pestaña "Recibos": un renglón por recibo PDF del período con su estado de
+ * Gestión de recibos › pestaña "Recibos del mes": un renglón por recibo PDF del período con su estado de
  * entrega (pendiente / no retirado / firmado / en papel). Buscador + filtros, y las acciones
  * de cada recibo (PDF, constancia, entrega en papel) en un menú. Cada trabajador firma desde
  * el portal con su PIN; a los 15 días del aviso sin firmar corresponde entregarlo en papel.
@@ -13,6 +13,10 @@ import { FileSignature, FileText, MoreHorizontal, ScanLine, Upload } from 'lucid
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -50,15 +54,17 @@ export default function RecibosPeriodo({ panel, onCambio }: { panel: PanelRecibo
   const [constancia, setConstancia] = useState<ReciboPanelView | null>(null);
   const [subiendo, setSubiendo] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const papelPara = useRef<string | null>(null);
+  const papelPara = useRef<ReciboPanelView | null>(null);
+  // Registrar el papel es irreversible (excluye la firma electrónica): se confirma con el nombre
+  // de la persona y del archivo antes de subir.
+  const [papel, setPapel] = useState<{ recibo: ReciboPanelView; file: File } | null>(null);
 
-  function elegirPapel(id: string) {
-    papelPara.current = id;
+  function elegirPapel(x: ReciboPanelView) {
+    papelPara.current = x;
     fileRef.current?.click();
   }
-  async function subirPapel(file: File) {
-    const id = papelPara.current;
-    if (!id) return;
+  async function subirPapel(recibo: ReciboPanelView, file: File) {
+    const id = recibo.id;
     setSubiendo(id);
     try {
       const fd = new FormData();
@@ -90,11 +96,14 @@ export default function RecibosPeriodo({ panel, onCambio }: { panel: PanelRecibo
     { valor: 'firmado', label: 'Firmados', cuenta: r.firmados },
     { valor: 'papel', label: 'En papel', cuenta: r.papel },
   ];
-  const visibles = panel.recibos.filter((x) => (filtro === 'todos' || x.entrega === filtro) && coincide(x.nombre, buscar));
+  // Un chip que se quedó en 0 desaparece: su filtro deja de aplicar (si no, "Nadie coincide").
+  const visiblesFiltros = filtros.filter((f) => f.valor === 'todos' || f.cuenta > 0);
+  const activo: FiltroEntrega = visiblesFiltros.some((f) => f.valor === filtro) ? filtro : 'todos';
+  const visibles = panel.recibos.filter((x) => (activo === 'todos' || x.entrega === activo) && coincide(x.nombre, buscar));
 
   return (
     <div className="space-y-3">
-      <BarraFiltros buscar={buscar} onBuscar={setBuscar} filtros={filtros.filter((f) => f.valor === 'todos' || f.cuenta > 0)} activo={filtro} onFiltro={setFiltro} />
+      <BarraFiltros buscar={buscar} onBuscar={setBuscar} filtros={visiblesFiltros} activo={activo} onFiltro={setFiltro} />
       <ul className="divide-y divide-border rounded-xl border border-border bg-card">
         {visibles.map((x) => (
           <li key={x.id} className="flex items-center gap-3 px-4 py-3">
@@ -125,7 +134,7 @@ export default function RecibosPeriodo({ panel, onCambio }: { panel: PanelRecibo
                 {(x.entrega === 'pendiente' || x.entrega === 'no_retirado') && (
                   <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onSelect={() => elegirPapel(x.id)}><Upload className="h-4 w-4" /> Registrar entrega en papel…</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => elegirPapel(x)}><Upload className="h-4 w-4" /> Registrar entrega en papel…</DropdownMenuItem>
                   </>
                 )}
               </DropdownMenuContent>
@@ -141,10 +150,29 @@ export default function RecibosPeriodo({ panel, onCambio }: { panel: PanelRecibo
         className="hidden"
         onChange={(ev) => {
           const f = ev.target.files?.[0];
-          if (f) void subirPapel(f);
+          const recibo = papelPara.current;
+          if (f && recibo) setPapel({ recibo, file: f });
           ev.target.value = '';
         }}
       />
+
+      <AlertDialog open={!!papel} onOpenChange={(o) => !o && setPapel(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Registrar la entrega en papel de {papel?.recibo.nombre}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se sube <b>{papel?.file.name}</b> como escaneo del recibo de {papel?.recibo.tipoLiquidacion} impreso y firmado a
+              mano. <b>No se puede deshacer:</b> ese recibo ya no se podrá firmar desde el portal.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { const p = papel; setPapel(null); if (p) void subirPapel(p.recibo, p.file); }}>
+              Registrar en papel
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={!!constancia} onOpenChange={(o) => !o && setConstancia(null)}>
         <DialogContent className="sm:max-w-xl">

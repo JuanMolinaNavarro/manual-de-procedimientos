@@ -17,10 +17,10 @@ function Fila({ label, children, mono }: { label: string; children: ReactNode; m
 
 /**
  * Constancia de recepción y firma electrónica de un recibo PDF de Finnegans: quién, cuándo,
- * desde dónde y sobre qué documento (hash) firmó. `hashOk`: resultado de verificar el PDF
- * contra el hash firmado.
+ * desde dónde y sobre qué documento (hash) firmó. (El PDF se verifica contra su hash en el
+ * servidor antes de mostrarlo o firmarlo.)
  */
-export default function ConstanciaCard({ constancia: c, hashOk }: { constancia: ConstanciaView; hashOk?: boolean | null }) {
+export default function ConstanciaCard({ constancia: c }: { constancia: ConstanciaView }) {
   const conforme = c.conformidad === 'conforme';
   const Icono = conforme ? CheckCircle2 : MessageSquareWarning;
   return (
@@ -44,13 +44,6 @@ export default function ConstanciaCard({ constancia: c, hashOk }: { constancia: 
         <Fila label="Recibo (SHA-256)" mono>{c.hash}</Fila>
         <Fila label="Encadenado" mono>{c.chainHash}</Fila>
       </dl>
-      {hashOk != null && (
-        <p className={cn('rounded-md px-3 py-2 text-sm', hashOk ? 'bg-emerald-500/10' : 'bg-red-500/10 text-red-700 dark:text-red-300')}>
-          {hashOk
-            ? 'El PDF del recibo coincide con el hash firmado: el documento no fue alterado.'
-            : 'El PDF del recibo NO coincide con el hash firmado.'}
-        </p>
-      )}
     </div>
   );
 }

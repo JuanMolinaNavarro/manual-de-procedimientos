@@ -667,6 +667,8 @@ export interface PreviaAviso {
   modo: ModoMail;
   destinatarios: DestinatarioAviso[];
   sinAviso: SinAviso[];
+  /** Recibos publicados del período (de cualquier estado): distingue "no hay recibos" de "ya no queda nadie pendiente". */
+  recibosDelPeriodo: number;
 }
 
 /**
@@ -706,7 +708,8 @@ export async function previaAviso(orgId: number, periodo: string): Promise<Previ
     else destinatarios.push({ empleadoId, nombre: p.nombre, email: p.adh.email, recibos: p.recibos, yaAvisado: p.avisados === p.recibos });
   }
   const orden = (a: { nombre: string }, b: { nombre: string }) => a.nombre.localeCompare(b.nombre, 'es');
-  return { modo: modoMail(), destinatarios: destinatarios.sort(orden), sinAviso: sinAviso.sort(orden) };
+  const recibosDelPeriodo = await prisma.nominaReciboPdf.count({ where: { organigrama_id: orgId, periodo } });
+  return { modo: modoMail(), destinatarios: destinatarios.sort(orden), sinAviso: sinAviso.sort(orden), recibosDelPeriodo };
 }
 
 export interface ResultadoAviso {
@@ -814,12 +817,25 @@ export interface AvisoView {
   enviados: number;
   fallidos: number;
   enviadoPor: string | null;
+  /** A quién se mandó y cómo salió: es la prueba de la puesta a disposición. */
+  destinatarios: { nombre: string; email: string; estado: string; error: string }[];
 }
 
 export async function listarAvisos(orgId: number, periodo: string): Promise<AvisoView[]> {
-  const rows = await prisma.nominaAviso.findMany({ where: { organigrama_id: orgId, periodo }, orderBy: { created_at: 'desc' } });
+  const rows = await prisma.nominaAviso.findMany({
+    where: { organigrama_id: orgId, periodo },
+    orderBy: { created_at: 'desc' },
+    include: { destinatarios: { orderBy: { id: 'asc' } } },
+  });
+  const ids = [...new Set(rows.flatMap((a) => a.destinatarios.map((d) => d.empleado_id)))];
+  const nombres = new Map(
+    (await prisma.orgEmpleado.findMany({ where: { id: { in: ids } }, select: { id: true, nombre: true } })).map((e) => [e.id, e.nombre]),
+  );
   return rows.map((a) => ({
     id: a.id, fecha: a.created_at.toISOString(), modo: a.modo, enviados: a.enviados, fallidos: a.fallidos, enviadoPor: a.enviado_por,
+    destinatarios: a.destinatarios.map((d) => ({
+      nombre: nombres.get(d.empleado_id) ?? `#${d.empleado_id}`, email: d.email, estado: d.estado, error: d.error,
+    })),
   }));
 }
 

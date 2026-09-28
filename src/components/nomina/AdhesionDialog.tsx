@@ -33,7 +33,8 @@ export default function AdhesionDialog({ organigramaId, empleado, onClose, onOk 
   function cerrar() { setEmail(''); setPin(''); setPin2(''); onClose(); }
 
   async function confirmar() {
-    if (!empleado) return;
+    // Enter en el segundo PIN también llama acá: sin esto, un Enter + clic mandaba dos adhesiones.
+    if (!empleado || enviando) return;
     if (!emailValido(email)) { toast.error('Ingresá un email válido'); return; }
     if (!PIN_RE.test(pin.trim())) { toast.error('El PIN debe tener entre 4 y 8 dígitos'); return; }
     if (pin.trim() !== pin2.trim()) { toast.error('Los PIN no coinciden'); return; }
@@ -77,7 +78,7 @@ export default function AdhesionDialog({ organigramaId, empleado, onClose, onOk 
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={cerrar}>Cancelar</Button>
-          <Button onClick={confirmar} disabled={enviando}>Adherir</Button>
+          <Button onClick={confirmar} disabled={enviando}>{enviando ? 'Guardando…' : 'Adherir'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -25,7 +25,7 @@ import { useNomina, useNominaData } from './NominaContext';
 import { PasoCard, type EstadoPaso } from './PasoCard';
 import PasoImportar from './RecibosFinnegans';
 import RecibosPeriodo from './RecibosPeriodo';
-import { Banner, Estado } from './ui';
+import { Banner, ErrorCarga, Estado } from './ui';
 
 /** Título + empresa y mes (compartidos con Nómina por localStorage). */
 function Encabezado({ extra }: { extra?: ReactNode }) {
@@ -92,7 +92,12 @@ function SelloCadena({ cadena }: { cadena: RecibosData['cadena'] }) {
   );
 }
 
-function PasoFirmas({ panel, onVer }: { panel: PanelRecibos | null; onVer: () => void }) {
+function PasoFirmas({ panel, error, onReintentar, onVer }: {
+  panel: PanelRecibos | null;
+  error: string | null;
+  onReintentar: () => void;
+  onVer: () => void;
+}) {
   const r = panel?.resumen;
   const cerrados = r ? r.firmados + r.papel : 0;
   const pct = r && r.total ? Math.round((cerrados / r.total) * 100) : 0;
@@ -104,7 +109,8 @@ function PasoFirmas({ panel, onVer }: { panel: PanelRecibos | null; onVer: () =>
       estado={estado}
       accion={r && r.total > 0 && <Button size="sm" variant="outline" onClick={onVer}>Ver recibos</Button>}
     >
-      {!r ? <p>Cargando…</p> : !r.total ? <p>Sin recibos publicados todavía.</p> : (
+      {!r ? (error ? <ErrorCarga error={error} onReintentar={onReintentar} /> : <p>Cargando…</p>)
+        : !r.total ? <p>Sin recibos publicados todavía.</p> : (
         <>
           <div className="flex items-baseline justify-between">
             <p><b className="text-lg text-foreground tabular-nums">{r.firmados}</b> de {r.total} firmados</p>
@@ -157,7 +163,7 @@ export default function GestionRecibosPage() {
       <section className="grid gap-3 md:grid-cols-3" aria-label="Pasos del mes">
         <PasoImportar onCambio={refrescar} />
         <PasoAviso onEnviado={refrescar} />
-        <PasoFirmas panel={panel.data} onVer={() => setTab('recibos')} />
+        <PasoFirmas panel={panel.data} error={panel.error} onReintentar={panel.reload} onVer={() => setTab('recibos')} />
       </section>
 
       <Tabs value={tab} onValueChange={setTab} className="gap-4">
@@ -170,9 +176,13 @@ export default function GestionRecibosPage() {
             Disconformidades{abiertos > 0 && <Badge variant="destructive" className="ml-1.5 h-5 px-1.5 tabular-nums">{abiertos}</Badge>}
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="recibos"><RecibosPeriodo panel={panel.data} onCambio={refrescar} /></TabsContent>
+        <TabsContent value="recibos">
+          {panel.error && !panel.data ? <ErrorCarga error={panel.error} onReintentar={panel.reload} /> : <RecibosPeriodo panel={panel.data} onCambio={refrescar} />}
+        </TabsContent>
         <TabsContent value="adhesiones"><AdhesionesTabla adhesiones={d.adhesiones} onCambio={refrescar} /></TabsContent>
-        <TabsContent value="casos"><CasosDisconformidad casos={casos.data} onCambio={refrescar} /></TabsContent>
+        <TabsContent value="casos">
+          {casos.error && !casos.data ? <ErrorCarga error={casos.error} onReintentar={casos.reload} /> : <CasosDisconformidad casos={casos.data} onCambio={refrescar} />}
+        </TabsContent>
       </Tabs>
     </div>
   );

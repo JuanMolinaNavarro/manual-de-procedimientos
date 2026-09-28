@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUsuarioSesion } from '@/lib/admin-auth';
-import { handleSesion } from '@/lib/nomina-api';
+import { handleSesion, pdfResponse } from '@/lib/nomina-api';
 import { reciboPropio } from '@/lib/recibos-finnegans';
 
 export const dynamic = 'force-dynamic';
@@ -16,14 +16,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (usuario.empleado_id == null) return NextResponse.json({ error: 'Recibo no encontrado' }, { status: 404 });
     const { id } = await params;
     const { pdf, nombre } = await reciboPropio(usuario.empleado_id, id);
-    const modo = request.nextUrl.searchParams.get('descargar') === '1' ? 'attachment' : 'inline';
-    return new NextResponse(new Uint8Array(pdf), {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `${modo}; filename="${nombre}"`,
-        'Cache-Control': 'private, no-store',
-        'X-Content-Type-Options': 'nosniff',
-      },
-    });
+    return pdfResponse(pdf, nombre, request.nextUrl.searchParams.get('descargar') === '1');
   });
 }

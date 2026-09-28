@@ -4,6 +4,7 @@
  * Visor de PDF con pdf.js: dibuja cada página en un <canvas> al ancho del contenedor. Se usa
  * en el portal porque los celulares (Chrome en Android, sobre todo) no muestran un PDF dentro
  * de un <iframe>. Muestra el archivo tal cual lo entrega el servidor (que ya verificó su hash).
+ * `onListo` avisa cuando el recibo terminó de dibujarse (la firma se habilita recién ahí).
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -15,12 +16,21 @@ export default function VisorPdf({ url, onListo }: { url: string; onListo?: (pag
 
   useEffect(() => {
     let cancelado = false;
+    const descarga = new AbortController();
     // Cada ejecución tiene su propio worker: si React re-ejecuta el efecto (modo desarrollo) o
     // cambia la URL, la limpieza de una no deja colgada a la otra.
     let worker: Worker | null = null;
     let liberar: (() => void) | null = null;
+    const soltar = () => {
+      liberar?.();
+      liberar = null;
+      worker?.terminate();
+      worker = null;
+    };
     (async () => {
       try {
+        // pdf.js 5 usa Uint8Array.prototype.toHex (ES2025). El build legacy trae su polyfill;
+        // este queda como red por si algún navegador viejo del celular no lo toma.
         const u8proto = Uint8Array.prototype as unknown as { toHex?: () => string };
         if (typeof Uint8Array !== 'undefined' && !u8proto.toHex) {
           u8proto.toHex = function (this: Uint8Array) {
@@ -28,7 +38,7 @@ export default function VisorPdf({ url, onListo }: { url: string; onListo?: (pag
           };
         }
         const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-        const res = await fetch(url, { cache: 'no-store' });
+        const res = await fetch(url, { cache: 'no-store', signal: descarga.signal });
         if (!res.ok) {
           let msg = `No se pudo abrir el recibo (${res.status})`;
           try {
@@ -63,14 +73,18 @@ export default function VisorPdf({ url, onListo }: { url: string; onListo?: (pag
           canvas.style.width = '100%';
           canvas.style.height = 'auto';
           canvas.className = 'mb-2 rounded border border-border bg-white';
-          canvas.setAttribute('aria-label', `Página ${i} del recibo`);
+          canvas.setAttribute('role', 'img');
+          canvas.setAttribute('aria-label', `Página ${i} de ${doc.numPages} del recibo`);
           await page.render({ canvas, viewport: vp }).promise;
           if (cancelado) return;
           hojas.push(canvas);
         }
         div.replaceChildren(...hojas);
+        const paginas = doc.numPages;
+        // Con todo dibujado en los canvas ya no hace falta el documento ni el worker.
+        soltar();
         setEstado('listo');
-        onListo?.(doc.numPages);
+        onListo?.(paginas);
       } catch (e) {
         if (!cancelado) {
           setError(e instanceof Error ? e.message : 'No se pudo mostrar el recibo');
@@ -80,8 +94,8 @@ export default function VisorPdf({ url, onListo }: { url: string; onListo?: (pag
     })();
     return () => {
       cancelado = true;
-      liberar?.();
-      worker?.terminate();
+      descarga.abort();
+      soltar();
     };
     // onListo se llama una sola vez por URL
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -89,8 +103,8 @@ export default function VisorPdf({ url, onListo }: { url: string; onListo?: (pag
 
   return (
     <div>
-      {estado === 'cargando' && <p className="py-8 text-center text-sm text-muted-foreground">Cargando el recibo…</p>}
-      {estado === 'error' && <p className="py-4 text-sm font-medium text-destructive">{error}</p>}
+      {estado === 'cargando' && <p className="py-8 text-center text-sm text-muted-foreground" role="status">Cargando el recibo…</p>}
+      {estado === 'error' && <p className="py-4 text-sm font-medium text-destructive" role="alert">{error}</p>}
       <div ref={cont} />
     </div>
   );
