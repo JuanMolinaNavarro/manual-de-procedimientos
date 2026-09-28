@@ -199,6 +199,9 @@ function Editor({ empleado, versiones, onCerrar }: { empleado: { id: number; nom
       onCerrar();
     } catch (e) {
       toast.error(mensajeError(e));
+      // Si otro admin guardó en el medio (409), se traen las versiones de nuevo: el editor pasa a
+      // comparar contra la última real y el reintento funciona sin cerrar y volver a abrir.
+      refrescar();
     } finally {
       setGuardando(false);
     }
@@ -318,7 +321,7 @@ function Editor({ empleado, versiones, onCerrar }: { empleado: { id: number; nom
                           <Checkbox
                             checked={viene}
                             disabled={!d.activo || !f.incluir}
-                            onCheckedChange={(v) => setDia(ds, { semanas: v ? [...new Set([...d.semanas, sem])].sort() : d.semanas.filter((x) => x !== sem) })}
+                            onCheckedChange={(v) => setDia(ds, { semanas: v ? [...new Set([...d.semanas, sem])].sort((a, b) => a - b) : d.semanas.filter((x) => x !== sem) })}
                             aria-label={`${DIAS_SEMANA_LARGO[ds]} semana ${sem + 1}`}
                           />
                           S{sem + 1}

@@ -1,7 +1,6 @@
 /**
  * Servidor del calendario de asistencia: versiones de horario por empleado,
- * parámetros generales, armado del calendario del mes y migración de los
- * horarios viejos de la ficha. La lógica pura vive en `asistencia-calendario.ts`.
+ * parámetros generales y armado del calendario (mes, rango y Mi asistencia). La lógica pura vive en `asistencia-calendario.ts`.
  */
 
 import { Prisma, type AsistenciaHorario as HorarioRow } from '@prisma/client';
@@ -15,7 +14,6 @@ import {
   lunesDe,
   rangoMes,
   resumenLiquidacion,
-  ultimaVersion,
   type CeldaDia,
   type ConfigAsistencia,
   type DiaCalendario,
@@ -518,4 +516,3 @@ export async function miAsistencia(empleadoId: number, mes: string): Promise<MiA
   };
 }
 
-export { ultimaVersion };

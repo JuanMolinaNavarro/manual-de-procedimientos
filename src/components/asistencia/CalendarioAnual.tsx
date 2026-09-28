@@ -22,12 +22,15 @@ import { ESTILO_CELDA, LEYENDA_ESTADOS } from './estilo-celda';
 const MESES_CORTO = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 /** Etiquetas de fila como GitHub: solo lunes, miércoles y viernes para no apretar. */
 const FILAS_CON_LABEL: Record<number, string> = { 0: 'Lun', 2: 'Mié', 4: 'Vie' };
-const CELDA = 13; // px
+// Tamaño de celda: 13 px en pantallas medianas y 20 px en el celular (con 13 px no se
+// podía tocar una celda sin errarle); la grilla se desplaza horizontal. Va como variable CSS.
+const CELDA = 'var(--celda)';
 /** Descripciones para la propia persona: las de `ESTADOS_DIA` mencionan la tolerancia, que es interna de RRHH. */
 const DESC_PERSONAL: Partial<Record<CeldaDia['estado'], string>> = {
   a_horario: 'Entraste a horario.',
   tarde: 'Entraste después de la hora pactada.',
   tarde_grave: 'Entraste con un atraso importante respecto de la hora pactada.',
+  sin_entrada: 'Fichaste una sola marca y fue de salida: no se sabe a qué hora entraste. Si fue un error, avisale a RR.HH.',
 };
 const GAP = 3; // px
 
@@ -82,13 +85,13 @@ export default function CalendarioAnual({ dias, celdas, mesActivo, onVerMes }: P
         {t.trabajoNoLaborable ? <> · <span className="text-sky-700 dark:text-sky-400">{t.trabajoNoLaborable} en día no laborable</span></> : null}
       </p>
 
-      <div className="overflow-x-auto pb-1">
+      <div className="overflow-x-auto pb-1 [--celda:20px] sm:[--celda:13px]">
         <div
           className="inline-grid"
           style={{
             gap: GAP,
-            gridTemplateColumns: `28px repeat(${semanas.length}, ${CELDA}px)`,
-            gridTemplateRows: `16px repeat(7, ${CELDA}px)`,
+            gridTemplateColumns: `28px repeat(${semanas.length}, ${CELDA})`,
+            gridTemplateRows: `16px repeat(7, ${CELDA})`,
           }}
         >
           {labelsMes.map((l) => (
@@ -97,7 +100,7 @@ export default function CalendarioAnual({ dias, celdas, mesActivo, onVerMes }: P
             </span>
           ))}
           {Object.entries(FILAS_CON_LABEL).map(([fila, texto]) => (
-            <span key={fila} className="text-[10px] leading-[13px] text-muted-foreground" style={{ gridColumn: 1, gridRow: Number(fila) + 2 }}>
+            <span key={fila} className="text-[10px] leading-[var(--celda)] text-muted-foreground" style={{ gridColumn: 1, gridRow: Number(fila) + 2 }}>
               {texto}
             </span>
           ))}
@@ -125,7 +128,9 @@ function Celda({ dia, celda, onVerMes }: { dia: DiaCalendario; celda: CeldaDia; 
   const e = ESTILO_CELDA[celda.estado];
   const inerte = celda.estado === 'futuro' || ((celda.estado === 'sin_horario' || celda.estado === 'feriado' || celda.estado === 'no_laborable') && celda.marcas === 0);
   const futuroLaborable = celda.estado === 'futuro' && celda.jornada != null;
-  const label = `${fmtFechaDia(celda.fecha)}: ${ESTADOS_DIA[celda.estado].label}${celda.minutosTarde ? `, ${celda.minutosTarde} min tarde` : ''}${celda.sinSalida ? ', sin salida' : ''}`;
+  // Minutos tarde solo en días tarde: en uno "a horario" mostrarlos dejaba deducir la tolerancia.
+  const tarde = celda.estado === 'tarde' || celda.estado === 'tarde_grave' ? celda.minutosTarde : null;
+  const label = `${fmtFechaDia(celda.fecha)}: ${ESTADOS_DIA[celda.estado].label}${tarde ? `, ${tarde} min tarde` : ''}${celda.sinSalida ? ', sin salida' : ''}`;
   const boton = (
     <button
       type="button"
@@ -133,7 +138,7 @@ function Celda({ dia, celda, onVerMes }: { dia: DiaCalendario; celda: CeldaDia; 
       title={label}
       disabled={inerte}
       className={cn(
-        'block h-[13px] w-[13px] rounded-[3px] transition-transform',
+        'block h-[var(--celda)] w-[var(--celda)] rounded-[3px] transition-transform',
         e.celda,
         futuroLaborable && 'border border-border',
         dia.esHoy && 'outline outline-1 outline-offset-1 outline-primary',
@@ -171,9 +176,9 @@ function DetalleCelda({ celda, onVerMes }: { celda: CeldaDia; onVerMes?: (mes: s
         <dd className="tabular-nums">{celda.jornada ? `${celda.jornada.entrada}–${celda.jornada.salida}` : celda.estado === 'sin_horario' ? 'sin horario' : 'no laborable'}</dd>
         <dt className="text-muted-foreground">Entrada</dt>
         <dd className="tabular-nums">
-          {celda.entrada ? fmtHoraCorta(celda.entrada) : '—'}
+          {celda.entrada ? fmtHoraCorta(celda.entrada) : celda.estado === 'sin_entrada' ? <span className="text-amber-600 dark:text-amber-400">sin marca</span> : '—'}
           {celda.entradaInferida && <span className="ml-1 text-amber-600 dark:text-amber-400">(inferida)</span>}
-          {celda.minutosTarde ? <span className="ml-1 text-muted-foreground">· {celda.minutosTarde} min tarde</span> : null}
+          {(celda.estado === 'tarde' || celda.estado === 'tarde_grave') && celda.minutosTarde ? <span className="ml-1 text-muted-foreground">· {celda.minutosTarde} min tarde</span> : null}
         </dd>
         <dt className="text-muted-foreground">Salida</dt>
         <dd className="tabular-nums">{celda.salida ? fmtHoraCorta(celda.salida) : celda.sinSalida ? <span className="text-amber-600 dark:text-amber-400">sin marca</span> : '—'}</dd>

@@ -6,7 +6,7 @@
 
 import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
-import { ClienteAnviz, conReloj, type RegistroReloj } from './anviz-tcb';
+import { conReloj, type RegistroReloj } from './anviz-tcb';
 import { updateEmpleado } from './organigrama';
 import {
   ORIGEN_CROSSCHEX,
@@ -817,4 +817,3 @@ function chunk<T>(arr: T[], n: number): T[][] {
   return out;
 }
 
-export { hoyLocal, ClienteAnviz };

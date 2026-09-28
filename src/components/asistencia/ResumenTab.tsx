@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Banner, Empty, EmpleadoCell, StatCard } from '@/components/comunes/ui';
+import { diaSemanaDe } from '@/lib/asistencia-calendario';
 import { cn } from '@/lib/utils';
 import { fmtFechaDia, fmtRelativo, type ResumenAsistencia } from '@/lib/asistencia-datos';
 import { useAsistencia, useAsistenciaData } from './AsistenciaContext';
@@ -61,7 +62,7 @@ export default function ResumenTab() {
               onClick={() => set({ tab: 'fichadas' })}
             />
             <Kpi
-              label="Empleados con días sin marca de salida"
+              label="Días sin marca de salida"
               value={data.totales.diasIncompletos.toLocaleString('es-AR')}
               tone={data.totales.diasIncompletos > 0 ? 'orange' : undefined}
               detail={`Sobre ${data.totales.diasPersona.toLocaleString('es-AR')} días cerrados`}
@@ -201,7 +202,7 @@ function ActividadPorDia({ porDia }: { porDia: ResumenAsistencia['porDia'] }) {
       <CardContent>
         <div className="flex items-end gap-[2px]" style={{ height: 96 }}>
           {porDia.map((d) => {
-            const finDeSemana = esFinDeSemana(d.fecha);
+            const finDeSemana = diaSemanaDe(d.fecha) >= 5;
             const vacioHabil = d.personas === 0 && !finDeSemana;
             const alto = d.personas === 0 ? 2 : Math.max(4, Math.round((d.personas / max) * 96));
             return (
@@ -259,8 +260,3 @@ function ResumenSkeleton() {
   );
 }
 
-function esFinDeSemana(yyyymmdd: string): boolean {
-  const [a, m, d] = yyyymmdd.split('-').map(Number);
-  const dow = new Date(Date.UTC(a, m - 1, d)).getUTCDay();
-  return dow === 0 || dow === 6;
-}

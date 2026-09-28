@@ -3,23 +3,16 @@
 /**
  * Horario de asistencia de la ficha, solo lectura. Se edita únicamente en
  * Asistencia › Personas (versionado, "aplicar desde"); acá se muestra la
- * versión vigente hoy con un link para ir a editarla.
+ * versión vigente hoy con un link para ir a editarla. La tolerancia no se muestra (solo en el
+ * editor de Asistencia, como en el perfil).
  */
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { CalendarClock, ExternalLink } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { fmtFechaDia, hoyLocal } from '@/lib/asistencia-datos';
-import {
-  CICLO_LABELS,
-  DIAS_SEMANA,
-  DIAS_SEMANA_CORTO,
-  DIAS_SEMANA_LARGO,
-  ultimaVersion,
-  versionVigente,
-  type HorarioVersion,
-} from '@/lib/asistencia-calendario';
+import { CICLO_LABELS, ultimaVersion, versionVigente, type HorarioVersion } from '@/lib/asistencia-calendario';
+import { GrillaDiasHorario } from '@/components/asistencia/PerfilPiezas';
 
 export interface EstadoHorarioEmpleado {
   /** null mientras carga. */
@@ -98,36 +91,10 @@ export function HorarioDelEmpleado({ estado, creating }: { estado: EstadoHorario
         <p className="text-sm text-[var(--neu-fg-soft)]">No incluido en el control de asistencia desde el {fmtFechaDia(vigente.vigenteDesde)}.</p>
       ) : (
         <>
-          <div className="flex flex-wrap gap-1.5">
-            {DIAS_SEMANA.map((ds) => {
-              const d = vigente.dias[ds];
-              const parcial = d && vigente.cicloSemanas > 1 && d.semanas.length < vigente.cicloSemanas;
-              return (
-                <div
-                  key={ds}
-                  title={d ? `${DIAS_SEMANA_LARGO[ds]} ${d.entrada}–${d.salida}${parcial ? ` (semanas ${d.semanas.map((n) => n + 1).join(', ')})` : ''}` : `${DIAS_SEMANA_LARGO[ds]}: no laborable`}
-                  className={cn(
-                    'flex w-[4.25rem] flex-col items-center rounded-lg border px-1 py-1.5 text-center',
-                    d ? 'border-primary/40 bg-primary/10 text-foreground' : 'border-dashed border-border text-[var(--neu-fg-soft)] opacity-60',
-                  )}
-                >
-                  <span className="text-xs font-bold">{DIAS_SEMANA_CORTO[ds]}</span>
-                  {d ? (
-                    <>
-                      <span className="text-[11px] tabular-nums">{d.entrada}</span>
-                      <span className="text-[11px] tabular-nums">{d.salida}</span>
-                      {parcial && <span className="mt-0.5 text-[10px] text-[var(--neu-fg-soft)]">S{d.semanas.map((n) => n + 1).join('/S')}</span>}
-                    </>
-                  ) : (
-                    <span className="text-[11px]">—</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          {/* Misma grilla que Asistencia: muestra bien los turnos rotativos por semana. */}
+          <GrillaDiasHorario vigente={vigente} suave="text-[var(--neu-fg-soft)]" />
           <p className="text-xs text-[var(--neu-fg-soft)]">
             {vigente.cicloSemanas > 1 && `${CICLO_LABELS[vigente.cicloSemanas]} (semana 1 desde el ${fmtFechaDia(vigente.cicloAncla)}) · `}
-            {vigente.toleranciaMin != null ? `Tolerancia ${vigente.toleranciaMin} min · ` : ''}
             Vigente desde el {fmtFechaDia(vigente.vigenteDesde)}
             {vigente.vigenteHasta ? ` hasta el ${fmtFechaDia(vigente.vigenteHasta)}` : ''}
             {versiones.length > 1 ? ` · ${versiones.length} versiones` : ''}

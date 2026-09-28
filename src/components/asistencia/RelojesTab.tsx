@@ -28,7 +28,7 @@ import { fmtRelativo, fmtFechaHora } from '@/lib/asistencia-datos';
 import { asistFetch, mensajeError, type Reloj, type ResultadoSync } from './api';
 import { useAsistencia } from './AsistenciaContext';
 
-type Accion = 'probar' | 'nuevos' | 'todos';
+type Accion = 'probar' | 'nuevos' | 'todos' | 'guardar';
 
 const AYUDA_LIMPIAR =
   'Después de bajar los registros, le borra al reloj la marca de "nuevos" (comando 0x4E). ' +
@@ -44,11 +44,13 @@ export default function RelojesTab() {
   const marcar = (id: number, a: Accion | undefined) => setOcupado((o) => ({ ...o, [id]: a }));
 
   async function patch(r: Reloj, data: Partial<Reloj>) {
+    marcar(r.id, 'guardar');
     try {
       await asistFetch(`/api/admin/asistencia/relojes/${r.id}`, { method: 'PATCH', body: JSON.stringify(data) });
-      refrescar();
     } catch (e) {
       toast.error(mensajeError(e));
+    } finally {
+      marcar(r.id, undefined);
       refrescar();
     }
   }
@@ -171,6 +173,7 @@ function RelojCard({
   onBorrado: () => void;
 }) {
   const ocupado = accion != null;
+  const [confirmarLimpiar, setConfirmarLimpiar] = useState(false);
 
   return (
     <Card className={cn('gap-0 py-4', !r.activo && 'opacity-70')}>
@@ -224,7 +227,7 @@ function RelojCard({
         <div className="space-y-2 border-t border-border pt-3">
           <div className="flex items-center justify-between gap-2">
             <Label htmlFor={`activo-${r.id}`} className="text-sm font-normal">Activo</Label>
-            <Switch id={`activo-${r.id}`} checked={r.activo} onCheckedChange={(v) => onPatch({ activo: v })} />
+            <Switch id={`activo-${r.id}`} checked={r.activo} disabled={ocupado} onCheckedChange={(v) => onPatch({ activo: v })} />
           </div>
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm text-foreground">
@@ -233,11 +236,29 @@ function RelojCard({
             <Switch
               aria-label="Limpiar la marca de nuevos en el reloj"
               checked={r.limpiar_nuevos}
-              onCheckedChange={(v) => onPatch({ limpiar_nuevos: v })}
+              disabled={ocupado}
+              // Prenderlo hace que CrossChex deje de ver los registros: se confirma. Apagarlo no.
+              onCheckedChange={(v) => (v ? setConfirmarLimpiar(true) : onPatch({ limpiar_nuevos: false }))}
             />
           </div>
         </div>
       </CardContent>
+
+      <AlertDialog open={confirmarLimpiar} onOpenChange={setConfirmarLimpiar}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Limpiar la marca de nuevos en &quot;{r.nombre}&quot;?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Después de cada bajada se le borra al reloj la marca de &quot;nuevos&quot;. Si CrossChex todavía descarga de
+              este reloj, deja de ver esos registros. Prendelo solo si CrossChex ya no se usa con este reloj.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => onPatch({ limpiar_nuevos: true })}>Prender</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
@@ -252,7 +273,8 @@ function EstadoBadge({ reloj: r }: { reloj: Reloj }) {
 /** Borrar arrastra las fichadas del reloj (Cascade): hay que decir cuántas. */
 function BorrarReloj({ reloj: r, onBorrado }: { reloj: Reloj; onBorrado: () => void }) {
   const [abierto, setAbierto] = useState(false);
-  const [fichadas, setFichadas] = useState<number | null>(null);
+  // null = contando; 'error' = no se pudo contar (se puede borrar igual, confirmando).
+  const [fichadas, setFichadas] = useState<number | null | 'error'>(null);
   const [borrando, setBorrando] = useState(false);
 
   async function abrir() {
@@ -264,7 +286,7 @@ function BorrarReloj({ reloj: r, onBorrado }: { reloj: Reloj; onBorrado: () => v
       );
       setFichadas(r2.total);
     } catch {
-      setFichadas(null);
+      setFichadas('error');
     }
   }
 
@@ -303,7 +325,9 @@ function BorrarReloj({ reloj: r, onBorrado }: { reloj: Reloj; onBorrado: () => v
                   Se borran también{' '}
                   {fichadas == null
                     ? <span className="text-muted-foreground">(contando…)</span>
-                    : <strong>{fichadas.toLocaleString('es-AR')} fichadas</strong>}{' '}
+                    : fichadas === 'error'
+                      ? <strong>todas sus fichadas (no se pudo contar cuántas)</strong>
+                      : <strong>{fichadas.toLocaleString('es-AR')} fichadas</strong>}{' '}
                   de este reloj. No se puede deshacer.
                 </p>
               </div>

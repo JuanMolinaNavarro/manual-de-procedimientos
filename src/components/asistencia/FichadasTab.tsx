@@ -117,7 +117,8 @@ export default function FichadasTab() {
             </Button>
             <Button variant="outline" onClick={exportar} disabled={exportando} className="h-9">
               <Download className="h-4 w-4" />
-              {exportando ? 'Generando…' : total > 0 ? `Exportar ${total.toLocaleString('es-AR')}` : 'Exportar'}
+              {/* El XLSX siempre lleva marcas: en la vista por día `total` son días y no sirve de conteo. */}
+              {exportando ? 'Generando…' : total > 0 && f.vista === 'detalle' ? `Exportar ${total.toLocaleString('es-AR')}` : 'Exportar'}
             </Button>
           </div>
         </div>

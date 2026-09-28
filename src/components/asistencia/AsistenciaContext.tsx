@@ -100,6 +100,12 @@ export function contarFiltrosActivos(f: FiltrosUI): number {
 // ─── Cache de recursos ──────────────────────────────────────────────────────
 // Vive a nivel de módulo (no en useState) para sobrevivir al desmontaje del tab:
 // volver a una pestaña repinta al instante y revalida atrás, sin parpadeo.
+// La clave de frescura es `montaje:versión`: cada vez que se entra al módulo (nuevo montaje del
+// provider) lo cacheado se muestra pero se vuelve a pedir. Antes la clave era solo la versión,
+// que arranca en 0 en cada montaje: al volver por navegación se daban por buenos los datos de
+// la primera visita (y sus errores) hasta recargar la página.
+
+let montajes = 0;
 
 interface Entrada {
   data: unknown;
@@ -109,9 +115,8 @@ interface Entrada {
 
 const cache = new Map<string, Entrada>();
 
-function useRecurso<T>(url: string | null, version: number): { data: T | null; error: string | null; loading: boolean } {
+function useRecurso<T>(url: string | null, stamp: string): { data: T | null; error: string | null; loading: boolean } {
   const [, forzar] = useState(0);
-  const stamp = String(version);
   const entrada = url ? cache.get(url) : undefined;
   const fresca = entrada?.stamp === stamp;
 
@@ -124,7 +129,8 @@ function useRecurso<T>(url: string | null, version: number): { data: T | null; e
       })
       .catch((e: unknown) => {
         if (ac.signal.aborted) return;
-        cache.set(url, { data: null, error: mensajeError(e), stamp });
+        // Un error no borra lo último que se trajo bien (se sigue mostrando, con el aviso).
+        cache.set(url, { data: cache.get(url)?.data ?? null, error: mensajeError(e), stamp });
       })
       .finally(() => {
         if (!ac.signal.aborted) forzar((n) => n + 1);
@@ -142,8 +148,8 @@ function useRecurso<T>(url: string | null, version: number): { data: T | null; e
 
 /** Datos de un endpoint del módulo, revalidados con `refrescar()`. */
 export function useAsistenciaData<T>(url: string | null): { data: T | null; error: string | null; loading: boolean } {
-  const { version } = useAsistencia();
-  return useRecurso<T>(url, version);
+  const { stamp } = useAsistencia();
+  return useRecurso<T>(url, stamp);
 }
 
 interface AsistenciaCtx {
@@ -163,6 +169,8 @@ interface AsistenciaCtx {
   horariosError: string | null;
   horariosPorEmpleado: Map<number, HorarioVersion[]>;
   version: number;
+  /** Frescura de la caché: `montaje:versión`. */
+  stamp: string;
   refrescar: () => void;
 }
 
@@ -173,6 +181,8 @@ export function AsistenciaProvider({ empleados, children }: { empleados: Emplead
   const pathname = usePathname();
   const sp = useSearchParams();
   const [version, setVersion] = useState(0);
+  const [montaje] = useState(() => ++montajes);
+  const stamp = `${montaje}:${version}`;
 
   const f = useMemo(() => leerFiltros(new URLSearchParams(sp.toString())), [sp]);
 
@@ -196,9 +206,9 @@ export function AsistenciaProvider({ empleados, children }: { empleados: Emplead
 
   const refrescar = useCallback(() => setVersion((n) => n + 1), []);
 
-  const personasRes = useRecurso<{ personas: Persona[] }>('/api/admin/asistencia/personas', version);
-  const relojesRes = useRecurso<{ relojes: Reloj[] }>('/api/admin/asistencia/relojes', version);
-  const horariosRes = useRecurso<{ horarios: HorarioVersion[] }>('/api/admin/asistencia/horarios', version);
+  const personasRes = useRecurso<{ personas: Persona[] }>('/api/admin/asistencia/personas', stamp);
+  const relojesRes = useRecurso<{ relojes: Reloj[] }>('/api/admin/asistencia/relojes', stamp);
+  const horariosRes = useRecurso<{ horarios: HorarioVersion[] }>('/api/admin/asistencia/horarios', stamp);
 
   const personas = personasRes.data?.personas ?? null;
   const relojes = relojesRes.data?.relojes ?? null;
@@ -232,9 +242,10 @@ export function AsistenciaProvider({ empleados, children }: { empleados: Emplead
       horariosError: horariosRes.error,
       horariosPorEmpleado,
       version,
+      stamp,
       refrescar,
     }),
-    [f, set, limpiarFiltros, empleados, empleadoPorId, personas, personasRes.error, personaPorUserId, relojes, relojesRes.error, horarios, horariosRes.error, horariosPorEmpleado, version, refrescar],
+    [f, set, limpiarFiltros, empleados, empleadoPorId, personas, personasRes.error, personaPorUserId, relojes, relojesRes.error, horarios, horariosRes.error, horariosPorEmpleado, version, stamp, refrescar],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

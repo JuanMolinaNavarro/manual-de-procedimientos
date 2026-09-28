@@ -86,14 +86,14 @@ export const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
 // locales ya resueltos (`hoyLocal`), así que acá no hay que volver a corregir
 // el huso: hacerlo dos veces es justo lo que corría las fichadas un día.
 
-const DIA_MS = 86_400_000;
+export const DIA_MS = 86_400_000;
 
-function aMs(yyyymmdd: string): number {
+export function aMs(yyyymmdd: string): number {
   const [a, m, d] = yyyymmdd.split('-').map(Number);
   return Date.UTC(a, m - 1, d);
 }
 
-function aIso(ms: number): string {
+export function aIso(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 

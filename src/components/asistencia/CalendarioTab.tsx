@@ -7,14 +7,14 @@
  * repo y las fechas son strings yyyy-mm-dd.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ChevronLeft, ChevronRight, Search, Settings2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Banner, Empty, EmpleadoCell } from '@/components/comunes/ui';
 import { cn } from '@/lib/utils';
@@ -33,11 +33,13 @@ export default function CalendarioTab() {
   const [q, setQ] = useState('');
   const url = `/api/admin/asistencia/calendario?mes=${f.mes}${f.sinHorario ? '&sinHorario=1' : ''}`;
   const { data, error, loading } = useAsistenciaData<CalendarioMes>(url);
+  // Filtrar cientos de filas × 31 días en cada tecla trababa el tipeo: el filtro va diferido.
+  const qDiferida = useDeferredValue(q);
 
   const filas = useMemo(() => {
-    const needle = q.trim().toLowerCase();
+    const needle = qDiferida.trim().toLowerCase();
     return (data?.filas ?? []).filter((r) => !needle || r.nombre.toLowerCase().includes(needle) || (r.area ?? '').toLowerCase().includes(needle));
-  }, [data, q]);
+  }, [data, qDiferida]);
 
   return (
     <div className="space-y-4">
@@ -83,7 +85,7 @@ export default function CalendarioTab() {
         loading ? <Skeleton className="h-96 w-full" /> : null
       ) : filas.length === 0 ? (
         <Empty title={q ? `Nadie coincide con «${q}»` : 'Nadie tiene horario cargado'}>
-          {q ? 'Probá con otro nombre o área.' : 'Cargá el horario de cada persona desde la pestaña Personas (botón «Horario»). Podés ver a quienes no tienen horario con «Mostrar sin horario».'}
+          {q ? 'Probá con otro nombre o área.' : 'Cargá el horario de cada persona desde la pestaña Personas (botón «Editar» de la columna Horario). Podés ver a quienes no tienen horario con «Mostrar sin horario».'}
         </Empty>
       ) : (
         <div className={cn('space-y-3', loading && 'opacity-60')}>
@@ -95,7 +97,21 @@ export default function CalendarioTab() {
   );
 }
 
+/** Celda elegida: se muestra en un único popover anclado al botón (no uno por celda). */
+interface Seleccion {
+  celda: CeldaDia;
+  fila: FilaCalendarioMes;
+  el: HTMLButtonElement;
+}
+
 function Grilla({ data, filas }: { data: CalendarioMes; filas: FilaCalendarioMes[] }) {
+  const { personaPorUserId } = useAsistencia();
+  const [sel, setSel] = useState<Seleccion | null>(null);
+  const anclaRef = useRef<HTMLButtonElement | null>(null);
+  const abrir = useCallback((celda: CeldaDia, fila: FilaCalendarioMes, el: HTMLButtonElement) => {
+    anclaRef.current = el;
+    setSel({ celda, fila, el });
+  }, []);
   const cols = `240px repeat(${data.dias.length}, 28px)`;
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-card">
@@ -115,17 +131,39 @@ function Grilla({ data, filas }: { data: CalendarioMes; filas: FilaCalendarioMes
 
         {/* Filas */}
         {filas.map((r) => (
-          <Fila key={r.clave} fila={r} data={data} />
+          <Fila
+            key={r.clave}
+            fila={r}
+            dias={data.dias}
+            // El perfil es por persona del reloj; un empleado sin legajo no tiene.
+            personaId={r.userIds.length ? personaPorUserId.get(r.userIds[0])?.id ?? null : null}
+            onAbrir={abrir}
+          />
         ))}
       </div>
+      <Popover open={!!sel} onOpenChange={(o) => { if (!o) setSel(null); }}>
+        <PopoverAnchor virtualRef={anclaRef as React.RefObject<HTMLButtonElement>} />
+        <PopoverContent
+          align="center"
+          className="w-80"
+          // Sin trigger real: al cerrar, el foco vuelve a la celda que lo abrió.
+          onCloseAutoFocus={(e) => { e.preventDefault(); sel?.el.focus(); }}
+        >
+          {sel && <DetalleCelda key={`${sel.fila.clave}|${sel.celda.fecha}`} celda={sel.celda} fila={sel.fila} />}
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
 
-function Fila({ fila, data }: { fila: FilaCalendarioMes; data: CalendarioMes }) {
-  const { personaPorUserId } = useAsistencia();
-  // El perfil es por persona del reloj; un empleado sin legajo no tiene.
-  const personaId = fila.userIds.length ? personaPorUserId.get(fila.userIds[0])?.id ?? null : null;
+// Memo: la fila solo se vuelve a dibujar si cambian sus datos (no en cada tecla del buscador
+// ni en cada cambio de filtros del contexto).
+const Fila = memo(function Fila({ fila, dias, personaId, onAbrir }: {
+  fila: FilaCalendarioMes;
+  dias: CalendarioMes['dias'];
+  personaId: number | null;
+  onAbrir: (celda: CeldaDia, fila: FilaCalendarioMes, el: HTMLButtonElement) => void;
+}) {
   const t = fila.totales;
   // Los totales no van en una columna: quedan como tooltip de la persona.
   const detalle = fila.tieneHorario
@@ -148,27 +186,28 @@ function Fila({ fila, data }: { fila: FilaCalendarioMes; data: CalendarioMes }) 
         </LinkPerfil>
       </div>
       {fila.celdas.map((c, i) => (
-        <div key={c.fecha} className={cn('flex items-center justify-center border-b border-border', (data.dias[i].finDeSemana || data.dias[i].feriado) && 'bg-muted/30', data.dias[i].esHoy && 'bg-primary/5')}>
-          <Celda celda={c} fila={fila} />
+        <div key={c.fecha} className={cn('flex items-center justify-center border-b border-border', (dias[i].finDeSemana || dias[i].feriado) && 'bg-muted/30', dias[i].esHoy && 'bg-primary/5')}>
+          <Celda celda={c} onAbrir={(el) => onAbrir(c, fila, el)} />
         </div>
       ))}
     </>
   );
-}
+});
 
-function Celda({ celda, fila }: { celda: CeldaDia; fila: FilaCalendarioMes }) {
-  const [abierta, setAbierta] = useState(false);
+function Celda({ celda, onAbrir }: { celda: CeldaDia; onAbrir: (el: HTMLButtonElement) => void }) {
   const e = ESTILO[celda.estado];
   const inerte = celda.estado === 'futuro' || ((celda.estado === 'sin_horario' || celda.estado === 'feriado') && celda.marcas === 0);
   // Día futuro con jornada: un contorno tenue muestra el plan (qué sábados le tocan).
   const futuroLaborable = celda.estado === 'futuro' && celda.jornada != null;
-  const label = `${fmtFechaDia(celda.fecha)}: ${ESTADOS_DIA[celda.estado].label}${celda.jornada && celda.estado === 'futuro' ? ` (${celda.jornada.entrada}–${celda.jornada.salida})` : ''}${celda.minutosTarde ? `, ${celda.minutosTarde} min tarde` : ''}${celda.sinSalida ? ', sin salida' : ''}`;
-  const boton = (
+  const label = `${fmtFechaDia(celda.fecha)}: ${ESTADOS_DIA[celda.estado].label}${celda.jornada && celda.estado === 'futuro' ? ` (${celda.jornada.entrada}–${celda.jornada.salida})` : ''}${celda.minutosTarde && (celda.estado === 'tarde' || celda.estado === 'tarde_grave') ? `, ${celda.minutosTarde} min tarde` : ''}${celda.sinSalida ? ', sin salida' : ''}`;
+  return (
     <button
       type="button"
       aria-label={label}
       title={label}
+      aria-haspopup={inerte ? undefined : 'dialog'}
       disabled={inerte}
+      onClick={inerte ? undefined : (ev) => onAbrir(ev.currentTarget)}
       className={cn(
         'flex h-6 w-6 items-center justify-center rounded-[4px] text-[10px] font-bold leading-none transition-transform',
         e.celda,
@@ -180,15 +219,19 @@ function Celda({ celda, fila }: { celda: CeldaDia; fila: FilaCalendarioMes }) {
       {celda.estado === 'sin_horario' && celda.marcas > 0 ? <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" /> : e.marca}
     </button>
   );
-  if (inerte) return boton;
-  return (
-    <Popover open={abierta} onOpenChange={setAbierta}>
-      <PopoverTrigger asChild>{boton}</PopoverTrigger>
-      <PopoverContent align="center" className="w-80">
-        {abierta && <DetalleCelda celda={celda} fila={fila} />}
-      </PopoverContent>
-    </Popover>
-  );
+}
+
+/** Todas las marcas de un legajo en un día (el endpoint pagina de a 15: se piden todas las páginas). */
+async function marcasDelDia(userId: string, fecha: string): Promise<FichadaDetalle[]> {
+  const out: FichadaDetalle[] = [];
+  for (let page = 1; page <= 20; page++) {
+    const r = await asistFetch<{ items: FichadaDetalle[]; total: number }>(
+      `/api/admin/asistencia/fichadas?userId=${encodeURIComponent(userId)}&desde=${fecha}&hasta=${fecha}&vista=detalle&page=${page}`,
+    );
+    out.push(...r.items);
+    if (!r.items.length || out.length >= r.total) break;
+  }
+  return out;
 }
 
 function DetalleCelda({ celda, fila }: { celda: CeldaDia; fila: FilaCalendarioMes }) {
@@ -200,11 +243,7 @@ function DetalleCelda({ celda, fila }: { celda: CeldaDia; fila: FilaCalendarioMe
   useEffect(() => {
     if (fila.userIds.length === 0) return;
     let vivo = true;
-    Promise.all(
-      fila.userIds.map((u) =>
-        asistFetch<{ items: FichadaDetalle[] }>(`/api/admin/asistencia/fichadas?userId=${encodeURIComponent(u)}&desde=${celda.fecha}&hasta=${celda.fecha}&vista=detalle`).then((r) => r.items),
-      ),
-    )
+    Promise.all(fila.userIds.map((u) => marcasDelDia(u, celda.fecha)))
       .then((r) => { if (vivo) setMarcas(r.flat().sort((a, b) => a.fechaHora.localeCompare(b.fechaHora))); })
       .catch((e) => { if (vivo) setError(mensajeError(e)); });
     return () => { vivo = false; };
@@ -222,7 +261,7 @@ function DetalleCelda({ celda, fila }: { celda: CeldaDia; fila: FilaCalendarioMe
         <dt className="text-muted-foreground">Horario</dt>
         <dd className="tabular-nums">{celda.jornada ? `${celda.jornada.entrada}–${celda.jornada.salida}` : celda.estado === 'sin_horario' ? 'sin horario' : 'no laborable'}</dd>
         <dt className="text-muted-foreground">Entrada</dt>
-        <dd className="tabular-nums">{celda.entrada ? fmtHoraCorta(celda.entrada) : '—'}{celda.entradaInferida && <span className="ml-1 text-amber-600 dark:text-amber-400">(inferida)</span>}{celda.minutosTarde ? <span className="ml-1 text-muted-foreground">· {celda.minutosTarde} min tarde</span> : null}</dd>
+        <dd className="tabular-nums">{celda.entrada ? fmtHoraCorta(celda.entrada) : celda.estado === 'sin_entrada' ? <span className="text-amber-600 dark:text-amber-400">sin marca</span> : '—'}{celda.entradaInferida && <span className="ml-1 text-amber-600 dark:text-amber-400">(inferida)</span>}{celda.minutosTarde && (celda.estado === 'tarde' || celda.estado === 'tarde_grave') ? <span className="ml-1 text-muted-foreground">· {celda.minutosTarde} min tarde</span> : null}</dd>
         <dt className="text-muted-foreground">Salida</dt>
         <dd className="tabular-nums">{celda.salida ? fmtHoraCorta(celda.salida) : celda.sinSalida ? <span className="text-amber-600 dark:text-amber-400">sin marca</span> : '—'}</dd>
       </dl>

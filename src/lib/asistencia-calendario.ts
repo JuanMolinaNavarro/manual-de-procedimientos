@@ -19,7 +19,7 @@
  *   liquidar es peor que ningún número.
  */
 
-import { FECHA_RE, OFFSET_RELOJ_MIN, sumarDias } from './asistencia-datos';
+import { DIA_MS, FECHA_RE, OFFSET_RELOJ_MIN, aIso, aMs, sumarDias } from './asistencia-datos';
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -178,17 +178,7 @@ export interface TotalesFila {
 
 // ─── Fechas ─────────────────────────────────────────────────────────────────
 
-const DIA_MS = 86_400_000;
 const SEMANA_MS = 7 * DIA_MS;
-
-function aMs(yyyymmdd: string): number {
-  const [a, m, d] = yyyymmdd.split('-').map(Number);
-  return Date.UTC(a, m - 1, d);
-}
-
-function aIso(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10);
-}
 
 /** Día de la semana con 0 = lunes. */
 export function diaSemanaDe(fecha: string): DiaSemana {
