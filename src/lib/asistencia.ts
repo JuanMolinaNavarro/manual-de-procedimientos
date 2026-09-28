@@ -111,14 +111,35 @@ function validarReloj(d: DatosReloj) {
   }
 }
 
+/**
+ * Relojes con una conexión en curso. El reloj atiende a un solo cliente TCP por vez: si el cron
+ * y un "Sincronizar" o "Probar" manual se cruzan, el segundo no recibe respuesta (timeout) y
+ * queda un `ultimo_error` falso. Un solo proceso de Node: alcanza con memoria.
+ */
+const relojesEnUso = new Set<number>();
+
+async function conRelojExclusivo<T>(relojId: number, fn: () => Promise<T>): Promise<T> {
+  if (relojesEnUso.has(relojId)) {
+    throw new AsistenciaError('Ese reloj ya se está sincronizando: esperá a que termine', 409);
+  }
+  relojesEnUso.add(relojId);
+  try {
+    return await fn();
+  } finally {
+    relojesEnUso.delete(relojId);
+  }
+}
+
 /** Prueba la conexión: info + contadores, sin guardar nada. */
 export async function probarReloj(id: number) {
   const reloj = await getReloj(id);
-  return conReloj({ ip: reloj.ip, puerto: reloj.puerto, deviceId: reloj.device_id }, async (c) => {
-    const info = await c.obtenerInfo().catch(() => null);
-    const contadores = await c.obtenerContadores();
-    return { firmware: info?.firmware ?? null, contadores };
-  });
+  return conRelojExclusivo(reloj.id, () =>
+    conReloj({ ip: reloj.ip, puerto: reloj.puerto, deviceId: reloj.device_id }, async (c) => {
+      const info = await c.obtenerInfo().catch(() => null);
+      const contadores = await c.obtenerContadores();
+      return { firmware: info?.firmware ?? null, contadores };
+    }),
+  );
 }
 
 // ─── Sincronización directa por TCP ──────────────────────────────────────────
@@ -143,6 +164,18 @@ export interface ResultadoSync {
 export async function sincronizarReloj(id: number, modo: ModoDescarga = 'nuevos'): Promise<ResultadoSync> {
   const reloj = await getReloj(id);
   const base: ResultadoSync = { relojId: reloj.id, nombre: reloj.nombre, bajados: 0, guardados: 0 };
+  if (relojesEnUso.has(reloj.id)) {
+    // Ocupado por otra pasada: no es un error del reloj (no se toca `ultimo_error`).
+    return { ...base, error: 'Ya se está sincronizando en otra pasada' };
+  }
+  return conRelojExclusivo(reloj.id, () => sincronizarRelojLibre(reloj, modo, base));
+}
+
+async function sincronizarRelojLibre(
+  reloj: Awaited<ReturnType<typeof getReloj>>,
+  modo: ModoDescarga,
+  base: ResultadoSync,
+): Promise<ResultadoSync> {
   try {
     const res = await conReloj(
       { ip: reloj.ip, puerto: reloj.puerto, deviceId: reloj.device_id, timeoutMs: 8000 },
@@ -161,13 +194,16 @@ export async function sincronizarReloj(id: number, modo: ModoDescarga = 'nuevos'
       where: { id: reloj.id },
       data: {
         ultimo_sync: new Date(),
+        ultimo_ok: new Date(),
         ultimo_error: null,
         reg_total: res.contadores.registrosTotales,
         reg_nuevos: res.contadores.registrosNuevos,
         usuarios: res.contadores.usuarios,
       },
     });
-    if (reloj.limpiar_nuevos && res.contadores.registrosNuevos > 0) {
+    // Solo si se bajaron todos los "nuevos": limpiar la marca después de una bajada parcial
+    // hacía que el reloj diera por leídos registros que nunca llegaron (y los termina pisando).
+    if (reloj.limpiar_nuevos && res.contadores.registrosNuevos > 0 && res.bajados >= res.contadores.registrosNuevos) {
       await conReloj({ ip: reloj.ip, puerto: reloj.puerto, deviceId: reloj.device_id }, (c) =>
         c.limpiarNuevos(res.contadores.registrosNuevos),
       );
@@ -203,12 +239,40 @@ export async function sincronizarTodos(modo: ModoDescarga = 'nuevos'): Promise<R
   }
 }
 
+/**
+ * Filtra las fichadas que ya existen para la misma persona y el mismo instante en **cualquier**
+ * reloj. El unique de la tabla incluye `reloj_id`, así que la misma marca que llegaba por el
+ * .mdb (con otro Sensorid) y por TCP quedaba dos veces e inflaba conteos, Resumen y export.
+ */
+async function sinRepetidas<T extends { user_id: string; fecha_hora: Date | string; fecha: string }>(data: T[]): Promise<T[]> {
+  if (!data.length) return data;
+  let min = data[0].fecha;
+  let max = data[0].fecha;
+  for (const d of data) {
+    if (d.fecha < min) min = d.fecha;
+    if (d.fecha > max) max = d.fecha;
+  }
+  const existentes = await prisma.asistenciaFichada.findMany({
+    where: { user_id: { in: [...new Set(data.map((d) => d.user_id))] }, fecha: { gte: min, lte: max } },
+    select: { user_id: true, fecha_hora: true },
+  });
+  const ya = new Set(existentes.map((e) => `${e.user_id}|${e.fecha_hora.getTime()}`));
+  const out: T[] = [];
+  for (const d of data) {
+    const k = `${d.user_id}|${new Date(d.fecha_hora).getTime()}`;
+    if (ya.has(k)) continue;
+    ya.add(k); // también repetidas dentro del mismo lote
+    out.push(d);
+  }
+  return out;
+}
+
 /** Inserta un lote de registros del reloj deduplicando; devuelve cuántos entraron nuevos. */
 async function guardarRegistros(relojId: number, lote: RegistroReloj[]): Promise<number> {
   if (lote.length === 0) return 0;
   await asegurarPersonas(lote.map((r) => r.userId));
   const res = await prisma.asistenciaFichada.createMany({
-    data: lote.map((r) => ({
+    data: await sinRepetidas(lote.map((r) => ({
       reloj_id: relojId,
       user_id: r.userId,
       fecha_hora: r.fechaHora,
@@ -217,7 +281,7 @@ async function guardarRegistros(relojId: number, lote: RegistroReloj[]): Promise
       modo: r.modo,
       work_type: r.workType,
       origen: ORIGEN_RELOJ,
-    })),
+    }))),
     skipDuplicates: true,
   });
   // Una fichada NO cambia `activo`: la baja/alta de una persona es siempre manual.
@@ -276,9 +340,11 @@ export async function importarMdb(buffer: Buffer): Promise<ResultadoImport> {
       if (deviceId == null) continue;
       const nombre = String(pick(row, 'clientname') ?? `Reloj ${deviceId}`).trim() || `Reloj ${deviceId}`;
       const ip = String(pick(row, 'ipaddress') ?? '').trim();
+      // Un reloj que ya existe NO se toca: su nombre e IP pueden haberse corregido a mano (p. ej.
+      // la IP por la que se llega desde producción) y reimportar los pisaba.
       const reloj = await prisma.asistenciaReloj.upsert({
         where: { device_id: deviceId },
-        update: { nombre, ...(ip ? { ip } : {}) },
+        update: {},
         create: { device_id: deviceId, nombre, ip: ip || '0.0.0.0', puerto: num(pick(row, 'commport')) ?? PUERTO_TCB, activo: false },
       });
       relojPorSensor.set(deviceId, reloj.id);
@@ -297,21 +363,22 @@ export async function importarMdb(buffer: Buffer): Promise<ResultadoImport> {
   let personas = 0;
   if (tablas.has('Userinfo')) {
     const rows = reader.getTable('Userinfo').getData() as Record<string, unknown>[];
-    for (const grupo of chunk(rows, 500)) {
-      await Promise.all(
-        grupo.map((raw) => {
-          const row = ci(raw);
-          const userId = String(pick(row, 'userid') ?? '').trim();
-          if (!userId) return Promise.resolve();
-          const nombre = String(pick(row, 'name') ?? '').trim();
-          return prisma.asistenciaPersona.upsert({
-            where: { user_id: userId },
-            update: nombre ? { nombre_reloj: nombre } : {},
-            create: { user_id: userId, nombre_reloj: nombre },
-          });
-        }),
-      );
-      personas += grupo.length;
+    // De a una y en transacciones de 200: 500 upserts en paralelo agotaban el pool de conexiones.
+    for (const grupo of chunk(rows, 200)) {
+      const ops: Prisma.PrismaPromise<unknown>[] = [];
+      for (const raw of grupo) {
+        const row = ci(raw);
+        const userId = String(pick(row, 'userid') ?? '').trim();
+        if (!userId) continue;
+        const nombre = String(pick(row, 'name') ?? '').trim();
+        ops.push(prisma.asistenciaPersona.upsert({
+          where: { user_id: userId },
+          update: nombre ? { nombre_reloj: nombre } : {},
+          create: { user_id: userId, nombre_reloj: nombre },
+        }));
+      }
+      if (ops.length) await prisma.$transaction(ops);
+      personas += ops.length;
     }
   }
 
@@ -319,14 +386,16 @@ export async function importarMdb(buffer: Buffer): Promise<ResultadoImport> {
   let fichadas = 0;
   let fichadasNuevas = 0;
   if (tablas.has('Checkinout')) {
-    const rows = (reader.getTable('Checkinout').getData() as Record<string, unknown>[]).map(ci);
+    // Las claves se pasan a minúscula fila por fila, sin armar una segunda copia de la tabla.
+    const rows = reader.getTable('Checkinout').getData() as Record<string, unknown>[];
     const userIds = new Set<string>();
-    for (const r of rows) { const u = String(pick(r, 'userid') ?? '').trim(); if (u) userIds.add(u); }
+    for (const raw of rows) { const u = String(pick(ci(raw), 'userid') ?? '').trim(); if (u) userIds.add(u); }
     await asegurarPersonas([...userIds]);
     let huerfano: number | null = null;
     for (const grupo of chunk(rows, 5000)) {
       const data: Prisma.AsistenciaFichadaCreateManyInput[] = [];
-      for (const row of grupo) {
+      for (const raw of grupo) {
+        const row = ci(raw);
         const userId = String(pick(row, 'userid') ?? '').trim();
         const wall = fechaDeMdb(pick(row, 'checktime'));
         if (!userId || !wall) continue;
@@ -344,7 +413,7 @@ export async function importarMdb(buffer: Buffer): Promise<ResultadoImport> {
         });
       }
       if (data.length) {
-        const res = await prisma.asistenciaFichada.createMany({ data, skipDuplicates: true });
+        const res = await prisma.asistenciaFichada.createMany({ data: await sinRepetidas(data), skipDuplicates: true });
         fichadasNuevas += res.count;
         fichadas += data.length;
       }
@@ -408,17 +477,22 @@ export async function setPersonaActiva(id: number, activa: boolean) {
 
 
 export async function vincularPersona(id: number, empleadoId: number | null) {
-  const persona = await prisma.asistenciaPersona.findUnique({ where: { id } });
-  if (!persona) throw new AsistenciaError('Persona no encontrada', 404);
-  if (empleadoId != null) {
-    const emp = await prisma.orgEmpleado.findUnique({ where: { id: empleadoId }, select: { id: true, nombre: true } });
-    if (!emp) throw new AsistenciaError('Empleado no encontrado', 404);
-    // Una ficha del organigrama tiene un solo legajo del reloj: si ya está
-    // vinculada a otra persona, primero hay que desvincular esa.
-    const otra = await prisma.asistenciaPersona.findFirst({ where: { empleado_id: empleadoId, id: { not: id } }, select: { user_id: true } });
-    if (otra) throw new AsistenciaError(`${emp.nombre} ya está vinculado al legajo ${otra.user_id}. Desvinculalo primero.`, 409);
-  }
-  return prisma.asistenciaPersona.update({ where: { id }, data: { empleado_id: empleadoId } });
+  return prisma.$transaction(async (tx) => {
+    const persona = await tx.asistenciaPersona.findUnique({ where: { id } });
+    if (!persona) throw new AsistenciaError('Persona no encontrada', 404);
+    if (empleadoId != null) {
+      // Dos vínculos a la misma ficha a la vez: el segundo espera y ve el primero (no hay unique
+      // en `empleado_id` porque quedan casos viejos con dos legajos).
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('asistencia_vinculo'), ${empleadoId}::int)`;
+      const emp = await tx.orgEmpleado.findUnique({ where: { id: empleadoId }, select: { id: true, nombre: true } });
+      if (!emp) throw new AsistenciaError('Empleado no encontrado', 404);
+      // Una ficha del organigrama tiene un solo legajo del reloj: si ya está
+      // vinculada a otra persona, primero hay que desvincular esa.
+      const otra = await tx.asistenciaPersona.findFirst({ where: { empleado_id: empleadoId, id: { not: id } }, select: { user_id: true } });
+      if (otra) throw new AsistenciaError(`${emp.nombre} ya está vinculado al legajo ${otra.user_id}. Desvinculalo primero.`, 409);
+    }
+    return tx.asistenciaPersona.update({ where: { id }, data: { empleado_id: empleadoId } });
+  });
 }
 
 /**
@@ -437,12 +511,15 @@ export async function vincularPorCuil(): Promise<{ vinculadas: number }> {
   const dniAEmpleado = new Map<string, number[]>();
   for (const m of maestros) {
     if (ocupados.has(m.empleado_id)) continue;
-    const dni = m.cuil.replace(/\D/g, '').slice(2, 10);
-    if (dni.length === 8) (dniAEmpleado.get(dni) ?? dniAEmpleado.set(dni, []).get(dni)!).push(m.empleado_id);
+    const cuil = m.cuil.replace(/\D/g, '');
+    if (cuil.length !== 11) continue;
+    const dni = sinCerosIzq(cuil.slice(2, 10));
+    if (dni) (dniAEmpleado.get(dni) ?? dniAEmpleado.set(dni, []).get(dni)!).push(m.empleado_id);
   }
   let vinculadas = 0;
   for (const p of personas) {
-    const dni = p.user_id.replace(/\D/g, '');
+    // El reloj guarda el DNI como número (sin ceros adelante): "5678901" vs "05678901" del CUIL.
+    const dni = sinCerosIzq(p.user_id.replace(/\D/g, ''));
     const cands = dniAEmpleado.get(dni);
     if (cands && cands.length === 1 && !ocupados.has(cands[0])) {
       await prisma.asistenciaPersona.update({ where: { id: p.id }, data: { empleado_id: cands[0] } });
@@ -545,9 +622,15 @@ export async function resumenPorDia(f: FiltrosFichadas, page = 1) {
     where: await whereFichadas(f),
     orderBy: [{ fecha: 'desc' }, { fecha_hora: 'asc' }],
     select: { user_id: true, fecha: true, fecha_hora: true, tipo: true },
-    take: MAX_FILAS_DIA,
+    take: MAX_FILAS_DIA + 1,
   });
-  const truncado = rows.length === MAX_FILAS_DIA;
+  // Si se pasa del tope se corta en un día COMPLETO: el último día traído puede estar a medias
+  // (vendría con una entrada sin su salida, o al revés), así que se descarta entero.
+  const truncado = rows.length > MAX_FILAS_DIA;
+  if (truncado) {
+    const diaCortado = rows[rows.length - 1].fecha;
+    while (rows.length && rows[rows.length - 1].fecha === diaCortado) rows.pop();
+  }
   const nombres = await nombresPorUserId(rows.map((r) => r.user_id));
   type Dia = { userId: string; nombre: string; fecha: string; marcas: FichadaDia[] };
   const mapa = new Map<string, Dia>();
@@ -626,7 +709,8 @@ export async function resumenAsistencia(f: FiltrosFichadas): Promise<ResumenAsis
     { desde: f.desde, hasta: f.hasta },
   );
 
-  const syncs = relojes.map((r) => r.ultimo_sync).filter((s): s is Date => !!s);
+  // El último sync que salió BIEN: `ultimo_sync` se actualiza también cuando falla.
+  const syncs = relojes.filter((r) => r.activo).map((r) => r.ultimo_ok).filter((s): s is Date => !!s);
 
   return {
     ...base,
@@ -689,6 +773,11 @@ export async function exportarXlsx(f: FiltrosFichadas): Promise<Buffer> {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** DNI sin ceros a la izquierda ("05678901" → "5678901"); vacío si no quedan dígitos. */
+export function sinCerosIzq(d: string): string {
+  return d.replace(/^0+/, '');
+}
 
 function num(v: unknown): number | null {
   if (typeof v === 'number' && Number.isFinite(v)) return Math.trunc(v);

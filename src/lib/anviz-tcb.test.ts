@@ -108,6 +108,14 @@ describe('anviz-tcb: tramas que el reloj empuja sin que se las pidan', () => {
     expect(resto).toEqual(Buffer.from([0xa5, 0x00]));
   });
 
+  it('un 0xA5 de basura con un largo imposible no traba el buffer: se resincroniza', () => {
+    // STX falso seguido de un "largo" 0xFFFF: antes se quedaba esperando 65 KB hasta el timeout.
+    const basura = hex('A5 00000014 BC 00 FFFF 0102');
+    const { tramas } = extraerTramas(Buffer.concat([basura, contadores]));
+    expect(tramas).toHaveLength(1);
+    expect(tramas[0]).toEqual(contadores);
+  });
+
   it('la trama empujada no es respuesta al 0x3C; la de contadores sí', () => {
     expect(esRespuestaA(empujada, 0x3c)).toBe(false);
     expect(esRespuestaA(contadores, 0x3c)).toBe(true);

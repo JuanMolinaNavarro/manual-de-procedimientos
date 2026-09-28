@@ -70,6 +70,13 @@ export interface Respuesta {
 }
 
 /** Largo total que tendrá la trama de respuesta según su cabecera, o null si aún no llegó la cabecera. */
+/**
+ * Datos máximos de una respuesta real (25 registros × 14 bytes = 350; info y contadores son
+ * menos). Un 0xA5 suelto en medio de basura con un "largo" enorme dejaba el buffer esperando
+ * hasta el timeout: con este tope se descarta ese byte y se sigue buscando.
+ */
+export const MAX_DATOS_TRAMA = 4096;
+
 export function largoRespuesta(buf: Buffer): number | null {
   if (buf.length < HEADER_RESP) return null;
   return HEADER_RESP + buf.readUInt16BE(7) + 2;
@@ -83,6 +90,10 @@ export function extraerTramas(buffer: Buffer): { tramas: Buffer[]; resto: Buffer
     const inicio = buf.indexOf(STX);
     if (inicio < 0) return { tramas, resto: Buffer.alloc(0) };
     if (inicio > 0) buf = buf.subarray(inicio);
+    if (buf.length >= HEADER_RESP && buf.readUInt16BE(7) > MAX_DATOS_TRAMA) {
+      buf = buf.subarray(1); // STX falso: se resincroniza desde el próximo
+      continue;
+    }
     const total = largoRespuesta(buf);
     if (total == null || buf.length < total) return { tramas, resto: Buffer.from(buf) };
     tramas.push(Buffer.from(buf.subarray(0, total)));
@@ -354,9 +365,15 @@ export class ClienteAnviz {
   async descargarRegistros(modo: ModoDescarga, onLote?: (lote: RegistroReloj[]) => Promise<void> | void, maxLotes = 4000): Promise<RegistroReloj[]> {
     const todos: RegistroReloj[] = [];
     let param = modo === 'todos' ? 1 : 2;
-    for (let i = 0; i < maxLotes; i++) {
+    for (let i = 0; ; i++) {
+      if (i >= maxLotes) {
+        throw new AnvizError(`La descarga se cortó a los ${maxLotes} lotes: el reloj sigue devolviendo registros`);
+      }
       const r = await this.enviar(CMD.REGISTROS, new Uint8Array([param, MAX_REGISTROS_POR_TRAMA]));
-      if (r.ret === RET.EMPTY || r.ret === RET.FAIL) break; // sin (más) registros
+      if (r.ret === RET.EMPTY) break; // sin (más) registros
+      // FAIL en el primer pedido = el reloj no tiene nada para dar; a mitad de la bajada es un
+      // error (antes se tomaba como "no hay más" y la pasada parecía completa).
+      if (r.ret === RET.FAIL && i === 0) break;
       if (r.ret !== RET.OK) throw new AnvizError(`El reloj respondió con error 0x${r.ret.toString(16)} al bajar registros`, r.ret);
       const lote = parsearRegistros(r.data);
       if (lote.length === 0) break;

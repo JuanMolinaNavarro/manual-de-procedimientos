@@ -152,9 +152,16 @@ describe('resumirFichadas', () => {
     expect(r.entrada).toBe(marca('2026-09-14', '08:02').fechaHora);
     expect(r.salida).toBeNull();
     expect(r.entradaInferida).toBe(true);
+    // Una única marca de salida no es una entrada: no se sabe a qué hora llegó.
     const soloSalida = resumirFichadas([marca('2026-09-14', '17:05', 1)]);
-    expect(soloSalida.entrada).toBe(marca('2026-09-14', '17:05').fechaHora);
-    expect(soloSalida.entradaInferida).toBe(true);
+    expect(soloSalida.entrada).toBeNull();
+    expect(soloSalida.salida).toBe(marca('2026-09-14', '17:05').fechaHora);
+    expect(soloSalida.entradaInferida).toBe(false);
+    // Dos o más, todas de salida: botón equivocado al llegar → la primera es la entrada.
+    const dosSalidas = resumirFichadas([marca('2026-09-14', '08:02', 1), marca('2026-09-14', '17:05', 1)]);
+    expect(dosSalidas.entrada).toBe(marca('2026-09-14', '08:02').fechaHora);
+    expect(dosSalidas.salida).toBe(marca('2026-09-14', '17:05').fechaHora);
+    expect(dosSalidas.entradaInferida).toBe(true);
     expect(resumirFichadas([]).entrada).toBeNull();
   });
 });
@@ -241,6 +248,14 @@ describe('evaluarDia', () => {
     expect(ev('2026-09-14', [], { fechaIngreso: '' }).estado).toBe('ausente');
   });
 
+  it('una sola marca de salida: vino, pero sin entrada no hay tardanza (ni ausencia)', () => {
+    const c = ev('2026-09-14', [marca('2026-09-14', '17:00', 1)]);
+    expect(c.estado).toBe('sin_entrada');
+    expect(c.minutosTarde).toBeNull();
+    expect(c.marcas).toBe(1);
+    expect(resumenLiquidacion([c]).sinEntrada).toEqual(['2026-09-14']);
+    expect(resumenLiquidacion([c]).ausentes).toEqual([]);
+  });
   it('entrada inferida con reloj sin tipos', () => {
     const c = ev('2026-09-14', [marca('2026-09-14', '08:20', 3)]);
     expect(c.estado).toBe('tarde');
@@ -278,7 +293,7 @@ describe('armarCalendario y totales', () => {
     expect(emp.celdas[14].estado).toBe('pendiente');
     expect(emp.celdas[15].estado).toBe('futuro');
     // Laborables hasta ayer: 1-4, 7-11, 14 = 10 días; hoy pendiente no cuenta.
-    expect(emp.totales).toMatchObject({ laborables: 10, aHorario: 1, tardeGrave: 1, ausente: 8, trabajoNoLaborable: 1, sinSalida: 1, minutosTarde: 50 }); // 5 (a horario) + 45
+    expect(emp.totales).toMatchObject({ laborables: 10, aHorario: 1, tardeGrave: 1, ausente: 8, trabajoNoLaborable: 1, sinSalida: 1, minutosTarde: 45 }); // solo el día tarde grave: los 5 min del día a horario no son tardanza
 
     expect(suelto.tieneHorario).toBe(false);
     expect(suelto.celdas[2].estado).toBe('sin_horario');
@@ -413,6 +428,17 @@ describe('detectarFeriados', () => {
     // Justo 20 % no es feriado; sin pool no se infiere nada.
     expect(detectarFeriados(['2026-09-08'], 10, new Map([['2026-09-08', 2]]), HOY).size).toBe(0);
     expect(detectarFeriados(['2026-09-08'], 0, new Map(), HOY).size).toBe(0);
+  });
+  it('con pool por día: un reloj que no sincroniza no hace feriado un día normal', () => {
+    // 11 relojes con 100 personas; solo 2 relojes (20 personas) tienen datos del 8.
+    // Contra 100 fueron 18 % (feriado falso); contra las 20 que el reloj cubre, 90 %.
+    const presentes = new Map([['2026-09-08', 18], ['2026-09-09', 1]]);
+    const pool = new Map([['2026-09-08', 20], ['2026-09-09', 20]]);
+    const fer = detectarFeriados(['2026-09-08', '2026-09-09', '2026-09-10'], pool, presentes, HOY);
+    expect(fer.has('2026-09-08')).toBe(false);
+    expect(fer.has('2026-09-09')).toBe(true);
+    // Día sin ningún reloj que lo cubra (pool 0): no se infiere nada.
+    expect(fer.has('2026-09-10')).toBe(false);
   });
 });
 

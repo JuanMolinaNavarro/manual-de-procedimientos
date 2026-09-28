@@ -16,8 +16,9 @@ export const ESTILO_CELDA: Record<EstadoDia, { celda: string; marca?: string }> 
   tarde: { celda: 'bg-amber-400/80 text-amber-950 dark:bg-amber-500/70 dark:text-amber-50', marca: 'T' },
   tarde_grave: { celda: 'bg-orange-600/85 text-white dark:bg-orange-500/80', marca: '!' },
   ausente: { celda: 'bg-red-500/65 text-white dark:bg-red-500/60', marca: 'A' },
+  sin_entrada: { celda: 'border border-amber-500 bg-amber-400/25 text-amber-900 dark:text-amber-100', marca: '?' },
   feriado: { celda: 'bg-violet-500/25 text-violet-800 dark:bg-violet-500/30 dark:text-violet-200', marca: 'F' },
 };
 
 /** Orden en que se listan los estados en la leyenda. */
-export const LEYENDA_ESTADOS: EstadoDia[] = ['a_horario', 'tarde', 'tarde_grave', 'ausente', 'trabajo_no_laborable', 'no_laborable', 'feriado', 'sin_horario', 'pendiente'];
+export const LEYENDA_ESTADOS: EstadoDia[] = ['a_horario', 'tarde', 'tarde_grave', 'ausente', 'sin_entrada', 'trabajo_no_laborable', 'no_laborable', 'feriado', 'sin_horario', 'pendiente'];

@@ -1023,6 +1023,7 @@ model AsistenciaReloj {
   // los ve más.
   limpiar_nuevos Boolean   @default(false)
   ultimo_sync    DateTime?
+  ultimo_ok     DateTime? // último sync sin error (ultimo_sync se actualiza también cuando falla)
   ultimo_error   String?
   reg_total      Int?
   reg_nuevos     Int?
