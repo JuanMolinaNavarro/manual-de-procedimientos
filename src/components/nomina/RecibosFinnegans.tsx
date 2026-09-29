@@ -7,6 +7,9 @@
  *
  * Buscar = 1 llamada PAGA a Finnegans (RESUMENLIQ, trae todas las empresas).
  * Importar = 1 llamada PAGA por liquidación (la sábana), salvo que ya esté bajada.
+ *
+ * Las liquidaciones son de todas las empresas, no del organigrama elegido: cada recibo se
+ * publica en el organigrama (lugar físico) de la ficha que tiene su CUIL.
  */
 
 import { useState } from 'react';
@@ -28,7 +31,6 @@ import { Banner, ErrorCarga } from './ui';
 
 interface Listado {
   liquidaciones: LiquidacionFinnView[];
-  sinOrganigrama: number;
   consumo: ConsumoMes;
 }
 
@@ -44,13 +46,13 @@ function fechaCorta(iso: string): string {
 }
 
 export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
-  const { organigramaId, periodo } = useNomina();
-  const url = organigramaId != null ? `/api/admin/nomina/finnegans/liquidaciones?organigramaId=${organigramaId}&periodo=${periodo}` : null;
+  const { periodo } = useNomina();
+  const url = `/api/admin/nomina/finnegans/liquidaciones?periodo=${periodo}`;
   const lst = useNominaData<Listado>(url);
   const [abierto, setAbierto] = useState(false);
   const [confirmarBuscar, setConfirmarBuscar] = useState(false);
   const [ocupado, setOcupado] = useState<string | null>(null);
-  // Las diferencias mostradas son de la empresa y el mes en pantalla: al cambiar, se ocultan.
+  // Las diferencias mostradas son del mes en pantalla: al cambiarlo, se ocultan.
   const [difGuardadas, setDiferencias] = useState<{ url: string | null; nro: number; items: string[] } | null>(null);
   const diferencias = difGuardadas && difGuardadas.url === url ? difGuardadas : null;
 
@@ -69,9 +71,6 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
         body: JSON.stringify({ periodo }),
       });
       toast.success(`${r.liquidaciones} liquidación(es) en Finnegans para ${periodLabel(periodo)} (${r.nuevas} nueva(s))`);
-      if (r.sinOrganigrama.length > 0) {
-        toast.warning(`Sin organigrama vinculado por CUIT: ${r.sinOrganigrama.map((s) => s.empresa).join(', ')}`);
-      }
       if (r.conProblemas.length > 0) {
         toast.warning(
           `Finnegans devolvió datos incompletos en ${r.conProblemas.length} liquidación(es); no se indexaron: ` +
@@ -133,10 +132,10 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
         )}
       >
         {!d ? (lst.error ? <ErrorCarga error={lst.error} onReintentar={lst.reload} /> : <p>Cargando…</p>)
-          : !liqs.length ? <p>Todavía no hay liquidaciones de {periodLabel(periodo)} para esta empresa. No todas liquidan todos los meses.</p>
+          : !liqs.length ? <p>Todavía no se buscaron las liquidaciones de {periodLabel(periodo)} en Finnegans.</p>
           : (
             <>
-              <p><b className="text-foreground">{importadas.length} de {liqs.length}</b> liquidaciones importadas</p>
+              <p><b className="text-foreground">{importadas.length} de {liqs.length}</b> liquidaciones importadas (todas las empresas)</p>
               <p>{recibos} recibo(s) publicados{conDif && ' · hay diferencias para revisar'}</p>
             </>
           )}
@@ -147,17 +146,12 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
           <DialogHeader>
             <DialogTitle>Liquidaciones de {periodLabel(periodo)} en Finnegans</DialogTitle>
             <DialogDescription>
-              Bloqueá la liquidación en Finnegans antes de importarla: lo que se publica es lo que cada empleado ve y firma. Si
-              algo no coincide (páginas, CUIL o netos) no se publica nada.
+              Bloqueá la liquidación en Finnegans antes de importarla: lo que se publica es lo que cada empleado ve y firma. Cada
+              recibo va al organigrama de la ficha con ese CUIL (Nómina › Maestro). Si algo no coincide (páginas, CUIL, netos o
+              una persona sin ficha) no se publica nada.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            {d && d.sinOrganigrama > 0 && (
-              <Banner>
-                Hay {d.sinOrganigrama} liquidación(es) de empresas sin organigrama vinculado. El vínculo es por CUIT: cargalo en
-                Nómina › Parámetros → Datos del empleador.
-              </Banner>
-            )}
             {diferencias && (
               <Banner variant="warn">
                 <b>Liquidación {diferencias.nro}: no se publicó nada.</b>
@@ -172,7 +166,7 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
                 return (
                   <li key={l.transaccionId} className="flex flex-wrap items-center gap-3 p-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{l.tipoLiquidacion}</p>
+                      <p className="truncate text-sm font-medium text-foreground">{l.empresa} · {l.tipoLiquidacion}</p>
                       <p className="text-xs text-muted-foreground">
                         N.º {l.nroLiquidacion} · pago {fechaCorta(l.fechaPago)} · {l.legajos} legajo(s)
                         {l.estado === 'importada' && ` · ${l.recibos} recibo(s)`}

@@ -177,7 +177,6 @@ export interface AdhesionRow {
 
 /** Panel de adhesiones (Nómina › Recibos). Los recibos PDF y sus firmas: recibos-finnegans.ts. */
 export interface RecibosData {
-  empresaOk: boolean;
   cadena: { total: number; rotos: number };
   adhesiones: AdhesionRow[];
 }
@@ -1004,13 +1003,40 @@ export async function clearActa(orgId: number, empleadoId: number): Promise<{ an
   });
 }
 
+/**
+ * Empleador según la última liquidación de Finnegans de ese CUIL. Los organigramas son lugares
+ * físicos y en uno pueden trabajar personas de distintas empresas: el empleador del acta no es
+ * el de Nómina › Parámetros sino quien le liquida el sueldo. Sin liquidación indexada → null.
+ */
+async function empleadorPorCuil(cuil: string): Promise<ActaDatos['empresa'] | null> {
+  const digitos = cuil.replace(/\D/g, '');
+  if (digitos.length !== 11) return null;
+  const [l] = await prisma.$queryRaw<{ empresa_nombre: string; empresa_cuit: string; domicilio: string | null }[]>`
+    SELECT l.empresa_nombre, l.empresa_cuit, f->>'EMPRESADIRECCION' AS domicilio
+    FROM nomina_finn_liquidaciones l, jsonb_array_elements(l.filas) f
+    WHERE regexp_replace(f->>'IDENTIFICACIONTRIBUTARIANUMERO', '\\D', '', 'g') = ${digitos}
+    ORDER BY l.periodo DESC, l.id DESC
+    LIMIT 1`;
+  if (!l) return null;
+  const c = l.empresa_cuit;
+  return {
+    razonSocial: l.empresa_nombre,
+    cuit: c.length === 11 ? `${c.slice(0, 2)}-${c.slice(2, 10)}-${c[10]}` : c,
+    domicilio: (l.domicilio ?? '').trim(),
+  };
+}
+
 export async function getActaDatos(orgId: number, empleadoId: number): Promise<ActaDatos> {
   const [empleado, config] = await Promise.all([empleadoDeOrg(orgId, empleadoId), getConfig(orgId)]);
   const m = toMaestro(await prisma.nominaEmpleado.findUnique({ where: { empleado_id: empleadoId } }), empleado.estado);
   const a = await prisma.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } });
+  const cuil = a?.cuil ?? m.cuil;
+  const finn = await empleadorPorCuil(cuil);
   return {
-    empresa: { razonSocial: config.empresa.razonSocial, cuit: config.empresa.cuit, domicilio: config.empresa.domicilio },
-    trabajador: { id: empleado.id, nombre: empleado.nombre, cuil: a?.cuil ?? m.cuil, categoria: m.categoria },
+    empresa: finn
+      ? { ...finn, domicilio: finn.domicilio || config.empresa.domicilio }
+      : { razonSocial: config.empresa.razonSocial, cuit: config.empresa.cuit, domicilio: config.empresa.domicilio },
+    trabajador: { id: empleado.id, nombre: empleado.nombre, cuil, categoria: m.categoria },
     adhesion: a && a.organigrama_id === orgId ? { codigo: a.codigo, fecha: a.fecha, creadaEn: a.created_at.toISOString(), email: a.email } : null,
     organigramaId: orgId,
   };
@@ -1026,11 +1052,8 @@ export async function verificarCadenaOrg(orgId: number): Promise<{ total: number
 }
 
 export async function getRecibos(orgId: number): Promise<RecibosData> {
-  const [config, maestro, adhesiones, cadena] = await Promise.all([
-    getConfig(orgId), getMaestro(orgId), adhesionesDe(orgId), verificarCadenaOrg(orgId),
-  ]);
+  const [maestro, adhesiones, cadena] = await Promise.all([getMaestro(orgId), adhesionesDe(orgId), verificarCadenaOrg(orgId)]);
   return {
-    empresaOk: !!(config.empresa.razonSocial && config.empresa.cuit),
     cadena,
     adhesiones: maestro.map((r) => ({ empleado: r.empleado, cuil: r.maestro.cuil, adhesion: adhesiones[r.empleado.id] ?? null })),
   };

@@ -5,6 +5,7 @@ import {
   clasificarRespuestaPdf,
   contieneImporte,
   estadoEntrega,
+  fichasPorCuil,
   validarFirmaInput,
   fechaIso,
   formatoNeto,
@@ -105,6 +106,28 @@ describe('asignarPaginas', () => {
     const pagina = (importe: string) => `CUIL 20-11111111-2 Neto ${importe}`;
     expect(asignarPaginas([pagina('15.000,00')], ana, EMPRESA).diferencias).toHaveLength(1);
     expect(asignarPaginas([pagina('5.000,00')], ana, EMPRESA).diferencias).toEqual([]);
+  });
+});
+
+describe('fichasPorCuil', () => {
+  const f = (empleadoId: number, organigramaId: number, cuil: string) =>
+    ({ empleadoId, organigramaId, cuil, nombre: `F${empleadoId}`, organigrama: `O${organigramaId}` });
+
+  it('indexa por CUIL en todos los organigramas, con o sin guiones', () => {
+    const { porCuil, duplicados } = fichasPorCuil([f(1, 1, '20-11111111-2'), f(2, 5, B), f(3, 1, '')]);
+    expect(porCuil.get(A)?.organigramaId).toBe(1);
+    expect(porCuil.get(B)?.organigramaId).toBe(5);
+    expect(porCuil.size).toBe(2);
+    expect(duplicados.size).toBe(0);
+  });
+
+  it('un CUIL en dos fichas (aunque sea en otro organigrama) es ambiguo y no se indexa', () => {
+    const { porCuil, duplicados } = fichasPorCuil([f(1, 1, A), f(2, 6, A), f(3, 1, B)]);
+    expect(porCuil.has(A)).toBe(false);
+    expect(porCuil.has(B)).toBe(true);
+    expect([...duplicados.keys()]).toEqual([A]);
+    expect(duplicados.get(A)).toContain('F1 (O1)');
+    expect(duplicados.get(A)).toContain('F2 (O6)');
   });
 });
 

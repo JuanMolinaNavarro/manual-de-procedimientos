@@ -5,12 +5,13 @@
  *
  * Flujo:
  * 1. `buscarLiquidaciones(periodo)`: 1 llamada paga a RESUMENLIQ (todas las empresas)
- *    → una `NominaFinnLiquidacion` por transacción, vinculada al organigrama cuyo
- *    `NominaConfig.empresa.cuit` coincide.
+ *    → una `NominaFinnLiquidacion` por transacción. No se ata a ningún organigrama: los
+ *    organigramas son lugares físicos y una empresa liquida gente de varios.
  * 2. `importarLiquidacion(tx)`: 1 llamada paga para bajar la sábana (se guarda y se
  *    reutiliza), se asigna cada página a un legajo por CUIL, se vincula con la
- *    ficha por `NominaEmpleado.cuil` y, si TODO coincide, se parte en un PDF por
- *    persona con su SHA-256. Cualquier diferencia → no se publica nada.
+ *    ficha por `NominaEmpleado.cuil` en CUALQUIER organigrama y, si TODO coincide, se parte
+ *    en un PDF por persona con su SHA-256; cada recibo queda en el organigrama de su ficha.
+ *    Cualquier diferencia → no se publica nada.
  * 3. `enviarAviso`: RR.HH. avisa por mail (sin adjuntos) que los recibos están disponibles.
  * 4. `misRecibos` / `reciboPropio` / `firmarRecibo`: el empleado ve y firma SOLO lo suyo,
  *    desde el portal con su PIN; el hash se verifica antes de entregar y antes de firmar.
@@ -31,6 +32,7 @@ import {
   agruparPorTransaccion,
   asignarPaginas,
   estadoEntrega,
+  fichasPorCuil,
   soloDigitos,
   validarFirmaInput,
   type EstadoEntrega,
@@ -109,17 +111,6 @@ async function llamadaPagaSinCola<T>(usuario: string | null, fn: (on: (i: InfoLl
 
 // ─── Índice de liquidaciones ────────────────────────────────────────────────
 
-/** CUIT (solo dígitos) → organigrama, según `NominaConfig.empresa.cuit`. */
-async function organigramasPorCuit(): Promise<Map<string, number>> {
-  const configs = await prisma.nominaConfig.findMany({ select: { organigrama_id: true, empresa: true } });
-  const mapa = new Map<string, number>();
-  for (const c of configs) {
-    const cuit = soloDigitos((c.empresa as { cuit?: unknown } | null)?.cuit);
-    if (cuit.length === 11) mapa.set(cuit, c.organigrama_id);
-  }
-  return mapa;
-}
-
 function rangoDelPeriodo(periodo: string): { desde: string; hasta: string } {
   const [y, m] = periodo.split('-').map(Number);
   const ultimo = new Date(Date.UTC(y, m, 0)).getUTCDate();
@@ -130,7 +121,6 @@ export interface ResultadoBusqueda {
   periodo: string;
   liquidaciones: number;
   nuevas: number;
-  sinOrganigrama: { empresa: string; cuit: string }[];
   /** Transacciones que Finnegans devolvió con datos incompletos: no se indexaron. */
   conProblemas: { transaccion: string; motivo: string }[];
 }
@@ -170,7 +160,6 @@ export async function buscarLiquidaciones(periodo: string, usuario: string | nul
       conProblemas.push({ transaccion: tx || '?', motivo: e instanceof Error ? e.message : 'Datos incompletos' });
     }
   }
-  const orgs = await organigramasPorCuit();
   const existentes = new Map(
     (
       await prisma.nominaFinnLiquidacion.findMany({
@@ -179,13 +168,9 @@ export async function buscarLiquidaciones(periodo: string, usuario: string | nul
     ).map((l) => [l.transaccion_id, l]),
   );
   let nuevas = 0;
-  const sinOrg = new Map<string, string>();
 
   for (const l of indice) {
-    const organigramaId = orgs.get(l.empresaCuit) ?? null;
-    if (organigramaId == null) sinOrg.set(l.empresaCuit, l.empresaNombre);
     const datos = {
-      organigrama_id: organigramaId,
       empresa_cuit: l.empresaCuit,
       empresa_nombre: l.empresaNombre,
       nro_liquidacion: l.nroLiquidacion,
@@ -218,7 +203,6 @@ export async function buscarLiquidaciones(periodo: string, usuario: string | nul
     periodo,
     liquidaciones: indice.length,
     nuevas,
-    sinOrganigrama: [...sinOrg].map(([cuit, empresa]) => ({ empresa, cuit })),
     conProblemas,
   };
 }
@@ -238,18 +222,15 @@ export interface LiquidacionFinnView {
   importadaPor: string | null;
 }
 
-export async function listarLiquidaciones(
-  orgId: number,
-  periodo: string,
-): Promise<{ liquidaciones: LiquidacionFinnView[]; sinOrganigrama: number; consumo: ConsumoMes }> {
+/** Liquidaciones del período de todas las empresas: cada una reparte recibos en varios organigramas. */
+export async function listarLiquidaciones(periodo: string): Promise<{ liquidaciones: LiquidacionFinnView[]; consumo: ConsumoMes }> {
   if (!PERIODO_RE.test(periodo)) throw new NominaError('Período inválido (yyyy-mm)', 400);
-  const [rows, sinOrganigrama, consumo] = await Promise.all([
+  const [rows, consumo] = await Promise.all([
     prisma.nominaFinnLiquidacion.findMany({
-      where: { organigrama_id: orgId, periodo },
-      orderBy: { nro_liquidacion: 'asc' },
+      where: { periodo },
+      orderBy: [{ empresa_nombre: 'asc' }, { nro_liquidacion: 'asc' }],
       include: { _count: { select: { recibos: true } } },
     }),
-    prisma.nominaFinnLiquidacion.count({ where: { organigrama_id: null, periodo } }),
     consumoMes(),
   ]);
   return {
@@ -267,7 +248,6 @@ export async function listarLiquidaciones(
       importadaEn: r.importada_en?.toISOString() ?? null,
       importadaPor: r.importada_por,
     })),
-    sinOrganigrama,
     consumo,
   };
 }
@@ -314,18 +294,6 @@ async function importarLiquidacionSinCandado(transaccionId: number, usuario: str
     return { ok: true, recibos, yaImportada: true, sabanaReutilizada: true };
   }
 
-  let orgId = liq.organigrama_id;
-  if (orgId == null) {
-    orgId = (await organigramasPorCuit()).get(liq.empresa_cuit) ?? null;
-    if (orgId == null) {
-      throw new NominaError(
-        `${liq.empresa_nombre} (CUIT ${liq.empresa_cuit}) no está vinculada a ningún organigrama: cargá su CUIT en Nómina › Parámetros.`,
-        409,
-      );
-    }
-    await prisma.nominaFinnLiquidacion.update({ where: { id: liq.id }, data: { organigrama_id: orgId } });
-  }
-
   // 1. Sábana: la guardada si está sana; si no, se baja (1 llamada paga).
   let sabana = sabanaGuardada(liq.sabana_archivo, liq.sabana_sha256);
   const sabanaReutilizada = sabana != null;
@@ -340,28 +308,33 @@ async function importarLiquidacionSinCandado(transaccionId: number, usuario: str
     });
   }
 
-  // 2. Conciliación: páginas ↔ legajos de RESUMENLIQ ↔ fichas del organigrama.
+  // 2. Conciliación: páginas ↔ legajos de RESUMENLIQ ↔ fichas (de cualquier organigrama).
   const [indice] = agruparPorTransaccion(liq.filas as FilaResumenLiq[]);
   const esperados = indice?.legajos ?? [];
   const textos = await extraerTextos(sabana);
   const { grupos, diferencias } = asignarPaginas(textos, esperados, liq.empresa_cuit);
 
-  const fichas = await prisma.nominaEmpleado.findMany({
-    where: { empleado: { organigrama_id: orgId } },
-    select: { cuil: true, empleado_id: true },
-  });
-  const fichaPorCuil = new Map<string, number>();
-  for (const f of fichas) {
-    const c = soloDigitos(f.cuil);
-    if (c.length !== 11) continue;
-    if (fichaPorCuil.has(c) && fichaPorCuil.get(c) !== f.empleado_id) {
-      diferencias.push(`El CUIL ${c} está cargado en más de una ficha del organigrama.`);
-    }
-    fichaPorCuil.set(c, f.empleado_id);
-  }
+  const [fichas, organigramas] = await Promise.all([
+    prisma.nominaEmpleado.findMany({
+      where: { cuil: { not: '' } },
+      select: { cuil: true, empleado_id: true, empleado: { select: { nombre: true, organigrama_id: true } } },
+    }),
+    prisma.organigrama.findMany({ select: { id: true, nombre: true } }),
+  ]);
+  const nombreOrg = new Map(organigramas.map((o) => [o.id, o.nombre]));
+  // Una ficha suelta (sin organigrama) no cuenta: el recibo tiene que quedar en algún lugar.
+  const { porCuil: fichaPorCuil, duplicados } = fichasPorCuil(
+    fichas.flatMap(({ empleado: e, ...f }) => e.organigrama_id == null ? [] : [{
+      empleadoId: f.empleado_id, organigramaId: e.organigrama_id, cuil: f.cuil,
+      nombre: e.nombre, organigrama: nombreOrg.get(e.organigrama_id) ?? `#${e.organigrama_id}`,
+    }]),
+  );
+  // Solo frenan los CUIL de esta liquidación: un duplicado de otra empresa no es asunto suyo.
   for (const e of esperados) {
-    if (!fichaPorCuil.has(e.cuil)) {
-      diferencias.push(`${e.nombre || e.cuil} (CUIL ${e.cuil}) no tiene ficha en el organigrama con ese CUIL.`);
+    const dup = duplicados.get(e.cuil);
+    if (dup) diferencias.push(dup);
+    else if (!fichaPorCuil.has(e.cuil)) {
+      diferencias.push(`${e.nombre || e.cuil} (CUIL ${e.cuil}) no tiene ficha con ese CUIL en ningún organigrama.`);
     }
   }
   const yaPublicados = await prisma.nominaReciboPdf.findMany({
@@ -392,11 +365,12 @@ async function importarLiquidacionSinCandado(transaccionId: number, usuario: str
       writeFileSync(ruta, partes[i]);
       escritos.push(ruta);
       const e = porLegajo.get(g.liquidacionLegajoId)!;
+      const ficha = fichaPorCuil.get(g.cuil)!;
       return {
         id,
         liquidacion_id: liq.id,
-        organigrama_id: orgId,
-        empleado_id: fichaPorCuil.get(g.cuil)!,
+        organigrama_id: ficha.organigramaId, // el lugar físico de la persona, no la empresa que liquida
+        empleado_id: ficha.empleadoId,
         liquidacion_legajo_id: g.liquidacionLegajoId,
         cuil: g.cuil,
         periodo: liq.periodo,
@@ -654,6 +628,8 @@ export interface DestinatarioAviso {
   email: string;
   recibos: number;
   yaAvisado: boolean;
+  /** Empresas que liquidan esos recibos: en un mismo organigrama (lugar físico) pueden ser varias. */
+  empresas: string[];
 }
 
 export interface SinAviso {
@@ -681,12 +657,20 @@ export async function previaAviso(orgId: number, periodo: string): Promise<Previ
   if (!PERIODO_RE.test(periodo)) throw new NominaError('Período inválido (yyyy-mm)', 400);
   const rows = await prisma.nominaReciboPdf.findMany({
     where: { organigrama_id: orgId, periodo, estado: { in: ['disponible', 'accedido'] } },
-    include: { empleado: { select: { nombre: true, nomina_adhesion: { select: { acta_archivo: true, email: true } } } } },
+    include: {
+      empleado: { select: { nombre: true, nomina_adhesion: { select: { acta_archivo: true, email: true } } } },
+      liquidacion: { select: { empresa_nombre: true } },
+    },
   });
-  const porPersona = new Map<number, { nombre: string; adh: { acta_archivo: string | null; email: string | null } | null; recibos: number; avisados: number }>();
+  const porPersona = new Map<number, {
+    nombre: string; adh: { acta_archivo: string | null; email: string | null } | null; recibos: number; avisados: number; empresas: Set<string>;
+  }>();
   for (const r of rows) {
-    const p = porPersona.get(r.empleado_id) ?? { nombre: r.empleado.nombre, adh: r.empleado.nomina_adhesion, recibos: 0, avisados: 0 };
+    const p = porPersona.get(r.empleado_id) ?? {
+      nombre: r.empleado.nombre, adh: r.empleado.nomina_adhesion, recibos: 0, avisados: 0, empresas: new Set<string>(),
+    };
     p.recibos++;
+    p.empresas.add(r.liquidacion.empresa_nombre);
     if (r.notificado_en) p.avisados++;
     porPersona.set(r.empleado_id, p);
   }
@@ -705,7 +689,9 @@ export async function previaAviso(orgId: number, periodo: string): Promise<Previ
     else if (!p.adh.acta_archivo) sinAviso.push({ empleadoId, nombre: p.nombre, motivo: 'pendiente_acta', recibos: p.recibos });
     else if (!emailValido(p.adh.email)) sinAviso.push({ empleadoId, nombre: p.nombre, motivo: 'sin_email', recibos: p.recibos });
     else if (!conUsuario.has(empleadoId)) sinAviso.push({ empleadoId, nombre: p.nombre, motivo: 'sin_usuario', recibos: p.recibos });
-    else destinatarios.push({ empleadoId, nombre: p.nombre, email: p.adh.email, recibos: p.recibos, yaAvisado: p.avisados === p.recibos });
+    else destinatarios.push({
+      empleadoId, nombre: p.nombre, email: p.adh.email, recibos: p.recibos, yaAvisado: p.avisados === p.recibos, empresas: [...p.empresas].sort(),
+    });
   }
   const orden = (a: { nombre: string }, b: { nombre: string }) => a.nombre.localeCompare(b.nombre, 'es');
   const recibosDelPeriodo = await prisma.nominaReciboPdf.count({ where: { organigrama_id: orgId, periodo } });
@@ -737,16 +723,6 @@ function exigirMailReal(modo: ModoMail): void {
   }
 }
 
-/** Razón social del empleador (Nómina › Parámetros); si no está cargada, el nombre del organigrama. */
-async function nombreEmpresa(orgId: number): Promise<string> {
-  const [config, org] = await Promise.all([
-    prisma.nominaConfig.findUnique({ where: { organigrama_id: orgId }, select: { empresa: true } }),
-    prisma.organigrama.findUnique({ where: { id: orgId }, select: { nombre: true } }),
-  ]);
-  const razon = (config?.empresa as { razonSocial?: unknown } | null)?.razonSocial;
-  return (typeof razon === 'string' && razon.trim()) || org?.nombre || '';
-}
-
 /**
  * Manda el aviso a todos los destinatarios de `previaAviso` (botón de RR.HH.). El envío y cada
  * destinatario quedan registrados a medida que salen (si el proceso se corta a mitad, lo enviado
@@ -768,7 +744,6 @@ export async function enviarAviso(orgId: number, periodo: string, usuario: strin
       throw new NominaError('No hay a quién avisar: nadie con recibos pendientes tiene la adhesión completa, email y usuario', 409);
     }
     exigirMailReal(previa.modo);
-    const empresa = await nombreEmpresa(orgId);
     const url = `${appUrl()}/admin/mis-recibos`;
     const aviso = await prisma.nominaAviso.create({
       data: { organigrama_id: orgId, periodo, modo: previa.modo, enviado_por: usuario, enviados: 0, fallidos: 0 },
@@ -776,7 +751,7 @@ export async function enviarAviso(orgId: number, periodo: string, usuario: strin
     let enviados = 0;
     const fallidos: { nombre: string; error: string }[] = [];
     for (const d of previa.destinatarios) {
-      const mail = armarMailAviso({ nombre: d.nombre, empresa, periodo, recibos: d.recibos, url });
+      const mail = armarMailAviso({ nombre: d.nombre, empresa: d.empresas.join(' / '), periodo, recibos: d.recibos, url });
       const r = await enviarMail({ to: d.email, ...mail });
       await prisma.$transaction([
         prisma.nominaAvisoDestinatario.create({
