@@ -9,6 +9,7 @@ import {
   getLicenciasDeEmpleado,
   updateEmpleado,
   deleteEmpleado,
+  ocultarConvenio,
   validateNoCycle,
   type UpdateOrgEmpleadoData,
 } from '@/lib/organigrama';
@@ -26,7 +27,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const empleado = await getEmpleadoById(n);
     if (!empleado) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
-    return NextResponse.json(empleado);
+    return NextResponse.json(ocultarConvenio(empleado, await canEditModule('organigrama')));
   } catch (error) {
     console.error('Error en GET /api/admin/organigrama/empleados/[id]:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });

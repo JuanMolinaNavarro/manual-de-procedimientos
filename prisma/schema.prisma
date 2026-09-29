@@ -351,6 +351,9 @@ model OrgEmpleado {
   formacion        String?
   seniority        String?
   especialidad     String?
+  // Convenio colectivo y categoría ("Satsaid 223/75 · GRUPO 3", "Fuera de Convenio"). No es el puesto:
+  // solo lo ve quien puede editar el organigrama (la API lo quita al resto).
+  convenio         String?
   // ISO yyyy-mm-dd (string como todas las fechas de dominio; evita corrimientos UTC)
   fecha_nacimiento String?
 

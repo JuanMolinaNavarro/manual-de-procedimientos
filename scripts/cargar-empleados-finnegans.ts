@@ -57,6 +57,11 @@ function titulo(s: string): string {
     .replace(/(^|[\s'-])(\p{L})/gu, (_m, sep: string, l: string) => sep + l.toLocaleUpperCase('es'));
 }
 
+/** "Satsaid 223/75" + "GRUPO 3" → "Satsaid 223/75 · GRUPO 3"; fuera de convenio queda solo. */
+function textoConvenio(convenio: string, categoria: string): string {
+  return categoria && categoria.toLowerCase() !== convenio.toLowerCase() ? `${convenio} · ${categoria}` : convenio;
+}
+
 async function leerExcel(ruta: string): Promise<Record<string, unknown>[]> {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(ruta);
@@ -117,10 +122,12 @@ async function main() {
 
     for (const p of emp.personas) {
       const nombreCompleto = titulo(`${p.nombre} ${p.apellido}`.trim());
+      // El convenio y su categoría ("GRUPO 3") no son el puesto: van a `convenio`. Finnegans no
+      // trae el puesto, así que una ficha nueva queda "Sin rol" y una existente conserva el suyo.
       const ficha = {
         nombre: nombreCompleto,
-        rol: p.categoria || 'Sin categoría',
         area: p.convenio,
+        convenio: textoConvenio(p.convenio, p.categoria),
         estado: p.activo ? 'active' : 'inactive',
       };
       let empleadoId = fichaPorCuil.get(p.cuilDigitos);
@@ -128,7 +135,7 @@ async function main() {
         await prisma.orgEmpleado.update({ where: { id: empleadoId }, data: { ...ficha, updated_by: QUIEN } });
         tot.fichasActualizadas++;
       } else {
-        const creada = await createEmpleado({ organigrama_id: org.id, ...ficha, created_by: QUIEN } as Parameters<typeof createEmpleado>[0]);
+        const creada = await createEmpleado({ organigrama_id: org.id, ...ficha, rol: 'Sin rol', created_by: QUIEN } as Parameters<typeof createEmpleado>[0]);
         empleadoId = creada.id;
         tot.fichasNuevas++;
       }

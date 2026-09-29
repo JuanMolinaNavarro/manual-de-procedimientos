@@ -84,6 +84,7 @@ function blankEmpleado(areaDefault: string): OrgEmpleado {
     formacion: null,
     seniority: null,
     especialidad: null,
+    convenio: null,
     fecha_nacimiento: null,
     experiencia: [],
     resp_primarias: [],
@@ -251,6 +252,7 @@ export default function FichaModal({
         formacion: form.formacion,
         seniority: form.seniority,
         especialidad: form.especialidad,
+        convenio: form.convenio,
         fecha_nacimiento: form.fecha_nacimiento || null,
         experiencia: form.experiencia ?? [],
         resp_primarias: form.resp_primarias ?? [],
@@ -375,6 +377,8 @@ export default function FichaModal({
               <Field label={SEDE_LABEL} value={emp.sede} edit={edit} onChange={(v) => set('sede', v)} />
               <Field label="Modalidad" value={emp.modalidad} edit={edit} onChange={(v) => set('modalidad', v)} />
               <Field label="Guardias" value={emp.guardias} edit={edit} onChange={(v) => set('guardias', v)} />
+              {/* El convenio no es el puesto y solo lo ve quien puede editar el organigrama (la API ya no se lo manda al resto). */}
+              {canEdit && <Field label="Convenio" value={emp.convenio} edit={edit} onChange={(v) => set('convenio', v)} />}
 
               <div className="space-y-1">
                 <Label className="text-[11px] text-muted-foreground">Fecha de nacimiento</Label>

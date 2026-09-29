@@ -43,6 +43,8 @@ export interface OrgEmpleado {
   formacion: string | null;
   seniority: string | null;
   especialidad: string | null;
+  /** Convenio colectivo + categoría. Solo para quien puede editar el organigrama (`ocultarConvenio`). */
+  convenio: string | null;
   fecha_nacimiento: string | null; // ISO yyyy-mm-dd
   experiencia: Experiencia[] | null;
   resp_primarias: string[] | null;
@@ -79,6 +81,7 @@ export interface CreateOrgEmpleadoData {
   formacion?: string | null;
   seniority?: string | null;
   especialidad?: string | null;
+  convenio?: string | null;
   fecha_nacimiento?: string | null;
   experiencia?: Experiencia[] | null;
   resp_primarias?: string[] | null;
@@ -257,6 +260,14 @@ function mapEmpleado(row: any): OrgEmpleado {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+/**
+ * El convenio no se le muestra a quien solo ve el organigrama: las rutas de lectura lo
+ * quitan si la sesión no tiene `canEditModule('organigrama')`.
+ */
+export function ocultarConvenio<T extends { convenio: string | null }>(e: T, puedeVer: boolean): T {
+  return puedeVer ? e : { ...e, convenio: null };
+}
+
 // ─── Empleado CRUD ──────────────────────────────────────────────────────────
 
 export async function getAllEmpleados(): Promise<OrgEmpleado[]> {
@@ -290,6 +301,7 @@ export async function createEmpleado(data: CreateOrgEmpleadoData): Promise<OrgEm
       formacion: data.formacion ?? null,
       seniority: data.seniority ?? null,
       especialidad: data.especialidad ?? null,
+      convenio: data.convenio ?? null,
       fecha_nacimiento: data.fecha_nacimiento ?? null,
       experiencia: (data.experiencia ?? undefined) as any,
       resp_primarias: (data.resp_primarias ?? undefined) as any,
@@ -335,6 +347,7 @@ export async function updateEmpleado(
       formacion: data.formacion,
       seniority: data.seniority,
       especialidad: data.especialidad,
+      convenio: data.convenio,
       fecha_nacimiento: data.fecha_nacimiento,
       experiencia: json(data.experiencia),
       resp_primarias: json(data.resp_primarias),
