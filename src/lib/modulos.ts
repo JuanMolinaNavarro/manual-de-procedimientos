@@ -11,6 +11,11 @@ export const ADMIN_MODULOS = [
   { slug: 'asistencia',    label: 'Asistencia',     href: '/admin/asistencia' },
   // Mi asistencia: la vista personal (solo la ficha vinculada al usuario de la sesión).
   { slug: 'mi-asistencia', label: 'Mi asistencia',  href: '/admin/mi-asistencia' },
+  // Recibos de sueldo (PDF de Finnegans), en dos módulos separados: la gestión de RR.HH.
+  // (importar, avisar, adhesiones, seguimiento de firmas) y la vista personal del empleado
+  // (ver y firmar los suyos). Rutas distintas para que un permiso no cubra al otro.
+  { slug: 'gestion-recibos', label: 'Gestión de recibos', href: '/admin/gestion-recibos' },
+  { slug: 'mis-recibos',   label: 'Mis recibos',    href: '/admin/mis-recibos' },
   { slug: 'padron',        label: 'Padrón',         href: '/admin/padron' },
   { slug: 'proyectos',     label: 'Proyectos',      href: '/admin/proyectos' },
   { slug: 'deposito',      label: 'Depósito',       href: '/admin/deposito' },
@@ -21,14 +26,13 @@ export const ADMIN_MODULOS = [
   { slug: 'nomina-novedades',   label: 'Nómina · Novedades',   href: '/admin/nomina/novedades' },
   { slug: 'nomina-liquidacion', label: 'Nómina · Liquidación', href: '/admin/nomina/liquidacion' },
   { slug: 'nomina-historico',   label: 'Nómina · Histórico',   href: '/admin/nomina/historico' },
-  { slug: 'nomina-recibos',     label: 'Nómina · Recibos',     href: '/admin/nomina/recibos' },
   { slug: 'nomina-parametros',  label: 'Nómina · Parámetros',  href: '/admin/nomina/parametros' },
 ] as const;
 
 /** Slugs de los sub-módulos de nómina, en el orden de sus pestañas. */
 export const NOMINA_SLUGS = [
   'nomina-tablero', 'nomina-maestro', 'nomina-novedades', 'nomina-liquidacion',
-  'nomina-historico', 'nomina-recibos', 'nomina-parametros',
+  'nomina-historico', 'nomina-parametros',
 ] as const satisfies readonly AdminModuloSlug[];
 
 /**
@@ -42,6 +46,35 @@ export type AdminModulo = typeof ADMIN_MODULOS[number];
 export type AdminModuloSlug = AdminModulo['slug'];
 
 export const ADMIN_MODULO_SLUGS = ADMIN_MODULOS.map((m) => m.slug);
+
+/** Módulos fijos del rol `empleado` (su portal personal). */
+export const EMPLEADO_MODULOS = ['mi-asistencia', 'mis-recibos'] as const satisfies readonly AdminModuloSlug[];
+
+/**
+ * Módulos que efectivamente puede usar un usuario según su rol:
+ * superadmin → todos (`[]`), empleado → siempre `EMPLEADO_MODULOS` (lo guardado en
+ * `Usuario.modulos` no cuenta: `[]` significaría "todos"), resto → lo guardado, siempre sin
+ * `usuarios` (la gestión de usuarios es solo del superadmin).
+ */
+export function modulosEfectivos(rol: string | null | undefined, modulos: readonly string[] | null | undefined): string[] {
+  if (rol === 'superadmin') return [];
+  if (rol === 'empleado') return [...EMPLEADO_MODULOS];
+  // Gestión de usuarios: solo superadmin (roles.ts › puedeGestionarUsuarios). `[]` significa
+  // "todos", así que se explicita la lista sin `usuarios`.
+  const base = modulos && modulos.length ? modulos.map((m) => SLUGS_RENOMBRADOS[m] ?? m) : ADMIN_MODULO_SLUGS;
+  const efectivos = base.filter((m) => m !== 'usuarios');
+  // Un admin que solo tenía `usuarios` se queda sin nada, no con `[]` (que sería "todos").
+  return efectivos.length ? efectivos : [SIN_MODULOS];
+}
+
+/** Marca de "ningún módulo": no coincide con ningún slug, así que no habilita nada. */
+const SIN_MODULOS = '__ninguno__';
+
+/** Slugs viejos que pueden seguir guardados en `Usuario.modulos` → su módulo actual. */
+const SLUGS_RENOMBRADOS: Record<string, AdminModuloSlug> = {
+  // "Nómina · Recibos" pasó a ser el módulo propio "Gestión de recibos".
+  'nomina-recibos': 'gestion-recibos',
+};
 
 /** Empty array means all modules are allowed (backward compatible). */
 export function getModulosForUser(modulos: string[]): readonly AdminModulo[] {

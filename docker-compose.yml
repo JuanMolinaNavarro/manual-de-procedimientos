@@ -1,3 +1,34 @@
+# Variables del app compartidas por `app` y `app-dev` (se definen en el .env de al lado).
+x-app-env: &app-env
+  SITE_USER: ${SITE_USER}
+  SITE_PASSWORD: ${SITE_PASSWORD}
+  DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/manualcall
+  OMDB_API_KEY: ${OMDB_API_KEY:-}
+  FANART_API_KEY: ${FANART_API_KEY:-}
+  MWPROXY_BASE_URL: ${MWPROXY_BASE_URL:-}
+  MWPROXY_TOKEN: ${MWPROXY_TOKEN:-}
+  LEADS_API_KEY: ${LEADS_API_KEY:-}
+  ISPBOSS_API_KEY: ${ISPBOSS_API_KEY:-}
+  ISPBOSS_BASE_URL: ${ISPBOSS_BASE_URL:-https://viaccc.ispboss.com}
+  # Recibos de Finnegans (API Teamplace)
+  TEAMPLACE_CLIENT_ID: ${TEAMPLACE_CLIENT_ID:-}
+  TEAMPLACE_CLIENT_SECRET: ${TEAMPLACE_CLIENT_SECRET:-}
+  FINNEGANS_RECIBO_XML: ${FINNEGANS_RECIBO_XML:-}
+  FINNEGANS_RECIBO_DATASOURCE: ${FINNEGANS_RECIBO_DATASOURCE:-}
+  FINNEGANS_TOPE_MENSUAL: ${FINNEGANS_TOPE_MENSUAL:-}
+  # Aviso por mail de recibos (sin SMTP_HOST = modo prueba: guarda .eml y no envía)
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-}
+  SMTP_SECURE: ${SMTP_SECURE:-}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASS: ${SMTP_PASS:-}
+  MAIL_FROM: ${MAIL_FROM:-}
+  APP_URL: ${APP_URL:-}
+  # Crons (sync de relojes, pipeline, deportes): en producción corren salvo CRON_ENABLED=0; en dev solo con CRON_ENABLED=1.
+  CRON_ENABLED: ${CRON_ENABLED:-}
+  # Solo para un deploy con cambios destructivos del schema ya revisados (ver docker/entrypoint.sh).
+  PRISMA_ACCEPT_DATA_LOSS: ${PRISMA_ACCEPT_DATA_LOSS:-}
+
 services:
   postgres:
     image: postgres:16
@@ -5,7 +36,8 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      # Solo se usa al crear el volumen por primera vez; cambiarla después NO cambia la de la base.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en el .env}
       POSTGRES_DB: manualcall
     ports:
       - "5432:5432"
@@ -25,18 +57,8 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      NODE_ENV: development
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      SITE_USER: ${SITE_USER}
-      SITE_PASSWORD: ${SITE_PASSWORD}
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/manualcall
-      OMDB_API_KEY: ${OMDB_API_KEY}
-      FANART_API_KEY: ${FANART_API_KEY}
-      MWPROXY_BASE_URL: ${MWPROXY_BASE_URL}
-      MWPROXY_TOKEN: ${MWPROXY_TOKEN}
-      LEADS_API_KEY: ${LEADS_API_KEY}
-      ISPBOSS_API_KEY: ${ISPBOSS_API_KEY}
-      ISPBOSS_BASE_URL: ${ISPBOSS_BASE_URL:-https://viaccc.ispboss.com}
+      <<: *app-env
+      NODE_ENV: production
     ports:
       - "3000:3000"
     volumes:
@@ -51,18 +73,8 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      <<: *app-env
       NODE_ENV: development
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      SITE_USER: ${SITE_USER}
-      SITE_PASSWORD: ${SITE_PASSWORD}
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}:5432/manualcall
-      OMDB_API_KEY: ${OMDB_API_KEY}
-      FANART_API_KEY: ${FANART_API_KEY}
-      MWPROXY_BASE_URL: ${MWPROXY_BASE_URL}
-      MWPROXY_TOKEN: ${MWPROXY_TOKEN}
-      LEADS_API_KEY: ${LEADS_API_KEY}
-      ISPBOSS_API_KEY: ${ISPBOSS_API_KEY}
-      ISPBOSS_BASE_URL: ${ISPBOSS_BASE_URL:-https://viaccc.ispboss.com}
     ports:
       - "3000:3000"
     volumes:

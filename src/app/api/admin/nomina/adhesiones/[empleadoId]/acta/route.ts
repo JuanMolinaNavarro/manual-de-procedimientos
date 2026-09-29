@@ -7,12 +7,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
+import { puedeGestionarPinSesion } from '@/lib/admin-auth';
 import { handle, parseId, parseOrgId } from '@/lib/nomina-api';
 import { NominaError, clearActa, getAdhesion, setActa } from '@/lib/nomina';
 import { ACTAS_DIR, ACTA_MAX_BYTES } from '@/lib/nomina-actas';
+import { headersArchivo } from '@/lib/archivos';
 
 type Ctx = { params: Promise<{ empleadoId: string }> };
+
+/** Subir o quitar el acta completa/anula una adhesión: mismo permiso que adherir. */
+async function exigirRrhh() {
+  if (!(await puedeGestionarPinSesion())) {
+    throw new NominaError('Las adhesiones las gestiona RR.HH. (un admin): el superadmin no puede adherir, revocar ni cargar actas', 403);
+  }
+}
 
 function borrar(archivo: string | null) {
   if (!archivo) return;
@@ -31,20 +40,16 @@ export async function GET(request: NextRequest, { params }: Ctx) {
     } catch {
       throw new NominaError('El archivo del acta no está disponible', 404);
     }
-    const nombre = view.acta.nombreOriginal;
-    const ascii = nombre.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, "'");
+    // Sin caché: la URL es la misma aunque el acta se reemplace o la adhesión se renueve.
     return new NextResponse(new Uint8Array(buffer), {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(nombre)}`,
-        'Cache-Control': 'private, max-age=3600',
-      },
+      headers: headersArchivo(actaArchivo, { nombreDescarga: view.acta.nombreOriginal, cache: 'private, no-store' }),
     });
   });
 }
 
 export async function POST(request: NextRequest, { params }: Ctx) {
   return handle('POST /api/admin/nomina/adhesiones/[empleadoId]/acta', async () => {
+    await exigirRrhh();
     const { empleadoId } = await params;
     const formData = await request.formData();
     const orgId = parseOrgId(formData.get('organigramaId') ?? request.nextUrl.searchParams.get('organigramaId'));
@@ -59,7 +64,10 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     mkdirSync(ACTAS_DIR, { recursive: true });
     writeFileSync(join(ACTAS_DIR, storedName), buffer);
     try {
-      const { anterior, view } = await setActa(orgId, parseId(empleadoId, 'empleadoId'), { archivo: storedName, nombreOriginal: file.name, tamano: buffer.length });
+      const { anterior, view } = await setActa(orgId, parseId(empleadoId, 'empleadoId'), {
+        archivo: storedName, nombreOriginal: file.name, tamano: buffer.length,
+        sha256: createHash('sha256').update(buffer).digest('hex'),
+      });
       borrar(anterior);
       return NextResponse.json(view, { status: 201 });
     } catch (e) {
@@ -71,6 +79,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
 
 export async function DELETE(request: NextRequest, { params }: Ctx) {
   return handle('DELETE /api/admin/nomina/adhesiones/[empleadoId]/acta', async () => {
+    await exigirRrhh();
     const { empleadoId } = await params;
     const orgId = parseOrgId(request.nextUrl.searchParams.get('organigramaId'));
     const { anterior } = await clearActa(orgId, parseId(empleadoId, 'empleadoId'));

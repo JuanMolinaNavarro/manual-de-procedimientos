@@ -1,20 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { getAllSaltosImporte, createSaltoImporte, type CreateSaltoImporteData } from '@/lib/senales-ip';
-import { isAdminRole } from '@/lib/roles';
-
-async function isAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('site_session');
-  const role = session?.value?.split('|')[1];
-  return isAdminRole(role);
-}
-
-async function getUsername(): Promise<string | null> {
-  const cookieStore = await cookies();
-  const val = cookieStore.get('site_session')?.value;
-  return val ? val.split('|')[0] : null;
-}
+import { getSessionUsername, isAdmin } from '@/lib/admin-auth';
 
 export async function GET() {
   try {
@@ -34,13 +20,17 @@ export async function POST(request: NextRequest) {
     if (!await isAdmin()) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
-    const username = await getUsername();
+    const username = await getSessionUsername();
     const body = await request.json() as CreateSaltoImporteData;
     if (!body.descripcion?.trim() || !body.fecha_efectiva?.trim()) {
       return NextResponse.json(
         { error: 'Los campos "descripcion" y "fecha_efectiva" son requeridos' },
         { status: 400 },
       );
+    }
+    // Las alarmas comparan la fecha como yyyy-mm-dd: otro formato quedaba NaN y la alarma no sonaba nunca.
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(body.fecha_efectiva.trim()) || Number.isNaN(Date.parse(body.fecha_efectiva.trim()))) {
+      return NextResponse.json({ error: 'fecha_efectiva debe tener el formato AAAA-MM-DD' }, { status: 400 });
     }
     const salto = await createSaltoImporte({ ...body, created_by: username, updated_by: username });
     return NextResponse.json(salto, { status: 201 });

@@ -10,12 +10,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { isAdminRole } from '@/lib/roles';
+import { isEmpleadoRole } from '@/lib/roles';
+import { rutaInternaSegura } from '@/lib/permisos-rutas';
 
 export default function SiteLoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const from = searchParams.get('from');
+  // Solo rutas del propio sitio: `?from=https://otro` sería un open redirect.
+  const from = rutaInternaSegura(searchParams.get('from'));
 
   const [usuario, setUsuario] = useState('');
   const [password, setPassword] = useState('');
@@ -39,10 +41,11 @@ export default function SiteLoginPage() {
         throw new Error(data.error || 'No se pudo iniciar sesion');
       }
 
-      const isAdmin = isAdminRole(data.rol);
-      const destination = isAdmin
-        ? (from?.startsWith('/admin') ? from : '/admin')
-        : (from ?? '/retencion/inicio');
+      // El empleado entra a su portal (/admin con solo sus módulos); el proxy no le deja abrir
+      // otra cosa, así que el `from` solo vale si es del portal.
+      const destination = isEmpleadoRole(data.rol)
+        ? (from === '/admin/mi-asistencia' || from === '/admin/mis-recibos' ? from : '/admin')
+        : (from?.startsWith('/admin') || from?.startsWith('/carga-ventas') ? from : '/admin');
       router.push(destination);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
@@ -73,7 +76,7 @@ export default function SiteLoginPage() {
                 id="usuario"
                 value={usuario}
                 onChange={(event) => setUsuario(event.target.value)}
-                placeholder="Ej: agente01"
+                placeholder="Tu usuario"
                 autoComplete="username"
                 required
               />

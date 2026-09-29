@@ -18,7 +18,6 @@ import { descargar, mensajeError, nominaFetch } from './api';
 import { useNomina, useNominaData } from './NominaContext';
 import { Banner, EmpleadoCell, Empty, Estado, FlagRow, PageTitle, StatCard } from './ui';
 import DetalleDialog from './DetalleDialog';
-import KioscoOverlay from './KioscoOverlay';
 
 export function LiqCard({ l, onClick }: { l: LiquidacionView; onClick: () => void }) {
   const hasErr = l.flags.some((f) => f.tipo === 'error'), hasWarn = l.flags.some((f) => f.tipo === 'warn');
@@ -51,7 +50,6 @@ export default function LiquidacionPage() {
   const q = organigramaId != null ? `organigramaId=${organigramaId}&periodo=${periodo}` : null;
   const liq = useNominaData<LiquidacionData>(q ? `/api/admin/nomina/liquidacion?${q}` : null);
   const [detalle, setDetalle] = useState<number | null>(null);
-  const [kiosco, setKiosco] = useState<number | null>(null);
   const [confirmar, setConfirmar] = useState<'cerrar' | 'reabrir' | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
@@ -125,7 +123,7 @@ export default function LiquidacionPage() {
             {d.cerrado ? (
               <>
                 <span className="text-xs text-muted-foreground">{firmados}/{d.liquidaciones.length} firmados</span>
-                <Button asChild><Link href="/admin/nomina/recibos">Entregar recibos y firmar <ArrowRight className="ml-1 h-4 w-4" /></Link></Button>
+                <Button asChild><Link href="/admin/gestion-recibos">Ir a Gestión de recibos <ArrowRight className="ml-1 h-4 w-4" /></Link></Button>
                 <Button variant="destructive" onClick={() => setConfirmar('reabrir')} disabled={ocupado}><Unlock className="mr-1 h-4 w-4" /> Reabrir período</Button>
               </>
             ) : (
@@ -142,10 +140,7 @@ export default function LiquidacionPage() {
         </>
       )}
 
-      <DetalleDialog organigramaId={organigramaId} periodo={periodo} empleadoId={detalle} onClose={() => setDetalle(null)} onFirmar={(id) => setKiosco(id)} />
-      {kiosco != null && (
-        <KioscoOverlay organigramaId={organigramaId} periodo={periodo} empleadoId={kiosco} onClose={() => setKiosco(null)} onFirmado={() => { setKiosco(null); refrescar(); }} />
-      )}
+      <DetalleDialog organigramaId={organigramaId} periodo={periodo} empleadoId={detalle} onClose={() => setDetalle(null)} />
 
       <AlertDialog open={!!confirmar} onOpenChange={(o) => !o && setConfirmar(null)}>
         <AlertDialogContent>
@@ -154,7 +149,7 @@ export default function LiquidacionPage() {
             <AlertDialogDescription>
               {confirmar === 'cerrar'
                 ? `${d.liquidaciones.length} empleado(s) · neto total ${money(t.neto)}. El período quedará congelado e inmutable (auditable). ¿Confirmás el cierre?`
-                : `ATENCIÓN: reabrir elimina el cierre congelado (los datos del maestro y novedades se conservan, pero el snapshot auditable se pierde).${firmados ? ` Hay ${firmados} recibo(s) FIRMADOS por trabajadores en este período: las constancias se conservan, pero al recalcular el hash ya no va a coincidir y se van a marcar como no verificables.` : ''} ¿Reabrir de todos modos?`}
+                : `ATENCIÓN: reabrir elimina el cierre congelado (los datos del maestro y novedades se conservan, pero el snapshot auditable se pierde). Las firmas de los recibos de Finnegans no dependen de este cierre y no se tocan. ¿Reabrir de todos modos?`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

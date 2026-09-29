@@ -1,36 +1,28 @@
 /**
  * API Route: /api/admin/usuarios/[id]
  *
- * GET - Obtiene un usuario por id (admin)
- * PUT - Actualiza usuario (admin). Solo un superadmin puede asignar el rol
+ * GET - Obtiene un usuario por id (solo superadmin)
+ * PUT - Actualiza usuario (solo superadmin). Solo un superadmin puede asignar el rol
  *       superadmin o editar a un usuario superadmin. `empleado_id` vincula la
- *       ficha del organigrama (null = desvincular).
+ *       ficha del organigrama (null = desvincular). `password` vacía = no cambiarla (se
+ *       guarda hasheada; nunca se devuelve). Cambiar usuario, contraseña, rol o estado
+ *       cierra todas sus sesiones abiertas.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
 import { ADMIN_MODULO_SLUGS } from '@/lib/modulos';
-import { isAdminRole, isSuperadmin, ROLES } from '@/lib/roles';
-import { getUsuarioSesion } from '@/lib/admin-auth';
+import { isSuperadmin, ROLES } from '@/lib/roles';
+import { getUsuarioSesion, puedeGestionarUsuariosSesion } from '@/lib/admin-auth';
+import { hashPassword, validarPasswordNueva } from '@/lib/password';
+import { revocarSesionesDeUsuario } from '@/lib/sesion';
+import { SELECT_USUARIO } from '@/lib/usuarios-select';
 
-function getRoleFromSession(value: string | undefined) {
-  if (!value) return null;
-  const parts = value.split('|');
-  return parts.length > 1 ? parts[1] : null;
-}
-
+/** Gestión de usuarios: solo superadmin (rol de la base). Ver roles.ts › puedeGestionarUsuarios. */
 async function isAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('site_session');
-  const role = getRoleFromSession(session?.value);
-  return isAdminRole(role);
+  return puedeGestionarUsuariosSesion();
 }
-
-const INCLUDE_EMPLEADO = {
-  empleado: { select: { id: true, nombre: true, area: true } },
-} as const;
 
 export async function GET(
   _request: NextRequest,
@@ -38,19 +30,19 @@ export async function GET(
 ) {
   try {
     if (!await isAdmin()) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+      return NextResponse.json({ error: 'Solo un superadmin puede gestionar usuarios' }, { status: 403 });
     }
 
     const { id } = await params;
     const usuarioId = Number(id);
 
-    if (Number.isNaN(usuarioId)) {
+    if (!Number.isInteger(usuarioId) || usuarioId <= 0) {
       return NextResponse.json({ error: 'ID invalido' }, { status: 400 });
     }
 
     const usuario = await prisma.usuario.findUnique({
       where: { id: usuarioId },
-      include: INCLUDE_EMPLEADO,
+      select: SELECT_USUARIO,
     });
 
     if (!usuario) {
@@ -70,13 +62,13 @@ export async function PUT(
 ) {
   try {
     if (!await isAdmin()) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+      return NextResponse.json({ error: 'Solo un superadmin puede gestionar usuarios' }, { status: 403 });
     }
 
     const { id } = await params;
     const usuarioId = Number(id);
 
-    if (Number.isNaN(usuarioId)) {
+    if (!Number.isInteger(usuarioId) || usuarioId <= 0) {
       return NextResponse.json({ error: 'ID invalido' }, { status: 400 });
     }
 
@@ -92,9 +84,17 @@ export async function PUT(
       empleado_id?: number | null;
     };
 
+    const passwordNueva = body.password?.trim() || undefined;
+    if (passwordNueva !== undefined) {
+      const errorPassword = validarPasswordNueva(passwordNueva);
+      if (errorPassword) {
+        return NextResponse.json({ error: errorPassword }, { status: 400 });
+      }
+    }
+
     const data = {
-      usuario: body.usuario?.trim(),
-      password: body.password?.trim(),
+      usuario: body.usuario?.trim() || undefined,
+      password: passwordNueva !== undefined ? await hashPassword(passwordNueva) : undefined,
       rol: body.rol?.trim(),
       nombre: body.nombre?.trim() || null,
       apellido: body.apellido?.trim() || null,
@@ -109,7 +109,7 @@ export async function PUT(
 
     const target = await prisma.usuario.findUnique({
       where: { id: usuarioId },
-      select: { rol: true },
+      select: { rol: true, usuario: true, isActive: true },
     });
     if (!target) {
       return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
@@ -167,8 +167,15 @@ export async function PUT(
         modulos_edit: data.modulos_edit ?? undefined,
         empleado_id: empleadoId,
       },
-      include: INCLUDE_EMPLEADO,
+      select: SELECT_USUARIO,
     });
+
+    const cambioAcceso =
+      data.password !== undefined ||
+      (data.usuario !== undefined && data.usuario !== target.usuario) ||
+      (data.rol !== undefined && data.rol !== target.rol) ||
+      (data.isActive !== undefined && data.isActive !== target.isActive);
+    if (cambioAcceso) await revocarSesionesDeUsuario(usuarioId);
 
     return NextResponse.json(updated);
   } catch (error) {

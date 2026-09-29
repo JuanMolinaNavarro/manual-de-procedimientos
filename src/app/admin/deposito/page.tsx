@@ -7,26 +7,15 @@
  * correr si redirigimos— y manda al usuario a la app de depósito.
  */
 
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { prisma } from '@/lib/prisma';
-import { canAccessPath, DEPOSITO_URL } from '@/lib/modulos';
-import { isSuperadmin } from '@/lib/roles';
+import { getSesion } from '@/lib/admin-auth';
+import { canAccessPath, DEPOSITO_URL, modulosEfectivos } from '@/lib/modulos';
 
 export default async function DepositoPage() {
-  const cookieStore = await cookies();
-  const sessionValue = cookieStore.get('site_session')?.value;
-  const usuario = sessionValue ? sessionValue.split('|')[0] : null;
-
-  const usuarioRecord = usuario
-    ? await prisma.usuario.findUnique({
-        where: { usuario },
-        select: { modulos: true, rol: true },
-      })
-    : null;
+  const usuarioRecord = await getSesion();
 
   // Superadmin ve todos los módulos ([] = sin restricción).
-  const modulos = isSuperadmin(usuarioRecord?.rol) ? [] : usuarioRecord?.modulos ?? [];
+  const modulos = modulosEfectivos(usuarioRecord?.rol, usuarioRecord?.modulos);
 
   if (!canAccessPath('/admin/deposito', modulos)) {
     redirect('/admin');

@@ -1,7 +1,6 @@
 /**
  * Servidor del calendario de asistencia: versiones de horario por empleado,
- * parámetros generales, armado del calendario del mes y migración de los
- * horarios viejos de la ficha. La lógica pura vive en `asistencia-calendario.ts`.
+ * parámetros generales y armado del calendario (mes, rango y Mi asistencia). La lógica pura vive en `asistencia-calendario.ts`.
  */
 
 import { Prisma, type AsistenciaHorario as HorarioRow } from '@prisma/client';
@@ -15,7 +14,6 @@ import {
   lunesDe,
   rangoMes,
   resumenLiquidacion,
-  ultimaVersion,
   type CeldaDia,
   type ConfigAsistencia,
   type DiaCalendario,
@@ -100,6 +98,9 @@ export async function guardarVersionHorario(input: HorarioInput, username: strin
 
   try {
     return await prisma.$transaction(async (tx) => {
+      // Dos guardados a la vez del mismo empleado: el segundo espera y ve lo que hizo el primero
+      // (si no, con READ COMMITTED los dos pasaban el chequeo de versión y quedaban dos abiertas).
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('asistencia_horario'), ${input.empleadoId}::int)`;
       const rows = await tx.asistenciaHorario.findMany({ where: { empleado_id: input.empleadoId }, orderBy: { vigente_desde: 'desc' } });
       const ult = rows[0] ?? null;
       if (input.versionEsperadaId !== undefined && (ult?.id ?? null) !== input.versionEsperadaId) {
@@ -166,7 +167,12 @@ export async function borrarUltimaVersion(id: number, username: string | null): 
  * nómina). Con 150 personas y 4 marcas por día son ~13.000; el tope deja
  * margen y evita traer la tabla entera si alguien pasa un mes disparatado.
  */
-const MAX_FILAS_CALENDARIO = 50_000;
+// Tope de seguridad. Un mes de 300 personas son ~40.000 marcas: con 50.000 un mes cargado
+// perdía los últimos días (se veían como ausencias). Si igual se llega, `truncado` lo avisa.
+const MAX_FILAS_CALENDARIO = 250_000;
+
+/** Ventana con la que se decide en qué relojes ficha habitualmente cada persona (pool de feriados). */
+const DIAS_RELOJ_HABITUAL = 120;
 
 export interface FilaCalendarioMes {
   clave: string; // 'e:<empleadoId>' | 'u:<userId>'
@@ -288,14 +294,51 @@ export async function calendarioRango(desde: string, hasta: string, incluirSinHo
   // ausente). Sin horario: solo a pedido y solo activos.
   // `soloClave` (perfil de una persona) trae esa fila aunque esté inactiva.
   const visibles = filas.filter((f) => (soloClave ? f.clave === soloClave : f.activa && (tieneHorario(f) || incluirSinHorario)));
-  // Feriados: sobre el pool de TODAS las personas activas del reloj (todos los
-  // relojes, con o sin horario), no sobre lo que se muestra. Una consulta
-  // agregada (persona × día) alcanza: solo hace falta cuántas ficharon cada día.
+  // Feriados: sobre las personas activas del reloj (con o sin horario), no sobre lo que se
+  // muestra. El pool es POR DÍA y cuenta solo a las personas de los relojes que tienen datos
+  // ese día: un reloj que no sincronizó (o tiene un hueco) no suma ausentes. Si ese día ningún
+  // reloj tiene datos, el pool son los relojes que lo "cubren" (tienen fichadas antes y
+  // después): es el feriado clásico en que no vino nadie. Antes el pool eran todas las personas
+  // activas y, con 2 de 11 relojes bajando datos, casi cualquier día quedaba bajo el 20 %.
   const activosUserIds = personas
     .filter((p) => personaActiva({ empleadoId: p.empleado_id, activo: p.activo, empleadoEstado: p.empleado?.estado ?? null }))
     .map((p) => p.user_id);
   const presentesPorFecha = new Map<string, number>();
+  const poolPorFecha = new Map<string, number>();
   if (activosUserIds.length) {
+    const pool = await prisma.$queryRaw<{ fecha: string; n: number }[]>`
+      WITH con_datos AS (
+        SELECT DISTINCT fecha, reloj_id
+        FROM asistencia_fichadas
+        WHERE fecha >= ${desde} AND fecha <= ${hasta}
+      ),
+      cobertura AS (
+        SELECT reloj_id, MIN(fecha) AS desde, MAX(fecha) AS hasta
+        FROM asistencia_fichadas
+        GROUP BY reloj_id
+      ),
+      dias AS (
+        SELECT to_char(g, 'YYYY-MM-DD') AS fecha
+        FROM generate_series(${desde}::date, ${hasta}::date, interval '1 day') AS g
+      ),
+      relojes_del_dia AS (
+        SELECT fecha, reloj_id FROM con_datos
+        UNION
+        SELECT d.fecha, c.reloj_id
+        FROM dias d
+        JOIN cobertura c ON c.desde <= d.fecha AND c.hasta >= d.fecha
+        WHERE NOT EXISTS (SELECT 1 FROM con_datos x WHERE x.fecha = d.fecha)
+      ),
+      relojes_de AS (
+        SELECT DISTINCT user_id, reloj_id
+        FROM asistencia_fichadas
+        WHERE user_id = ANY(${activosUserIds}) AND fecha >= ${sumarDias(desde, -DIAS_RELOJ_HABITUAL)} AND fecha <= ${hasta}
+      )
+      SELECT rd.fecha, COUNT(DISTINCT r.user_id)::int AS n
+      FROM relojes_del_dia rd
+      JOIN relojes_de r ON r.reloj_id = rd.reloj_id
+      GROUP BY rd.fecha`;
+    for (const g of pool) poolPorFecha.set(g.fecha, g.n);
     // Cuántas personas distintas ficharon cada día. Se agrega en la base (una
     // fila por día) porque el rango puede ser un año entero (Mi asistencia):
     // un groupBy por persona × día traería decenas de miles de filas.
@@ -306,7 +349,7 @@ export async function calendarioRango(desde: string, hasta: string, incluirSinHo
       GROUP BY fecha`;
     for (const g of grupos) presentesPorFecha.set(g.fecha, g.n);
   }
-  const feriados = detectarFeriados(diasDelRango(desde, hasta), activosUserIds.length, presentesPorFecha, hoy);
+  const feriados = detectarFeriados(diasDelRango(desde, hasta), poolPorFecha, presentesPorFecha, hoy);
 
   const userIds = [...new Set(visibles.flatMap((f) => f.userIds))];
   const fichadas = userIds.length
@@ -393,7 +436,6 @@ export interface MiAsistencia {
   /** Legajos del reloj vinculados a la ficha (puede no haber ninguno). */
   personas: { id: number; userId: string; nombreReloj: string }[];
   hoy: string;
-  config: ConfigAsistencia;
   /** Rango completo devuelto: unión de la ventana anual y del mes elegido. */
   desde: string;
   hasta: string;
@@ -414,7 +456,19 @@ export interface MiAsistencia {
  * resumen del perfil. Es el mismo `evaluarDia` del calendario general: un
  * empleado ve exactamente lo que ve quien liquida.
  */
+/** Meses hacia atrás que se pueden pedir en Mi asistencia (además del actual). */
+export const MI_ASISTENCIA_MESES = 24;
+
 export async function miAsistencia(empleadoId: number, mes: string): Promise<MiAsistencia> {
+  // El rango es la unión del año y del mes pedido: sin tope, `mes=9999-12` armaba millones de
+  // días y tiraba el servidor. Se acepta del mes actual hacia atrás, `MI_ASISTENCIA_MESES`.
+  const actual = hoyLocal().slice(0, 7);
+  const [ay, am] = actual.split('-').map(Number);
+  const tope = new Date(Date.UTC(ay, am - 1 - MI_ASISTENCIA_MESES, 1)).toISOString().slice(0, 7);
+  if (mes > actual || mes < tope) {
+    throw new AsistenciaError(`Elegí un mes entre ${tope} y ${actual}`, 400);
+  }
+
   const emp = await prisma.orgEmpleado.findUnique({
     where: { id: empleadoId },
     select: { id: true, nombre: true, rol: true, area: true, foto_archivo: true, estado: true },
@@ -449,7 +503,6 @@ export async function miAsistencia(empleadoId: number, mes: string): Promise<MiA
     empleado: { id: emp.id, nombre: emp.nombre, rol: emp.rol, area: emp.area, fotoArchivo: emp.foto_archivo, activo: emp.estado === ESTADO_EMPLEADO_ACTIVO },
     personas: personas.map((p) => ({ id: p.id, userId: p.user_id, nombreReloj: p.nombre_reloj })),
     hoy,
-    config: cal.config,
     desde,
     hasta,
     dias: cal.dias,
@@ -457,9 +510,9 @@ export async function miAsistencia(empleadoId: number, mes: string): Promise<MiA
     tieneHorario: fila.tieneHorario,
     anio,
     mes: { mes, desde: rm.desde, hasta: rm.hasta, tieneHorario: horarioEnMes, resumen: resumenLiquidacion(celdasMes) },
-    versiones,
+    // La tolerancia no se le muestra al empleado (decisión del usuario): tampoco viaja.
+    versiones: versiones.map((v) => ({ ...v, toleranciaMin: null })),
     feriados: cal.feriados,
   };
 }
 
-export { ultimaVersion };

@@ -6,7 +6,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdminRole } from '@/lib/roles';
 import {
   deleteBonificacion,
   getBonificacionById,
@@ -14,8 +13,8 @@ import {
   updateBonificacion,
   type UpdateBonificacionData,
 } from '@/lib/bonificaciones';
-import { cookies } from 'next/headers';
 import { EMPRESAS, type Empresa } from '@/lib/empresas';
+import { isAdmin } from '@/lib/admin-auth';
 
 // TypeScript no permite includes(string) sobre un union literal.
 const EMPRESAS_STRINGS: readonly string[] = EMPRESAS;
@@ -24,19 +23,6 @@ function isEmpresa(value: string): value is Empresa {
   return EMPRESAS_STRINGS.includes(value);
 }
 
-
-function getRoleFromSession(value: string | undefined) {
-  if (!value) return null;
-  const parts = value.split('|');
-  return parts.length > 1 ? parts[1] : null;
-}
-
-async function isAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('site_session');
-  const role = getRoleFromSession(session?.value);
-  return isAdminRole(role);
-}
 
 export async function PUT(
   request: NextRequest,

@@ -8,7 +8,7 @@
  * Solo lectura: no hay nada que editar acá.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, CalendarRange, ChevronLeft, ChevronRight, Fingerprint } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Banner, Empty, PageTitle } from '@/components/comunes/ui';
 import { cn } from '@/lib/utils';
 import { hoyLocal } from '@/lib/asistencia-datos';
-import { MES_RE, describirHorario, fmtMes, mesAnterior, mesSiguiente, versionVigente } from '@/lib/asistencia-calendario';
+import { MES_RE, describirHorario, fmtMes, mesAnterior, mesSiguiente, rangoMes, resumenLiquidacion, versionVigente } from '@/lib/asistencia-calendario';
 import { asistFetch, mensajeError, type MiAsistenciaRespuesta } from './api';
 import CalendarioAnual from './CalendarioAnual';
 import { Detalle, Foto, HorarioCard, Resumen } from './PerfilPiezas';
@@ -32,16 +32,37 @@ export default function MiAsistenciaPage() {
   // que todavía no coincide con el mes pedido. Mientras tanto se sigue
   // mostrando el mes anterior atenuado, como en el resto del módulo.
   const [mesCargado, setMesCargado] = useState<string | null>(null);
-  const loading = mesCargado !== mes;
+  // Si el mes ya está dentro de lo que se trajo (el último año), se arma acá con la misma lógica
+  // pura del servidor: cambiar de mes no vuelve a pedir y recalcular el año entero.
+  const rm = rangoMes(mes);
+  const enRango = !!data && data.vinculado && data.desde <= rm.desde && data.hasta >= rm.hasta;
+  const loading = !enRango && mesCargado !== mes;
+  // El servidor acepta hasta 24 meses atrás (MI_ASISTENCIA_MESES).
+  const mesMinimo = (() => {
+    const [y, m] = hoy.slice(0, 7).split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1 - 24, 1)).toISOString().slice(0, 7);
+  })();
 
   useEffect(() => {
-    if (!MES_RE.test(mes)) return;
+    if (!MES_RE.test(mes) || enRango) return;
     const ac = new AbortController();
     asistFetch<MiAsistenciaRespuesta>(`/api/admin/mi-asistencia?mes=${mes}`, { signal: ac.signal })
       .then((d) => { setData(d); setError(null); setMesCargado(mes); })
       .catch((e: unknown) => { if (!ac.signal.aborted) { setError(mensajeError(e)); setMesCargado(mes); } });
     return () => ac.abort();
-  }, [mes]);
+  }, [mes, enRango]);
+
+  const vista = data && data.vinculado ? data : null;
+  const vistaMes = useMemo(() => {
+    if (!vista) return null;
+    if (vista.mes.mes === mes) return vista.mes;
+    const r = rangoMes(mes);
+    if (vista.desde > r.desde || vista.hasta < r.hasta) return vista.mes;
+    const i0 = vista.dias.findIndex((x) => x.fecha === r.desde);
+    const i1 = vista.dias.findIndex((x) => x.fecha === r.hasta);
+    const tieneHorario = vista.versiones.some((v) => v.incluir && v.vigenteDesde <= r.hasta && (v.vigenteHasta == null || v.vigenteHasta >= r.desde));
+    return { mes, desde: r.desde, hasta: r.hasta, tieneHorario, resumen: resumenLiquidacion(vista.celdas.slice(i0, i1 + 1)) };
+  }, [vista, mes]);
 
   if (data && !data.vinculado) {
     return (
@@ -55,15 +76,15 @@ export default function MiAsistenciaPage() {
     );
   }
 
-  const d = data && data.vinculado ? data : null;
+  const d = vista;
   const vigente = d ? versionVigente(d.versiones, hoy) : null;
   // Recortes del rango completo: la ventana anual y el mes abierto.
   const idx = (fecha: string) => d?.dias.findIndex((x) => x.fecha === fecha) ?? -1;
   const iA0 = d ? idx(d.anio.desde) : -1;
   const iA1 = d ? idx(d.anio.hasta) : -1;
-  const iM0 = d ? idx(d.mes.desde) : -1;
-  const iM1 = d ? idx(d.mes.hasta) : -1;
-  const hoyEnMes = !!d && d.hoy >= d.mes.desde && d.hoy <= d.mes.hasta;
+  const iM0 = vistaMes ? idx(vistaMes.desde) : -1;
+  const iM1 = vistaMes ? idx(vistaMes.hasta) : -1;
+  const hoyEnMes = !!d && !!vistaMes && d.hoy >= vistaMes.desde && d.hoy <= vistaMes.hasta;
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-5">
@@ -121,7 +142,7 @@ export default function MiAsistenciaPage() {
 
       {/* Mes */}
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Mes anterior" onClick={() => setMes(mesAnterior(mes))}>
+        <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Mes anterior" disabled={mes <= mesMinimo} onClick={() => setMes(mesAnterior(mes))}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
         <span className="min-w-40 text-center text-base font-semibold">{fmtMes(mes)}</span>
@@ -136,14 +157,14 @@ export default function MiAsistenciaPage() {
       {/* Resumen del mes a la izquierda; horario y reloj a la derecha */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className={cn(loading && 'opacity-60')}>
-          {!d ? (
+          {!d || !vistaMes ? (
             loading ? <Skeleton className="h-64 w-full" /> : null
-          ) : !d.mes.tieneHorario ? (
+          ) : !vistaMes.tieneHorario ? (
             <Banner variant="info">
               Sin horario vigente en {fmtMes(mes).toLowerCase()}: no se calculan ausencias, tardanzas ni horas esperadas. Si creés que es un error, hablá con RRHH.
             </Banner>
           ) : (
-            <Resumen r={d.mes.resumen} hoyEnMes={hoyEnMes} />
+            <Resumen r={vistaMes.resumen} hoyEnMes={hoyEnMes} />
           )}
         </div>
         <div className="space-y-4">

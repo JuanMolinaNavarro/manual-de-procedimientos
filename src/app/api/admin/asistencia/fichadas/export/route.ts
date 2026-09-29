@@ -1,4 +1,4 @@
-import { handle, parseFiltros } from '@/lib/asistencia-api';
+import { exigirRango, handle, parseFiltros } from '@/lib/asistencia-api';
 import { exportarXlsx } from '@/lib/asistencia';
 
 export const dynamic = 'force-dynamic';
@@ -7,6 +7,8 @@ export const maxDuration = 600;
 export async function GET(request: Request) {
   return handle('GET /api/admin/asistencia/fichadas/export', async () => {
     const f = parseFiltros(new URL(request.url));
+    // Sin tope, `desde=2000-01-01` armaba toda la tabla en memoria. Las sospechosas ignoran el rango.
+    if (!f.soloSospechosas) exigirRango(f);
     const buf = await exportarXlsx(f);
     const nombre = `asistencia_${f.desde}_a_${f.hasta}.xlsx`;
     return new Response(new Uint8Array(buf), {

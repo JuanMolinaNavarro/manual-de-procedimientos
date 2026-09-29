@@ -13,8 +13,13 @@ export async function OPTIONS() {
 }
 
 export async function GET() {
-  const movies = await getActiveOnDemand();
-  return NextResponse.json(movies, {
-    headers: { 'Access-Control-Allow-Origin': '*' },
-  });
+  try {
+    const movies = await getActiveOnDemand();
+    return NextResponse.json(movies, {
+      headers: { 'Access-Control-Allow-Origin': '*' },
+    });
+  } catch (error) {
+    console.error('Error en GET /api/on-demand:', error);
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } });
+  }
 }

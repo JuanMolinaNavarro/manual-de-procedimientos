@@ -233,7 +233,7 @@ export default function EditarBonificacionPage() {
               <div>
                 <p className="font-medium">Bonificación activa</p>
                 <p className="text-sm text-muted-foreground">
-                  Visible para agentes en el manual
+                  Visible en el manual de retención
                 </p>
               </div>
               <Switch

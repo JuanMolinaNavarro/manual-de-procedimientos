@@ -1,56 +1,49 @@
+import { cache } from 'react';
 import { cookies } from 'next/headers';
-import { prisma } from './prisma';
 import { canEditModule as slugEditable, type AdminModuloSlug } from './modulos';
-import { isAdminRole, isSuperadmin } from './roles';
+import { isAdminRole, isSuperadmin, puedeGestionarPin, puedeGestionarUsuarios } from './roles';
+import { COOKIE_SESION, usuarioDeToken } from './sesion';
 
-/** ¿La sesión actual es de un usuario con rol admin o superadmin? */
-export async function isAdmin(): Promise<boolean> {
+/**
+ * Usuario de la sesión actual, leído de la base (`Sesion` → `Usuario`), o null si no hay
+ * sesión vigente o el usuario está inactivo. Memoizado por request. Rol, módulos y estado
+ * salen siempre de acá: la cookie es solo un token opaco (ver `sesion.ts`).
+ */
+export const getSesion = cache(async () => {
   const store = await cookies();
-  const role = store.get('site_session')?.value?.split('|')[1];
-  return isAdminRole(role);
+  return usuarioDeToken(store.get(COOKIE_SESION)?.value);
+});
+
+/** ¿Hay una sesión vigente (cualquier rol)? */
+export async function haySesion(): Promise<boolean> {
+  return (await getSesion()) != null;
+}
+
+/** ¿La sesión actual es de un usuario activo con rol admin o superadmin? */
+export async function isAdmin(): Promise<boolean> {
+  const u = await getSesion();
+  return !!u && isAdminRole(u.rol);
 }
 
 /** Nombre de usuario de la sesión actual (para created_by/updated_by). */
 export async function getSessionUsername(): Promise<string | null> {
-  const store = await cookies();
-  const val = store.get('site_session')?.value;
-  return val ? val.split('|')[0] : null;
+  return (await getSesion())?.usuario ?? null;
 }
 
-/**
- * Registro completo (DB) del usuario de la sesión, con su ficha del organigrama.
- * Consulta la DB porque el rol de la cookie puede estar viejo (se fija al login).
- */
+/** Registro del usuario de la sesión, con su ficha del organigrama. */
 export async function getUsuarioSesion() {
-  const store = await cookies();
-  const val = store.get('site_session')?.value;
-  const usuario = val ? val.split('|')[0] : null;
-  if (!usuario) return null;
-  return prisma.usuario.findUnique({
-    where: { usuario },
-    include: { empleado: { select: { id: true, nombre: true, area: true } } },
-  });
+  return getSesion();
 }
 
 /**
  * ¿El usuario de la sesión puede EDITAR el módulo dado? Superadmin siempre puede.
- * Para admin requiere que el slug esté en su lista `modulos_edit`. A diferencia de
- * `isAdmin()` (que solo mira el cookie), esto consulta la DB porque el permiso de
- * edición es por usuario.
+ * Para admin requiere que el slug esté en su lista `modulos_edit`.
  */
 export async function canEditModule(slug: AdminModuloSlug): Promise<boolean> {
-  const store = await cookies();
-  const val = store.get('site_session')?.value;
-  if (!val) return false;
-  const [usuario, rol] = val.split('|');
-  if (!isAdminRole(rol) || !usuario) return false;
-  const record = await prisma.usuario.findUnique({
-    where: { usuario },
-    select: { rol: true, modulos_edit: true },
-  });
-  if (!record || !isAdminRole(record.rol)) return false;
-  if (isSuperadmin(record.rol)) return true;
-  return slugEditable(slug, record.modulos_edit);
+  const u = await getSesion();
+  if (!u || !isAdminRole(u.rol)) return false;
+  if (isSuperadmin(u.rol)) return true;
+  return slugEditable(slug, u.modulos_edit);
 }
 
 /**
@@ -65,16 +58,24 @@ export type ScopeProyectos =
   | { tipo: 'ninguno' };
 
 export async function getScopeProyectos(): Promise<ScopeProyectos> {
-  const record = await getUsuarioSesion();
+  const record = await getSesion();
   if (!record || !isAdminRole(record.rol)) return { tipo: 'ninguno' };
   if (isSuperadmin(record.rol)) return { tipo: 'todos' };
   if (record.empleado?.area) return { tipo: 'area', area: record.empleado.area };
   return { tipo: 'ninguno' };
 }
 
-/** ¿El scope cubre un proyecto con esta área? */
-export function scopeCubreArea(scope: ScopeProyectos, area: string | null): boolean {
-  if (scope.tipo === 'todos') return true;
-  if (scope.tipo === 'ninguno') return false;
-  return area === scope.area;
+/** Gestión de usuarios: solo superadmin. Ver `puedeGestionarUsuarios` en roles.ts. */
+export async function puedeGestionarUsuariosSesion(): Promise<boolean> {
+  const u = await getSesion();
+  return !!u && puedeGestionarUsuarios(u.rol);
+}
+
+/**
+ * Definir o cambiar PINs de firma (adhesión / revocación / acta): admin de RR.HH., nunca el
+ * superadmin (separación de funciones).
+ */
+export async function puedeGestionarPinSesion(): Promise<boolean> {
+  const u = await getSesion();
+  return !!u && puedeGestionarPin(u.rol);
 }

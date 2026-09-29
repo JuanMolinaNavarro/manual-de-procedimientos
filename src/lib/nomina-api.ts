@@ -22,6 +22,18 @@ export async function handle(where: string, fn: () => Promise<Response>): Promis
   }
 }
 
+/**
+ * Como `handle` pero sin exigir rol admin: rutas personales (Mis recibos) que usa
+ * el rol `empleado`. La ruta toma la ficha SOLO de `getUsuarioSesion()`.
+ */
+export async function handleSesion(where: string, fn: () => Promise<Response>): Promise<Response> {
+  try {
+    return await fn();
+  } catch (error) {
+    return errorResponse(error, where);
+  }
+}
+
 /** Body JSON tolerante (vacío o inválido → {}). */
 export async function readJson(request: Request): Promise<Record<string, unknown>> {
   try {
@@ -58,3 +70,15 @@ export function errorResponse(error: unknown, where: string): NextResponse {
 }
 
 export const NO_AUTORIZADO = () => NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+
+/** Respuesta PDF (inline o descarga) sin cache compartida. */
+export function pdfResponse(pdf: Uint8Array, nombre: string, descargar = false): NextResponse {
+  return new NextResponse(new Uint8Array(pdf), {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `${descargar ? 'attachment' : 'inline'}; filename="${nombre.replace(/[^\w.-]/g, '_')}"`,
+      'Cache-Control': 'private, no-store',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
+}

@@ -3,6 +3,7 @@ import { isAdmin, getSessionUsername, canEditModule } from '@/lib/admin-auth';
 import {
   getAllEmpleados,
   createEmpleado,
+  ocultarConvenio,
   type CreateOrgEmpleadoData,
 } from '@/lib/organigrama';
 
@@ -11,7 +12,8 @@ export async function GET() {
     if (!(await isAdmin())) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
-    return NextResponse.json(await getAllEmpleados());
+    const puedeVer = await canEditModule('organigrama');
+    return NextResponse.json((await getAllEmpleados()).map((e) => ocultarConvenio(e, puedeVer)));
   } catch (error) {
     console.error('Error en GET /api/admin/organigrama/empleados:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });

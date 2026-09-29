@@ -24,18 +24,6 @@ function mapImages(arr: RawImage[] | undefined): FanartImage[] {
   }));
 }
 
-/** Spanish-first, English-fallback, most-liked. Returns null if neither found.
- *  Use this for logos and text-bearing artwork where language matters. */
-export function pickBestImage(images: FanartImage[]): FanartImage | null {
-  if (!images.length) return null;
-  const byLikes = (a: FanartImage, b: FanartImage) => b.likes - a.likes;
-  const spanish = images.filter(img => img.lang === 'es').sort(byLikes);
-  if (spanish.length) return spanish[0];
-  const english = images.filter(img => img.lang === 'en').sort(byLikes);
-  if (english.length) return english[0];
-  return null;
-}
-
 /** Most-liked image regardless of language.
  *  Use this for backgrounds, which are language-neutral scenes (lang "00"). */
 export function pickMostLiked(images: FanartImage[]): FanartImage | null {

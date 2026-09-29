@@ -39,6 +39,8 @@ export default function PersonasTab() {
   const { personas, personasError, empleados, empleadoPorId, refrescar, set, horariosPorEmpleado, horarios } = useAsistencia();
   const [hoy] = useState(() => hoyLocal());
   const [editando, setEditando] = useState<{ id: number; nombre: string } | null>(null);
+  // Desactivar una persona vinculada cambia la ficha del organigrama: se confirma.
+  const [desactivar, setDesactivar] = useState<Persona | null>(null);
   // Para vincular solo se ofrecen las fichas que ninguna otra persona tiene (más la propia, para mostrarla).
   const ocupados = useMemo(() => new Map((personas ?? []).filter((p) => p.empleadoId != null).map((p) => [p.empleadoId as number, p.id])), [personas]);
   const opcionesPara = useCallback(
@@ -277,7 +279,7 @@ export default function PersonasTab() {
                         aria-label={`${p.nombre}: ${p.activa ? 'activa' : 'inactiva'}`}
                         checked={p.activa}
                         disabled={guardando === p.id}
-                        onCheckedChange={(v) => cambiarActiva(p, v)}
+                        onCheckedChange={(v) => (!v && p.empleadoId != null ? setDesactivar(p) : cambiarActiva(p, v))}
                       />
                     </TableCell>
                     <TableCell className="text-right">
@@ -315,6 +317,22 @@ export default function PersonasTab() {
           onOpenChange={(o) => { if (!o) setEditando(null); }}
         />
       )}
+
+      <AlertDialog open={!!desactivar} onOpenChange={(o) => { if (!o) setDesactivar(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Marcar inactiva a {desactivar?.nombre}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Está vinculada al organigrama: se marca inactiva <strong>su ficha</strong>, no solo el legajo del reloj. Sale
+              del calendario y del Resumen. No se borra nada y se puede volver a activar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (desactivar) cambiarActiva(desactivar, false); }}>Marcar inactiva</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {personas != null && sinVincular > 0 && (
         <p className="text-xs text-muted-foreground">

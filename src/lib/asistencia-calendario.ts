@@ -19,7 +19,7 @@
  *   liquidar es peor que ningún número.
  */
 
-import { FECHA_RE, OFFSET_RELOJ_MIN, sumarDias } from './asistencia-datos';
+import { DIA_MS, FECHA_RE, OFFSET_RELOJ_MIN, aIso, aMs, sumarDias } from './asistencia-datos';
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -87,6 +87,7 @@ export type EstadoDia =
   | 'tarde'
   | 'tarde_grave'
   | 'ausente'
+  | 'sin_entrada'
   | 'feriado';
 
 export const ESTADOS_DIA: Record<EstadoDia, { label: string; desc: string }> = {
@@ -99,6 +100,7 @@ export const ESTADOS_DIA: Record<EstadoDia, { label: string; desc: string }> = {
   tarde: { label: 'Tarde', desc: 'Entró después de la tolerancia.' },
   tarde_grave: { label: 'Tarde grave', desc: 'Entró con más minutos de atraso que el umbral general.' },
   ausente: { label: 'Ausente', desc: 'Tenía horario y no hay ninguna fichada.' },
+  sin_entrada: { label: 'Sin entrada', desc: 'Vino, pero fichó una sola marca y fue de salida: no se sabe a qué hora entró. No cuenta como tardanza; hay que verificarlo.' },
   feriado: { label: 'Feriado', desc: 'Detectado: ese día fichó menos del 20 % de las personas activas (todos los relojes). Cuenta como no laborable; quien fichó tiene toda la jornada como extra al 100 %.' },
 };
 
@@ -176,17 +178,7 @@ export interface TotalesFila {
 
 // ─── Fechas ─────────────────────────────────────────────────────────────────
 
-const DIA_MS = 86_400_000;
 const SEMANA_MS = 7 * DIA_MS;
-
-function aMs(yyyymmdd: string): number {
-  const [a, m, d] = yyyymmdd.split('-').map(Number);
-  return Date.UTC(a, m - 1, d);
-}
-
-function aIso(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10);
-}
 
 /** Día de la semana con 0 = lunes. */
 export function diaSemanaDe(fecha: string): DiaSemana {
@@ -314,9 +306,10 @@ export interface ResumenFichadas {
  * Entrada y salida de un día a partir de sus marcas. Mismo criterio que la vista
  * "por día" de Fichadas: entrada = primera marca de tipo Entrada (0); salida =
  * última de tipo Salida (1). Si no hubo marca de entrada, se toma la primera
- * marca que no sea salida y, en última instancia, la primera de todas (relojes
- * configurados sin tipos): en ambos casos `entradaInferida` lo dice. La salida
- * nunca se inventa: sin marca de tipo 1 queda en null.
+ * marca que no sea salida y, si todas fueron de salida y hay más de una, la primera (se apretó
+ * el botón equivocado al llegar): en esos casos `entradaInferida` lo dice. Una **única** marca de
+ * salida no se toma como entrada: no se sabe a qué hora llegó (antes daba "tarde grave" de
+ * horas con una salida a las 17). La salida nunca se inventa: sin marca de tipo 1 queda en null.
  */
 export function resumirFichadas(fichadas: readonly FichadaDia[]): ResumenFichadas {
   const orden = [...fichadas].sort((a, b) => (a.fechaHora < b.fechaHora ? -1 : a.fechaHora > b.fechaHora ? 1 : 0));
@@ -331,7 +324,8 @@ export function resumirFichadas(fichadas: readonly FichadaDia[]): ResumenFichada
     }
   }
   const inferida = entrada == null;
-  return { entrada: entrada ?? noSalida ?? orden[0]?.fechaHora ?? null, salida, entradaInferida: inferida && orden.length > 0, marcas: orden.length };
+  const entradaFinal = entrada ?? noSalida ?? (orden.length > 1 ? orden[0].fechaHora : null);
+  return { entrada: entradaFinal, salida, entradaInferida: inferida && entradaFinal != null, marcas: orden.length };
 }
 
 // ─── Estado del día ─────────────────────────────────────────────────────────
@@ -385,7 +379,9 @@ export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDi
   }
 
   const conJornada: CeldaDia = { ...conMarcas, jornada: { entrada: jornada.entrada, salida: jornada.salida } };
-  if (r.marcas === 0 || r.entrada == null) return { ...conJornada, estado: e.fecha === e.hoy ? 'pendiente' : 'ausente' };
+  if (r.marcas === 0) return { ...conJornada, estado: e.fecha === e.hoy ? 'pendiente' : 'ausente' };
+  // Vino (hay marcas) pero la única fue de salida: sin hora de entrada no hay tardanza que medir.
+  if (r.entrada == null) return { ...conJornada, estado: 'sin_entrada' };
 
   const tolerancia = version.toleranciaMin ?? cfg.toleranciaMin;
   const minutosTarde = Math.max(0, minutoLocalDe(r.entrada) - minutosDe(jornada.entrada));
@@ -445,6 +441,8 @@ export interface ResumenLiquidacion {
   trabajoNoLaborable: string[];
   /** Días con entrada pero sin salida: sus horas no se pueden contar. */
   sinSalida: string[];
+  /** Días que vino pero solo fichó una salida: sin hora de entrada (a verificar). */
+  sinEntrada: string[];
   /** Días con marcas pero sin horario vigente (no se evalúan). */
   sinHorarioConMarcas: number;
   minutosEsperadosMes: number;
@@ -464,7 +462,7 @@ export interface ResumenLiquidacion {
 
 export function resumenLiquidacion(celdas: readonly CeldaDia[]): ResumenLiquidacion {
   const r: ResumenLiquidacion = {
-    laborables: 0, laborablesMes: 0, ausentes: [], tardes: [], minutosTarde: 0, trabajoNoLaborable: [], sinSalida: [],
+    laborables: 0, laborablesMes: 0, ausentes: [], tardes: [], minutosTarde: 0, trabajoNoLaborable: [], sinSalida: [], sinEntrada: [],
     sinHorarioConMarcas: 0, minutosEsperadosMes: 0, minutosEsperadosHastaHoy: 0, minutosTrabajados: 0, diasComputados: 0,
     horasExtra50: 0, horasExtra100: 0, diasConExtra: [], minutosCompensados: 0, feriados: [],
   };
@@ -486,6 +484,7 @@ export function resumenLiquidacion(celdas: readonly CeldaDia[]): ResumenLiquidac
     }
     if (c.estado === 'trabajo_no_laborable') r.trabajoNoLaborable.push(c.fecha);
     if (c.sinSalida) r.sinSalida.push(c.fecha);
+    if (c.estado === 'sin_entrada') r.sinEntrada.push(c.fecha);
     if (c.estado === 'sin_horario' && c.marcas > 0) r.sinHorarioConMarcas++;
     if (c.minutosTrabajados != null) {
       r.minutosTrabajados += c.minutosTrabajados;
@@ -514,7 +513,9 @@ export function totalesDe(celdas: readonly CeldaDia[]): TotalesFila {
     if (c.jornada && c.estado !== 'pendiente' && c.estado !== 'futuro') t.laborables++;
     if (c.marcas > 0) t.conMarcas++;
     if (c.sinSalida) t.sinSalida++;
-    t.minutosTarde += c.minutosTarde ?? 0;
+    // Solo las llegadas fuera de tolerancia: los minutos de un día "a horario" no son tardanza
+    // (antes se sumaban y el total no coincidía con el del perfil).
+    if (c.estado === 'tarde' || c.estado === 'tarde_grave') t.minutosTarde += c.minutosTarde ?? 0;
     switch (c.estado) {
       case 'a_horario': t.aHorario++; break;
       case 'tarde': t.tarde++; break;
@@ -553,23 +554,25 @@ export interface FilaCalendario {
 }
 
 /**
- * Feriados inferidos de la asistencia real de **todas las personas activas**
- * (todos los relojes combinados): un día ya pasado (no hoy), que no sea
- * domingo, en el que fichó menos de `FERIADO_UMBRAL` del pool. Sin pool no se
+ * Feriados inferidos de la asistencia real: un día ya pasado (no hoy), que no sea domingo, en
+ * el que fichó menos de `FERIADO_UMBRAL` del pool. El pool puede ser un número fijo o uno por
+ * día (`asistencia-horarios.ts` cuenta, por día, solo a las personas cuyos relojes tienen datos
+ * que cubren ese día: un reloj que dejó de sincronizar no suma ausentes). Sin pool no se
  * infiere nada.
  */
 export function detectarFeriados(
   fechas: readonly string[],
-  activos: number,
+  pool: number | ReadonlyMap<string, number>,
   presentesPorFecha: ReadonlyMap<string, number>,
   hoy: string,
   umbral = FERIADO_UMBRAL,
 ): Set<string> {
   const out = new Set<string>();
-  if (activos <= 0) return out;
   for (const fecha of fechas) {
     if (fecha >= hoy || diaSemanaDe(fecha) === 6) continue;
-    if ((presentesPorFecha.get(fecha) ?? 0) / activos < umbral) out.add(fecha);
+    const base = typeof pool === 'number' ? pool : (pool.get(fecha) ?? 0);
+    if (base <= 0) continue;
+    if ((presentesPorFecha.get(fecha) ?? 0) / base < umbral) out.add(fecha);
   }
   return out;
 }

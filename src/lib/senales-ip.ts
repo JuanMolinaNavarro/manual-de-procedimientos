@@ -1,3 +1,4 @@
+import { hoyLocal } from './fechas';
 import { prisma } from './prisma';
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
@@ -358,22 +359,9 @@ export async function getAllSaltosImporte(): Promise<SaltoImporte[]> {
   return prisma.saltoImporte.findMany({ orderBy: { fecha_efectiva: 'asc' } }) as Promise<SaltoImporte[]>;
 }
 
-export async function getSaltosForContratoComprador(contratoId: number): Promise<SaltoImporte[]> {
-  return prisma.saltoImporte.findMany({
-    where: { contrato_comprador_id: contratoId },
-    orderBy: { fecha_efectiva: 'asc' },
-  }) as Promise<SaltoImporte[]>;
-}
-
-export async function getSaltosForContratoVendedor(contratoId: number): Promise<SaltoImporte[]> {
-  return prisma.saltoImporte.findMany({
-    where: { contrato_vendedor_id: contratoId },
-    orderBy: { fecha_efectiva: 'asc' },
-  }) as Promise<SaltoImporte[]>;
-}
-
 export async function getAlarmasActivas(): Promise<SaltoImporte[]> {
-  const todayMs = new Date(new Date().toISOString().split('T')[0]).getTime();
+  // `fecha_efectiva` es yyyy-mm-dd (input date): se compara contra el día de Argentina.
+  const todayMs = new Date(hoyLocal()).getTime();
   const candidates = (await prisma.saltoImporte.findMany({
     where: { activa: true, notificado_at: null },
     orderBy: { fecha_efectiva: 'asc' },

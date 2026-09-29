@@ -23,7 +23,6 @@ import {
   DIAS_SEMANA_CORTO,
   DIAS_SEMANA_LARGO,
   ESTADOS_DIA,
-  describirHorario,
   fmtHorasMin,
   ultimaVersion,
   type CeldaDia,
@@ -50,6 +49,49 @@ export function Foto({ nombre, emp }: { nombre: string | null; emp?: { id: numbe
     <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-2xl font-semibold text-muted-foreground">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : nombre ? iniciales(nombre) : ''}
+    </div>
+  );
+}
+
+/**
+ * Días de la semana de un horario (con turnos rotativos por semana del ciclo). Lo comparten la
+ * tarjeta Horario del perfil / Mi asistencia y la ficha del organigrama. `suave` = clase del
+ * texto atenuado (la ficha usa la paleta neumórfica).
+ */
+export function GrillaDiasHorario({ vigente, suave = 'text-muted-foreground' }: { vigente: HorarioVersion; suave?: string }) {
+  return (
+    <div className="grid grid-cols-7 gap-1">
+      {DIAS_SEMANA.map((ds) => {
+        const d = vigente.dias[ds];
+        const parcial = d && vigente.cicloSemanas > 1 && d.semanas.length < vigente.cicloSemanas;
+        const rotativo = d && vigente.cicloSemanas > 1 && d.porSemana && Object.keys(d.porSemana).length > 0;
+        const horasSem = (n: number) => d?.porSemana?.[n] ?? d;
+        return (
+          <div
+            key={ds}
+            title={d ? (rotativo ? `${DIAS_SEMANA_LARGO[ds]} ${d.semanas.map((n) => `S${n + 1} ${horasSem(n)!.entrada}–${horasSem(n)!.salida}`).join(', ')}` : `${DIAS_SEMANA_LARGO[ds]} ${d.entrada}–${d.salida}${parcial ? ` (semanas ${d.semanas.map((n) => n + 1).join(', ')})` : ''}`) : `${DIAS_SEMANA_LARGO[ds]}: no laborable`}
+            className={cn(
+              'flex flex-col items-center rounded-md border px-0.5 py-1.5 text-center',
+              d ? 'border-primary/40 bg-primary/10 text-foreground' : cn('border-dashed border-border opacity-60', suave),
+            )}
+          >
+            <span className="text-xs font-bold">{DIAS_SEMANA_CORTO[ds]}</span>
+            {d && rotativo ? (
+              d.semanas.map((n) => (
+                <span key={n} className="text-[9px] tabular-nums leading-tight">S{n + 1} {horasSem(n)!.entrada}–{horasSem(n)!.salida}</span>
+              ))
+            ) : d ? (
+              <>
+                <span className="text-[10px] tabular-nums">{d.entrada}</span>
+                <span className="text-[10px] tabular-nums">{d.salida}</span>
+                {parcial && <span className={cn('text-[9px]', suave)}>S{d.semanas.map((n) => n + 1).join('/')}</span>}
+              </>
+            ) : (
+              <span className="text-[10px]">—</span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -83,39 +125,7 @@ export function HorarioCard({ versiones, vigente, hoy, vinculada, cargando }: { 
           <p className="text-sm text-muted-foreground">No incluido en el control desde el {fmtFechaDia(vigente.vigenteDesde)}.</p>
         ) : (
           <>
-            <div className="grid grid-cols-7 gap-1">
-              {DIAS_SEMANA.map((ds) => {
-                const d = vigente.dias[ds];
-                const parcial = d && vigente.cicloSemanas > 1 && d.semanas.length < vigente.cicloSemanas;
-                const rotativo = d && vigente.cicloSemanas > 1 && d.porSemana && Object.keys(d.porSemana).length > 0;
-                const horasSem = (n: number) => d?.porSemana?.[n] ?? d;
-                return (
-                  <div
-                    key={ds}
-                    title={d ? (rotativo ? `${DIAS_SEMANA_LARGO[ds]} ${d.semanas.map((n) => `S${n + 1} ${horasSem(n)!.entrada}–${horasSem(n)!.salida}`).join(', ')}` : `${DIAS_SEMANA_LARGO[ds]} ${d.entrada}–${d.salida}${parcial ? ` (semanas ${d.semanas.map((n) => n + 1).join(', ')})` : ''}`) : `${DIAS_SEMANA_LARGO[ds]}: no laborable`}
-                    className={cn(
-                      'flex flex-col items-center rounded-md border px-0.5 py-1.5 text-center',
-                      d ? 'border-primary/40 bg-primary/10 text-foreground' : 'border-dashed border-border text-muted-foreground opacity-60',
-                    )}
-                  >
-                    <span className="text-xs font-bold">{DIAS_SEMANA_CORTO[ds]}</span>
-                    {d && rotativo ? (
-                      d.semanas.map((n) => (
-                        <span key={n} className="text-[9px] tabular-nums leading-tight">S{n + 1} {horasSem(n)!.entrada}–{horasSem(n)!.salida}</span>
-                      ))
-                    ) : d ? (
-                      <>
-                        <span className="text-[10px] tabular-nums">{d.entrada}</span>
-                        <span className="text-[10px] tabular-nums">{d.salida}</span>
-                        {parcial && <span className="text-[9px] text-muted-foreground">S{d.semanas.map((n) => n + 1).join('/')}</span>}
-                      </>
-                    ) : (
-                      <span className="text-[10px]">—</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <GrillaDiasHorario vigente={vigente} />
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
               {vigente.cicloSemanas > 1 && (
                 <>
@@ -153,12 +163,12 @@ export function Resumen({ r, hoyEnMes }: { r: ResumenLiquidacion; hoyEnMes: bool
         tone={r.tardes.some((t) => t.grave) ? 'orange' : r.tardes.length ? 'violet' : 'green'}
         detail={r.tardes.length ? `${r.tardes.filter((t) => t.grave).length} graves` : 'Sin llegadas tarde.'}
       />
-      <StatCard label={hoyEnMes ? 'Horas trabajadas' : 'Horas trabajadas'} value={fmtHorasMin(r.minutosTrabajados)} tone={pct >= 95 ? 'green' : pct >= 80 ? 'orange' : 'red'}>
+      <StatCard label="Horas trabajadas" value={fmtHorasMin(r.minutosTrabajados)} tone={pct >= 95 ? 'green' : pct >= 80 ? 'orange' : 'red'}>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
           <div className={cn('h-full rounded-full', pct >= 95 ? 'bg-emerald-500' : pct >= 80 ? 'bg-amber-500' : 'bg-red-500')} style={{ width: `${pct}%` }} />
         </div>
         <p className="text-xs text-muted-foreground">
-          {pct}% de {fmtHorasMin(esperadas)} esperadas{hoyEnMes}
+          {pct}% de {fmtHorasMin(esperadas)} esperadas{hoyEnMes ? ' hasta hoy' : ''}
           {r.diasComputados < r.laborables + r.trabajoNoLaborable.length ? ` · ${r.diasComputados} día(s) con entrada y salida` : ''}
         </p>
       </StatCard>
@@ -173,9 +183,17 @@ export function Resumen({ r, hoyEnMes }: { r: ResumenLiquidacion; hoyEnMes: bool
         }
       />
       <StatCard
-        label="Sin marca de salida"
-        value={r.sinSalida.length}
-        tone={r.sinSalida.length ? 'orange' : undefined}
+        label="Marcas incompletas"
+        value={r.sinSalida.length + r.sinEntrada.length}
+        tone={r.sinSalida.length + r.sinEntrada.length ? 'orange' : undefined}
+        detail={
+          r.sinSalida.length + r.sinEntrada.length
+            ? [
+                r.sinSalida.length ? `Sin salida: ${lista(r.sinSalida)}` : '',
+                r.sinEntrada.length ? `Solo salida (sin entrada): ${lista(r.sinEntrada)}` : '',
+              ].filter(Boolean).join(' · ')
+            : 'Todos los días con entrada y salida.'
+        }
       />
       <StatCard
         label="Días no laborables trabajados"
@@ -187,9 +205,14 @@ export function Resumen({ r, hoyEnMes }: { r: ResumenLiquidacion; hoyEnMes: bool
   );
 }
 
-/** Día por día, sin los que no aportan nada (futuro, no laborable sin marcas). */
 /** Minutos después de la hora de salida (bruto: incluye lo que compensó la llegada tarde). Null sin marca de salida. */
 const extraBruto = (c: CeldaDia): number | null => (c.extra ? c.extra.compensado + c.extra.minutos50 + c.extra.minutos100 : null);
+
+/**
+ * Minutos de tardanza de un día: solo si llegó fuera de tolerancia. Dentro de la tolerancia el
+ * día es "a horario" y esos minutos no son tardanza (así coincide con el Resumen del mes).
+ */
+const tardanza = (c: CeldaDia): number => (c.estado === 'tarde' || c.estado === 'tarde_grave' ? c.minutosTarde ?? 0 : 0);
 
 const fmtMin = (min: number) => (min >= 60 ? fmtHorasMin(min) : `${min} min`);
 
@@ -235,7 +258,7 @@ export function Detalle({ celdas, dias, conTotal = false }: { celdas: CeldaDia[]
   const tot = filas.reduce(
     (t, { c }) => {
       t.horas += c.minutosTrabajados ?? 0;
-      t.tarde += c.minutosTarde ?? 0;
+      t.tarde += tardanza(c);
       const e = extraBruto(c);
       if (e != null) { t.extra += e; t.tardeConSalida += c.minutosTarde ?? 0; }
       return t;
@@ -275,8 +298,8 @@ export function Detalle({ celdas, dias, conTotal = false }: { celdas: CeldaDia[]
               </TableCell>
               <TableCell className="text-sm tabular-nums">{c.salida ? fmtHoraCorta(c.salida) : '—'}</TableCell>
               <TableCell className="text-right text-sm tabular-nums">{c.minutosTrabajados != null ? fmtHorasMin(c.minutosTrabajados) : '—'}</TableCell>
-              <TableCell className={cn('text-right text-sm tabular-nums', c.minutosTarde ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground')}>
-                {c.minutosTarde ? `${c.minutosTarde} min` : '—'}
+              <TableCell className={cn('text-right text-sm tabular-nums', tardanza(c) ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground')}>
+                {tardanza(c) ? `${tardanza(c)} min` : '—'}
               </TableCell>
               <TableCell className="text-right text-sm tabular-nums">
                 {c.extra && (c.extra.horas50 || c.extra.horas100) ? (

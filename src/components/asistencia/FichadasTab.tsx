@@ -1,5 +1,6 @@
 'use client';
 
+import { diaLocal } from '@/lib/fechas';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { RefreshCw, Search, X, Download } from 'lucide-react';
@@ -116,7 +117,8 @@ export default function FichadasTab() {
             </Button>
             <Button variant="outline" onClick={exportar} disabled={exportando} className="h-9">
               <Download className="h-4 w-4" />
-              {exportando ? 'Generando…' : total > 0 ? `Exportar ${total.toLocaleString('es-AR')}` : 'Exportar'}
+              {/* El XLSX siempre lleva marcas: en la vista por día `total` son días y no sirve de conteo. */}
+              {exportando ? 'Generando…' : total > 0 && f.vista === 'detalle' ? `Exportar ${total.toLocaleString('es-AR')}` : 'Exportar'}
             </Button>
           </div>
         </div>
@@ -396,7 +398,3 @@ function TablaSkeleton({ columnas }: { columnas: number }) {
 
 
 
-/** Día local (Argentina) de un instante, como yyyy-mm-dd. */
-function diaLocal(d: Date): string {
-  return new Date(d.getTime() - 180 * 60_000).toISOString().slice(0, 10);
-}

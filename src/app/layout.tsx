@@ -30,7 +30,7 @@ const playfair = Playfair_Display({
 
 export const metadata: Metadata = {
   title: "AURELIUS",
-  description: "Manual operativo para agentes de call center ISP",
+  description: "Panel de gestión interna",
 };
 
 export default function RootLayout({

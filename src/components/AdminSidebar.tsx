@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X, Home, Gift, Users, Film, Library, Trophy, Inbox, Wifi, Antenna, Network, Fingerprint, CalendarCheck, Database, FolderKanban, Warehouse, LayoutDashboard, ClipboardList, CalendarPlus, Calculator, Archive, FileSignature, SlidersHorizontal, type LucideIcon } from 'lucide-react';
+import { Menu, X, Home, Gift, Users, Film, Library, Trophy, Inbox, Wifi, Antenna, Network, Fingerprint, CalendarCheck, Database, FolderKanban, Warehouse, LayoutDashboard, ClipboardList, CalendarPlus, Calculator, Archive, FileSignature, SlidersHorizontal, Receipt, type LucideIcon } from 'lucide-react';
 import type { AdminModulo } from '@/lib/modulos';
 
 const ICONS: Record<string, LucideIcon> = {
@@ -18,6 +18,8 @@ const ICONS: Record<string, LucideIcon> = {
   organigrama: Network,
   asistencia: Fingerprint,
   'mi-asistencia': CalendarCheck,
+  'gestion-recibos': FileSignature,
+  'mis-recibos': Receipt,
   padron: Database,
   proyectos: FolderKanban,
   deposito: Warehouse,
@@ -26,16 +28,17 @@ const ICONS: Record<string, LucideIcon> = {
   'nomina-novedades': CalendarPlus,
   'nomina-liquidacion': Calculator,
   'nomina-historico': Archive,
-  'nomina-recibos': FileSignature,
   'nomina-parametros': SlidersHorizontal,
 };
 
 interface AdminSidebarProps {
   nombreCompleto?: string | null;
   navLinks: readonly AdminModulo[];
+  /** Título del panel lateral (default: "Panel de administracion"). */
+  titulo?: string;
 }
 
-export default function AdminSidebar({ nombreCompleto, navLinks }: AdminSidebarProps) {
+export default function AdminSidebar({ nombreCompleto, navLinks, titulo }: AdminSidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
 
@@ -64,7 +67,7 @@ export default function AdminSidebar({ nombreCompleto, navLinks }: AdminSidebarP
         }`}
       >
         <div className="flex items-center justify-between px-4 h-16 border-b border-border shrink-0">
-          <span className="font-semibold text-foreground">Panel de administracion</span>
+          <span className="font-semibold text-foreground">{titulo ?? 'Panel de administracion'}</span>
           <button
             onClick={() => setIsOpen(false)}
             className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"

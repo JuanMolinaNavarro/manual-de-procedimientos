@@ -1,7 +1,14 @@
 export async function register() {
-  // Only run in the Node.js runtime (not Edge), and only in production
-  // to avoid duplicate schedules during hot reload in development.
+  // Solo en el runtime de Node (no Edge) y solo en producción, salvo CRON_ENABLED=1: en
+  // `npm run dev` el sync de asistencia pegaba contra los relojes reales cada 10 min y competía
+  // con el de producción (el reloj atiende a un solo cliente TCP por vez).
+  // CRON_ENABLED=0 los apaga también en producción (una copia de prueba no debe tocar los relojes).
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
+  const cronEnabled = process.env.CRON_ENABLED;
+  if (cronEnabled === '0' || (process.env.NODE_ENV !== 'production' && cronEnabled !== '1')) {
+    console.log('[Cron] Desactivados (CRON_ENABLED=1 los activa en desarrollo; CRON_ENABLED=0 los apaga siempre)');
+    return;
+  }
 
   const { default: cron } = await import('node-cron');
   const { runPipeline, isPipelineRunning } = await import('@/lib/pipeline');

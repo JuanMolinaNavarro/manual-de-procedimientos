@@ -1,29 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { randomUUID } from 'crypto';
 import { writeFileSync, mkdirSync } from 'fs';
 import { join, extname } from 'path';
-import { isAdminRole } from '@/lib/roles';
 import {
   createArchivoContrato,
   getArchivosForContratoComprador,
   getArchivosForContratoVendedor,
 } from '@/lib/senales-ip';
+import { getSessionUsername, isAdmin } from '@/lib/admin-auth';
 
 const UPLOAD_DIR = join(process.cwd(), 'uploads', 'senales-ip');
-
-async function isAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('site_session');
-  const role = session?.value?.split('|')[1];
-  return isAdminRole(role);
-}
-
-async function getUsername(): Promise<string | null> {
-  const cookieStore = await cookies();
-  const val = cookieStore.get('site_session')?.value;
-  return val ? val.split('|')[0] : null;
-}
+const ARCHIVO_MAX_BYTES = 25 * 1024 * 1024;
+// Extensión saneada: se sirve siempre como descarga, pero el nombre en disco no debe traer basura.
+const EXT_RE = /^\.[a-z0-9]{1,8}$/;
 
 export async function GET(request: NextRequest) {
   try {
@@ -50,7 +39,7 @@ export async function POST(request: NextRequest) {
     if (!await isAdmin()) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
-    const username = await getUsername();
+    const username = await getSessionUsername();
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     if (!file) {
@@ -64,7 +53,11 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-    const ext = extname(file.name);
+    if (file.size > ARCHIVO_MAX_BYTES) {
+      return NextResponse.json({ error: 'El archivo no puede superar 25 MB' }, { status: 400 });
+    }
+    const extCliente = extname(file.name).toLowerCase();
+    const ext = EXT_RE.test(extCliente) ? extCliente : '';
     const storedName = `${randomUUID()}${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
     mkdirSync(UPLOAD_DIR, { recursive: true });

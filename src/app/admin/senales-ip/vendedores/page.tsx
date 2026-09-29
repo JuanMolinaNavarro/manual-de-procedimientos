@@ -69,7 +69,7 @@ export default function VendedoresPage() {
         <Card>
           <CardHeader>
             <CardTitle>Sin contratos</CardTitle>
-            <CardDescription>No hay contratos de vendedor registrados. Haga clic en "+ Nuevo contrato" para agregar uno.</CardDescription>
+            <CardDescription>No hay contratos de vendedor registrados. Haga clic en &quot;+ Nuevo contrato&quot; para agregar uno.</CardDescription>
           </CardHeader>
         </Card>
       ) : (

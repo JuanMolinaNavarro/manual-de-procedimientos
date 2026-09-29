@@ -256,7 +256,4 @@ export const DEFAULT_BONOS: Omit<Bono, 'id'>[] = [
 export const PERIODO_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 export const PIN_RE = /^\d{4,8}$/;
 
-export const ADHESION_MODOS: readonly [string, string][] = [
-  ['papel', 'Acta en papel (recomendado)'],
-  ['electronica', 'Aceptación electrónica en este dispositivo'],
-];
+

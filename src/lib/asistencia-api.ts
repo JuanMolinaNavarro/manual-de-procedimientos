@@ -12,8 +12,19 @@ import { FECHA_RE, hoyLocal, inicioDeMes, type FiltrosFichadas } from './asisten
 import { MES_RE } from './asistencia-calendario';
 
 export async function handle(where: string, fn: () => Promise<Response>): Promise<Response> {
-  try {
+  return handleSesion(where, async () => {
     if (!(await isAdmin())) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    return fn();
+  });
+}
+
+/**
+ * Como `handle` pero sin exigir rol admin: para las rutas personales (Mi asistencia)
+ * que usa también el rol `empleado`. La ruta resuelve la ficha con
+ * `getUsuarioSesion()` y nunca recibe un id del cliente.
+ */
+export async function handleSesion(where: string, fn: () => Promise<Response>): Promise<Response> {
+  try {
     return await fn();
   } catch (error) {
     if (error instanceof AsistenciaError) {
@@ -41,6 +52,26 @@ export function parseId(v: unknown, nombre = 'id'): number {
   const n = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : NaN;
   if (!Number.isInteger(n) || n <= 0) throw new AsistenciaError(`${nombre} inválido`);
   return n;
+}
+
+/**
+ * Booleano estricto del body: `Boolean("false")` es `true`, así que un "false" como texto
+ * prendía el switch. Acepta true/false (o "true"/"false"); cualquier otra cosa es 400.
+ */
+export function parseBool(v: unknown, nombre: string): boolean | undefined {
+  if (v == null) return undefined;
+  if (v === true || v === 'true') return true;
+  if (v === false || v === 'false') return false;
+  throw new AsistenciaError(`${nombre} tiene que ser true o false`);
+}
+
+/** Días máximos de un rango de consulta pesada (export, Resumen). */
+export const MAX_DIAS_RANGO = 366;
+
+/** 400 si el rango de fechas supera `MAX_DIAS_RANGO` días. */
+export function exigirRango(f: FiltrosFichadas): void {
+  const dias = (Date.parse(f.hasta) - Date.parse(f.desde)) / 86_400_000 + 1;
+  if (dias > MAX_DIAS_RANGO) throw new AsistenciaError(`El rango no puede superar ${MAX_DIAS_RANGO} días`);
 }
 
 /** Lee los filtros de fichadas del query string, con defaults al mes actual. */
