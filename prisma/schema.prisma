@@ -342,6 +342,8 @@ model OrgEmpleado {
   telefono         String? // interno ("phone")
   foto_archivo     String? // filename en uploads/organigrama/fotos
   estado           String  @default("active") // active | inactive
+  // Quitada del organigrama (no se borra nada: sale del lienzo y queda inactiva). null = visible.
+  oculto_en        DateTime?
   sede             String?
   modalidad        String?
   guardias         String?

@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const idParam = request.nextUrl.searchParams.get('organigramaId');
     const orgId = idParam ? Number(idParam) : NaN;
     if (!orgId || Number.isNaN(orgId)) {
-      return NextResponse.json({ empleados: [], areas: [], lineas: [] });
+      return NextResponse.json({ empleados: [], areas: [], lineas: [], ocultos: [] });
     }
     const data = await getOrganigramaCompleto(orgId);
     const puedeVer = await canEditModule('organigrama');

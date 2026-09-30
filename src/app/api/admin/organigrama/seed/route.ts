@@ -1,29 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { canEditModule } from '@/lib/admin-auth';
 import { seedOrganigrama } from '@/lib/organigrama-seed';
-import { NominaError } from '@/lib/nomina';
 
-// POST { reset?: boolean }
-//  - reset=true  → borra todo y carga los datos de ejemplo (usado por "Reiniciar").
-//  - reset=false → solo siembra si la tabla está vacía (bootstrap inicial).
-export async function POST(request: NextRequest) {
+// POST — carga la empresa de ejemplo solo si todavía no hay ninguna (bootstrap inicial).
+// No borra nada: el viejo `reset` («Reiniciar») se quitó por riesgo (decisión del usuario 2026-09-30).
+export async function POST() {
   try {
     if (!(await canEditModule('organigrama'))) {
       return NextResponse.json({ error: 'Sin permiso de edición' }, { status: 403 });
     }
-    let reset = false;
-    try {
-      const body = (await request.json()) as { reset?: boolean };
-      reset = Boolean(body?.reset);
-    } catch {
-      // sin body → reset=false
-    }
-    const result = await seedOrganigrama(reset);
-    return NextResponse.json(result);
+    return NextResponse.json(await seedOrganigrama());
   } catch (error) {
-    if (error instanceof NominaError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
     console.error('Error en POST /api/admin/organigrama/seed:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }

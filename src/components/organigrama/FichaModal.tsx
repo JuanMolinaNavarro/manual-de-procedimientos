@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, X, Trash2, Upload, Pencil } from 'lucide-react';
+import { Plus, X, EyeOff, Upload, Pencil } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -75,6 +75,7 @@ function blankEmpleado(areaDefault: string): OrgEmpleado {
     telefono: null,
     foto_archivo: null,
     estado: 'active',
+    oculto_en: null,
     sede: null,
     modalidad: null,
     guardias: null,
@@ -501,7 +502,7 @@ export default function FichaModal({
                       onClick={() => onDelete(emp.id)}
                       className="text-destructive"
                     >
-                      <Trash2 className="mr-1 h-3.5 w-3.5" /> Eliminar
+                      <EyeOff className="mr-1 h-3.5 w-3.5" /> Quitar del organigrama
                     </Button>
                     <Button
                       size="sm"

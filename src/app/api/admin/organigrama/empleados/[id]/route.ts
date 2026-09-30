@@ -1,21 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { unlinkSync } from 'fs';
-import { join } from 'path';
 import { isAdmin, getSessionUsername, canEditModule } from '@/lib/admin-auth';
-import { NominaError } from '@/lib/nomina';
 import {
   getEmpleadoById,
-  getDocumentosDeEmpleado,
-  getLicenciasDeEmpleado,
   updateEmpleado,
-  deleteEmpleado,
+  ocultarEmpleado,
+  restaurarEmpleado,
   ocultarConvenio,
   validateNoCycle,
   type UpdateOrgEmpleadoData,
 } from '@/lib/organigrama';
-import { borrarIcono } from '@/lib/licencias-icono';
-
-const DOCS_DIR = join(process.cwd(), 'uploads', 'organigrama', 'documentos');
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAdmin())) {
@@ -64,30 +57,38 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
+// DELETE = quitar del organigrama. No borra nada: la ficha queda oculta e inactiva (`ocultarEmpleado`).
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     if (!(await canEditModule('organigrama'))) {
       return NextResponse.json({ error: 'Sin permiso de edición' }, { status: 403 });
     }
     const { id } = await params;
-    // Los OrgDocumento cascadean en DB al borrar el empleado; los archivos
-    // físicos hay que desvincularlos a mano (best-effort), antes de perder las filas.
-    const documentos = await getDocumentosDeEmpleado(Number(id));
-    const licencias = await getLicenciasDeEmpleado(Number(id));
-    const ok = await deleteEmpleado(Number(id));
+    const ok = await ocultarEmpleado(Number(id), await getSessionUsername());
     if (!ok) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
-    for (const doc of documentos) {
-      try {
-        unlinkSync(join(DOCS_DIR, doc.nombre_archivo));
-      } catch {}
-    }
-    for (const lic of licencias) borrarIcono(lic.icono_archivo);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    if (error instanceof NominaError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
     console.error('Error en DELETE /api/admin/organigrama/empleados/[id]:', error);
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
+  }
+}
+
+// PATCH { oculto: false } — restaurar una ficha oculta al lienzo (vuelve activa).
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    if (!(await canEditModule('organigrama'))) {
+      return NextResponse.json({ error: 'Sin permiso de edición' }, { status: 403 });
+    }
+    const { id } = await params;
+    const body = (await request.json().catch(() => null)) as { oculto?: unknown } | null;
+    if (body?.oculto !== false) {
+      return NextResponse.json({ error: 'Solo se admite { "oculto": false }' }, { status: 400 });
+    }
+    const ok = await restaurarEmpleado(Number(id), await getSessionUsername());
+    if (!ok) return NextResponse.json({ error: 'No encontrado o no estaba oculto' }, { status: 404 });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error('Error en PATCH /api/admin/organigrama/empleados/[id]:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }

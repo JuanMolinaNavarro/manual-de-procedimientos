@@ -1113,23 +1113,6 @@ export async function getRecibosDeEmpleado(empleadoId: number): Promise<ReciboDe
 }
 
 /**
- * ¿Hay historial de nómina que impida borrar? Con empleado: sus liquidaciones
- * cerradas, adhesión o constancias. Sin empleado: cualquier cierre/adhesión/
- * constancia del sistema (usado por el reset del organigrama).
- */
-export async function tieneHistorialNomina(empleadoId?: number): Promise<boolean> {
-  const where = empleadoId ? { empleado_id: empleadoId } : {};
-  const [liq, adh, cst, rec, rev] = await Promise.all([
-    prisma.nominaLiquidacion.count({ where }),
-    prisma.nominaAdhesion.count({ where }),
-    prisma.nominaConstancia.count({ where }),
-    prisma.nominaReciboPdf.count({ where }),
-    prisma.nominaAdhesionRevocada.count({ where }),
-  ]);
-  return liq + adh + cst + rec + rev > 0;
-}
-
-/**
  * Verifica un PIN contra la adhesión con bloqueo atómico. El intento se RESERVA en la base
  * antes de calcular el scrypt (`pin_fallos + 1` solo si no está bloqueada ni llegó al máximo),
  * así N pedidos en paralelo no pueden probar más de `PIN_MAX_FALLOS` PINs: antes se leía el

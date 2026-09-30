@@ -1,5 +1,4 @@
 import { prisma } from './prisma';
-import { NominaError, tieneHistorialNomina } from './nomina';
 import {
   createArea,
   createEmpleado,
@@ -281,35 +280,20 @@ export interface SeedResult {
 }
 
 /**
- * Carga los datos de ejemplo. Si `reset` es true, borra todo primero (líneas, empleados,
- * áreas). Si `reset` es false, solo siembra cuando la tabla de empleados está vacía.
+ * Carga los datos de ejemplo solo si todavía no hay ninguna empresa. Nunca borra nada.
  * Reutiliza los helpers del lib (createArea/createEmpleado/updateEmpleado) para que el
  * casteo de las columnas Json sea consistente con el resto del CRUD.
  */
-export async function seedOrganigrama(reset: boolean): Promise<SeedResult> {
+export async function seedOrganigrama(): Promise<SeedResult> {
   // "Ya sembrado" se define por si existe alguna empresa, no por la cantidad de
   // empleados (podría haber datos huérfanos sin organigrama de versiones previas).
-  if (!reset && (await prisma.organigrama.count()) > 0) {
+  if ((await prisma.organigrama.count()) > 0) {
     return {
       seeded: false,
       empleados: await prisma.orgEmpleado.count(),
       areas: await prisma.orgArea.count(),
     };
   }
-  if (reset) {
-    // Con historial de nómina (cierres, adhesiones, constancias) las FKs Restrict
-    // impiden borrar empleados y organigramas: se avisa antes de intentarlo.
-    if (await tieneHistorialNomina()) {
-      throw new NominaError('Hay liquidaciones cerradas, adhesiones o constancias de nómina; no se puede reiniciar el organigrama', 409);
-    }
-    await prisma.$transaction([
-      prisma.orgLinea.deleteMany({}),
-      prisma.orgEmpleado.deleteMany({}),
-      prisma.orgArea.deleteMany({}),
-      prisma.organigrama.deleteMany({}),
-    ]);
-  }
-
   // Organigrama de ejemplo (empresa por defecto). Todo lo sembrado se scopea a éste.
   const org = await createOrganigrama('Mi Empresa');
 

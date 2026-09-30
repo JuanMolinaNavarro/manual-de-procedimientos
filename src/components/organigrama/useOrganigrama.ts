@@ -13,6 +13,7 @@ import type {
   CreateOrgLineaData,
   UpdateOrgLineaData,
   OrganigramaCompleto,
+  EmpleadoOculto,
 } from '@/lib/organigrama';
 
 const BASE = '/api/admin/organigrama';
@@ -37,6 +38,8 @@ export interface OrganigramaApi {
   empleados: OrgEmpleado[];
   areas: OrgArea[];
   lineas: OrgLinea[];
+  /** Fichas quitadas del lienzo (no borradas), para restaurarlas. */
+  ocultos: EmpleadoOculto[];
   loading: boolean;
   error: string | null;
   reload: () => Promise<void>;
@@ -52,7 +55,8 @@ export interface OrganigramaApi {
   // empleados
   createEmpleado: (data: CreateOrgEmpleadoData) => Promise<OrgEmpleado>;
   updateEmpleado: (id: number, data: UpdateOrgEmpleadoData) => Promise<OrgEmpleado>;
-  deleteEmpleado: (id: number) => Promise<void>;
+  ocultarEmpleado: (id: number) => Promise<void>;
+  restaurarEmpleado: (id: number) => Promise<void>;
   uploadFoto: (id: number, file: Blob) => Promise<string>;
   deleteFoto: (id: number) => Promise<void>;
   // áreas
@@ -71,6 +75,7 @@ export function useOrganigrama(): OrganigramaApi {
   const [empleados, setEmpleados] = useState<OrgEmpleado[]>([]);
   const [areas, setAreas] = useState<OrgArea[]>([]);
   const [lineas, setLineas] = useState<OrgLinea[]>([]);
+  const [ocultos, setOcultos] = useState<EmpleadoOculto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,20 +85,26 @@ export function useOrganigrama(): OrganigramaApi {
   const orgIdRef = useRef<number | null>(orgId);
   orgIdRef.current = orgId;
 
+  // Trae el grafo y lo aplica, sin tocar `loading` (lo usan ocultar/restaurar para no parpadear).
+  const aplicarGrafo = useCallback(async (id: number) => {
+    const data = await jsonFetch<OrganigramaCompleto>(`${BASE}?organigramaId=${id}`);
+    setEmpleados(data.empleados);
+    setAreas(data.areas);
+    setLineas(data.lineas);
+    setOcultos(data.ocultos);
+  }, []);
+
   const loadGraph = useCallback(async (id: number) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await jsonFetch<OrganigramaCompleto>(`${BASE}?organigramaId=${id}`);
-      setEmpleados(data.empleados);
-      setAreas(data.areas);
-      setLineas(data.lineas);
+      await aplicarGrafo(id);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cargar el organigrama');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [aplicarGrafo]);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -109,6 +120,7 @@ export function useOrganigrama(): OrganigramaApi {
         setEmpleados([]);
         setAreas([]);
         setLineas([]);
+        setOcultos([]);
         setLoading(false);
       }
     } catch (e) {
@@ -139,6 +151,7 @@ export function useOrganigrama(): OrganigramaApi {
     setEmpleados([]);
     setAreas([]);
     setLineas([]);
+    setOcultos([]);
     return org;
   }, []);
 
@@ -173,13 +186,23 @@ export function useOrganigrama(): OrganigramaApi {
     return emp;
   }, []);
 
-  const deleteEmpleado = useCallback(async (id: number) => {
-    await jsonFetch(`${BASE}/empleados/${id}`, { method: 'DELETE' });
-    setEmpleados((prev) => prev.filter((e) => e.id !== id));
-    // sus subordinados quedan sin jefe; las líneas que lo tocan se borran en server
-    setEmpleados((prev) => prev.map((e) => (e.manager_id === id ? { ...e, manager_id: null } : e)));
-    setLineas((prev) => prev.filter((l) => l.from_id !== id && l.to_id !== id));
-  }, []);
+  // Quitar del organigrama no borra nada (ver `ocultarEmpleado` en lib/organigrama). Se vuelve a
+  // pedir el grafo: el servidor desengancha subordinados y jefaturas y filtra sus líneas.
+  const ocultarEmpleado = useCallback(
+    async (id: number) => {
+      await jsonFetch(`${BASE}/empleados/${id}`, { method: 'DELETE' });
+      if (orgIdRef.current != null) await aplicarGrafo(orgIdRef.current);
+    },
+    [aplicarGrafo],
+  );
+
+  const restaurarEmpleado = useCallback(
+    async (id: number) => {
+      await jsonFetch(`${BASE}/empleados/${id}`, { method: 'PATCH', body: JSON.stringify({ oculto: false }) });
+      if (orgIdRef.current != null) await aplicarGrafo(orgIdRef.current);
+    },
+    [aplicarGrafo],
+  );
 
   const uploadFoto = useCallback(async (id: number, file: Blob) => {
     const fd = new FormData();
@@ -260,6 +283,7 @@ export function useOrganigrama(): OrganigramaApi {
       empleados,
       areas,
       lineas,
+      ocultos,
       loading,
       error,
       reload,
@@ -270,7 +294,8 @@ export function useOrganigrama(): OrganigramaApi {
       updateOrganigrama,
       createEmpleado,
       updateEmpleado,
-      deleteEmpleado,
+      ocultarEmpleado,
+      restaurarEmpleado,
       uploadFoto,
       deleteFoto,
       createArea,
@@ -284,6 +309,7 @@ export function useOrganigrama(): OrganigramaApi {
       empleados,
       areas,
       lineas,
+      ocultos,
       loading,
       error,
       reload,
@@ -294,7 +320,8 @@ export function useOrganigrama(): OrganigramaApi {
       updateOrganigrama,
       createEmpleado,
       updateEmpleado,
-      deleteEmpleado,
+      ocultarEmpleado,
+      restaurarEmpleado,
       uploadFoto,
       deleteFoto,
       createArea,

@@ -357,23 +357,6 @@ function CanvasInner({ canEdit }: { canEdit: boolean }) {
     ]).catch(() => {});
   }, [api, empleados, areas]);
 
-  const handleReiniciar = useCallback(async () => {
-    if (
-      !window.confirm(
-        '¿Reiniciar? Se borrará TODO (todas las empresas) y se cargará la empresa de ejemplo.',
-      )
-    )
-      return;
-    try {
-      await fetch('/api/admin/organigrama/seed', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reset: true }),
-      });
-      await reload();
-    } catch {}
-  }, [reload]);
-
   const handleCreateOrg = useCallback(() => setEmpresaDialog({ open: true, empresa: null }), []);
 
   const handleEditOrg = useCallback(() => {
@@ -399,7 +382,8 @@ function CanvasInner({ canEdit }: { canEdit: boolean }) {
         onAddEmpleado={handleAddEmpleado}
         onAddArea={handleAddArea}
         onReorganizar={handleReorganizar}
-        onReiniciar={handleReiniciar}
+        ocultos={api.ocultos}
+        onRestaurar={api.restaurarEmpleado}
         canEdit={canEdit}
       />
 
@@ -428,12 +412,8 @@ function CanvasInner({ canEdit }: { canEdit: boolean }) {
                 className="neu-btn h-10 rounded-xl"
                 onClick={async () => {
                   try {
-                    await fetch('/api/admin/organigrama/seed', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      // reset: limpia datos huérfanos previos y crea la empresa de ejemplo.
-                      body: JSON.stringify({ reset: true }),
-                    });
+                    // Solo siembra si no hay ninguna empresa; nunca borra nada.
+                    await fetch('/api/admin/organigrama/seed', { method: 'POST' });
                     await reload();
                   } catch {}
                 }}
@@ -558,10 +538,16 @@ function CanvasInner({ canEdit }: { canEdit: boolean }) {
           }
         }}
         onDelete={async (id) => {
-          if (window.confirm('¿Eliminar este empleado?')) {
-            await api.deleteEmpleado(id);
+          const ok = window.confirm(
+            'Se quita del organigrama y queda inactivo. No se borra nada (recibos, asistencia, nómina, documentos): se puede restaurar desde «Ocultos».',
+          );
+          if (!ok) return;
+          try {
+            await api.ocultarEmpleado(id);
             setModalOpen(false);
             setSelectedId(null);
+          } catch (e) {
+            alert(e instanceof Error ? e.message : 'No se pudo quitar del organigrama');
           }
         }}
         onUploadFoto={async (id, blob) => {
@@ -585,7 +571,7 @@ function CanvasInner({ canEdit }: { canEdit: boolean }) {
       />
 
       <AreaFormDialog
-        key={`${areaDialog.area?.id ?? 'new'}:${areaDialog.open}`}
+        key={`area:${areaDialog.area?.id ?? 'new'}:${areaDialog.open}`}
         open={areaDialog.open}
         area={areaDialog.area}
         miembros={empleados}
@@ -606,7 +592,7 @@ function CanvasInner({ canEdit }: { canEdit: boolean }) {
       />
 
       <EmpresaFormDialog
-        key={`${empresaDialog.empresa?.id ?? 'new'}:${empresaDialog.open}`}
+        key={`empresa:${empresaDialog.empresa?.id ?? 'new'}:${empresaDialog.open}`}
         open={empresaDialog.open}
         empresa={empresaDialog.empresa}
         onOpenChange={(o) => setEmpresaDialog((s) => ({ ...s, open: o }))}

@@ -1,5 +1,4 @@
 import { prisma } from './prisma';
-import { NominaError, tieneHistorialNomina } from './nomina';
 
 // ─── Sub-tipos del CV (columnas Json) ──────────────────────────────────────────
 
@@ -34,6 +33,8 @@ export interface OrgEmpleado {
   telefono: string | null;
   foto_archivo: string | null;
   estado: string; // active | inactive
+  /** Quitada del organigrama (sale del lienzo, no se borra nada). null = visible. */
+  oculto_en: Date | null;
   sede: string | null;
   modalidad: string | null;
   guardias: string | null;
@@ -224,10 +225,20 @@ export type UpdateOrgLicenciaData = Partial<
   Omit<CreateOrgLicenciaData, 'empleado_id' | 'created_by'>
 > & { updated_by?: string | null };
 
+export interface EmpleadoOculto {
+  id: number;
+  nombre: string;
+  rol: string;
+  area: string;
+  oculto_en: Date;
+}
+
 export interface OrganigramaCompleto {
   empleados: OrgEmpleado[];
   areas: OrgArea[];
   lineas: OrgLinea[];
+  /** Fichas quitadas del lienzo, para la lista «Ocultos» con Restaurar. */
+  ocultos: EmpleadoOculto[];
 }
 
 // ─── Organigrama (empresa/ubicación) ──────────────────────────────────────────
@@ -368,25 +379,32 @@ export async function updateEmpleado(
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 /**
- * Borra un empleado y limpia las referencias colgantes: las líneas especiales que
- * lo tocan (from/to) y el manager_id de sus subordinados (el schema ya hace
- * SetNull sobre la relación, pero lo hacemos explícito por claridad).
+ * Quita a alguien del organigrama SIN borrar nada (decisión del usuario): la ficha queda
+ * oculta e inactiva, con documentos, licencias, nómina, recibos y asistencia intactos.
+ * Sus subordinados y las áreas que encabezaba quedan sin jefe (ya no le reportan); las
+ * líneas especiales no se borran, se filtran al leer y vuelven al restaurar.
  */
-export async function deleteEmpleado(id: number): Promise<boolean> {
+export async function ocultarEmpleado(id: number, usuario: string | null): Promise<boolean> {
   const existing = await prisma.orgEmpleado.findUnique({ where: { id } });
   if (!existing) return false;
-  // Una ficha con liquidaciones cerradas, adhesión o constancias de nómina no
-  // se borra (las FKs son Restrict): mejor un 409 claro que un error de DB.
-  if (await tieneHistorialNomina(id)) {
-    throw new NominaError('Tiene liquidaciones cerradas, adhesión o constancias de nómina; no se puede eliminar', 409);
-  }
   await prisma.$transaction([
-    prisma.orgLinea.deleteMany({ where: { OR: [{ from_id: id }, { to_id: id }] } }),
     prisma.orgEmpleado.updateMany({ where: { manager_id: id }, data: { manager_id: null } }),
     prisma.orgArea.updateMany({ where: { jefe_id: id }, data: { jefe_id: null } }),
-    prisma.orgEmpleado.delete({ where: { id } }),
+    prisma.orgEmpleado.update({
+      where: { id },
+      data: { oculto_en: existing.oculto_en ?? new Date(), estado: 'inactive', updated_by: usuario },
+    }),
   ]);
   return true;
+}
+
+/** Vuelve a mostrar una ficha oculta en el lienzo, activa. */
+export async function restaurarEmpleado(id: number, usuario: string | null): Promise<boolean> {
+  const { count } = await prisma.orgEmpleado.updateMany({
+    where: { id, oculto_en: { not: null } },
+    data: { oculto_en: null, estado: 'active', updated_by: usuario },
+  });
+  return count > 0;
 }
 
 export async function setFotoEmpleado(id: number, filename: string | null): Promise<void> {
@@ -637,15 +655,21 @@ export async function deleteLinea(id: number): Promise<boolean> {
 // ─── Agregado (bootstrap del lienzo) ──────────────────────────────────────────
 
 export async function getOrganigramaCompleto(organigramaId: number): Promise<OrganigramaCompleto> {
-  const [empleados, areas, lineas] = await Promise.all([
+  const [todos, areas, lineas] = await Promise.all([
     prisma.orgEmpleado.findMany({ where: { organigrama_id: organigramaId }, orderBy: { id: 'asc' } }),
     prisma.orgArea.findMany({ where: { organigrama_id: organigramaId }, orderBy: { id: 'asc' } }),
     prisma.orgLinea.findMany({ where: { organigrama_id: organigramaId }, orderBy: { id: 'asc' } }),
   ]);
+  const empleados = todos.filter((e) => e.oculto_en == null);
+  const ocultos = todos.filter((e) => e.oculto_en != null);
+  const idsOcultos = new Set(ocultos.map((e) => e.id));
   return {
     empleados: empleados.map(mapEmpleado),
     areas: areas as unknown as OrgArea[],
-    lineas: lineas as unknown as OrgLinea[],
+    lineas: lineas.filter((l) => !idsOcultos.has(l.from_id) && !idsOcultos.has(l.to_id)) as unknown as OrgLinea[],
+    ocultos: ocultos
+      .map((e) => ({ id: e.id, nombre: e.nombre, rol: e.rol, area: e.area, oculto_en: e.oculto_en! }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre)),
   };
 }
 
