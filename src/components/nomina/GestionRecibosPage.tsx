@@ -25,7 +25,7 @@ import { useNomina, useNominaData } from './NominaContext';
 import { PasoCard, type EstadoPaso } from './PasoCard';
 import PasoImportar from './RecibosFinnegans';
 import RecibosPeriodo from './RecibosPeriodo';
-import { Banner, ErrorCarga, Estado } from './ui';
+import { ErrorCarga, Estado } from './ui';
 
 /** Título + empresa y mes (compartidos con Nómina por localStorage). */
 function Encabezado({ extra }: { extra?: ReactNode }) {
@@ -153,13 +153,6 @@ export default function GestionRecibosPage() {
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6">
       <Encabezado extra={<div className="flex items-center gap-2"><SelloCadena cadena={d.cadena} /><Ayuda /></div>} />
-      {!d.empresaOk && (
-        <Banner variant="locked">
-          <b>Faltan datos del empleador</b> (razón social y CUIT): cargalos en Nómina › Parámetros → Datos del empleador. El CUIT vincula las
-          liquidaciones de Finnegans con esta empresa.
-        </Banner>
-      )}
-
       <section className="grid gap-3 md:grid-cols-3" aria-label="Pasos del mes">
         <PasoImportar onCambio={refrescar} />
         <PasoAviso onEnviado={refrescar} />

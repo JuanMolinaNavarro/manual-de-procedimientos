@@ -838,11 +838,11 @@ model NominaConstancia {
 // "Recibos de Finnegans". Independiente del motor propio (NominaCierre).
 
 // Una liquidación de Finnegans (transacción del subtipo LIQSUELDOS): una empresa,
-// un tipo de liquidación y un período, con N legajos. Sale de RESUMENLIQ.
+// un tipo de liquidación y un período, con N legajos. Sale de RESUMENLIQ. No pertenece a
+// ningún organigrama (lugares físicos): cada recibo va al organigrama de la ficha de su CUIL.
 model NominaFinnLiquidacion {
   id               Int       @id @default(autoincrement())
   transaccion_id   Int       @unique // TRANSACCIONID = primaryKey de report/execute
-  organigrama_id   Int? // organigrama cuyo NominaConfig.empresa.cuit == empresa_cuit
   empresa_cuit     String
   empresa_nombre   String
   nro_liquidacion  Int
@@ -864,7 +864,6 @@ model NominaFinnLiquidacion {
 
   recibos NominaReciboPdf[]
 
-  @@index([organigrama_id, periodo])
   @@index([periodo])
   @@map("nomina_finn_liquidaciones")
 }
@@ -873,7 +872,7 @@ model NominaFinnLiquidacion {
 model NominaReciboPdf {
   id                    String    @id @default(uuid()) // opaco: es el que viaja en la URL
   liquidacion_id        Int
-  organigrama_id        Int
+  organigrama_id        Int // el de la ficha al publicarse (lugar físico), no el de la empresa que liquida
   empleado_id           Int
   liquidacion_legajo_id Int       @unique // LIQUIDACIONLEGAJOID de Finnegans
   cuil                  String
