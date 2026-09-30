@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateLead } from '@/lib/leads';
-import { isAdmin } from '@/lib/admin-auth';
+import { puedeUsarModulo } from '@/lib/admin-auth';
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!await isAdmin()) {
+  if (!await puedeUsarModulo('leads')) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 

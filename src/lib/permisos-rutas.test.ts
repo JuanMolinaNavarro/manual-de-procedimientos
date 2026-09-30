@@ -71,6 +71,17 @@ describe('puedeUsarApi', () => {
     expect(puedeUsarApi('/api/admin/organigrama/empleados/7/foto', 'GET', 'admin', ['asistencia'])).toBe(true);
     expect(puedeUsarApi('/api/admin/organigrama/empleados/7', 'GET', 'admin', ['asistencia'])).toBe(false);
   });
+  it('ventas: solo las APIs de Leads y Padrón', () => {
+    expect(puedeUsarApi('/api/admin/leads', 'GET', 'ventas', [])).toBe(true);
+    expect(puedeUsarApi('/api/admin/leads/5', 'PATCH', 'ventas', [])).toBe(true);
+    expect(puedeUsarApi('/api/admin/padron/cargar', 'POST', 'ventas', [])).toBe(true);
+    // Lo guardado en `modulos` no cuenta, y lo que es de "cualquier admin" tampoco.
+    expect(puedeUsarApi('/api/admin/nomina/estado', 'GET', 'ventas', ['nomina-tablero'])).toBe(false);
+    expect(puedeUsarApi('/api/admin/usuarios', 'GET', 'ventas', [])).toBe(false);
+    expect(puedeUsarApi('/api/admin/mis-recibos', 'GET', 'ventas', [])).toBe(false);
+    expect(puedeUsarApi('/api/admin/organigrama/empleados/7/foto', 'GET', 'ventas', [])).toBe(false);
+    expect(puedeUsarApi('/api/bonificaciones', 'POST', 'ventas', [])).toBe(false);
+  });
   it('los que no son admin nunca pasan', () => {
     expect(puedeUsarApi('/api/admin/mis-recibos', 'GET', 'empleado', [])).toBe(false);
     expect(puedeUsarApi('/api/bonificaciones', 'POST', 'agente', [])).toBe(false);
@@ -97,5 +108,13 @@ describe('puedeVerPagina', () => {
     expect(puedeVerPagina('/admin/usuarios', 'admin', [])).toBe(false);
     expect(puedeVerPagina('/admin/usuarios', 'superadmin', [])).toBe(true);
     expect(puedeVerPagina('/admin', 'agente', [])).toBe(false);
+  });
+  it('ventas: el inicio y sus dos módulos, nada más', () => {
+    expect(puedeVerPagina('/admin', 'ventas', [])).toBe(true);
+    expect(puedeVerPagina('/admin/leads', 'ventas', [])).toBe(true);
+    expect(puedeVerPagina('/admin/padron', 'ventas', [])).toBe(true);
+    expect(puedeVerPagina('/admin/peliculas', 'ventas', ['peliculas'])).toBe(false);
+    expect(puedeVerPagina('/admin/nomina/imprimir', 'ventas', [])).toBe(false);
+    expect(puedeVerPagina('/admin/mi-asistencia', 'ventas', [])).toBe(false);
   });
 });

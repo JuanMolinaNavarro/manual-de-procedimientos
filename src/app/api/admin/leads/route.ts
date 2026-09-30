@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getAllLeads } from '@/lib/leads';
-import { isAdmin } from '@/lib/admin-auth';
+import { puedeUsarModulo } from '@/lib/admin-auth';
 
 export async function GET() {
   try {
-    if (!await isAdmin()) {
+    if (!await puedeUsarModulo('leads')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 

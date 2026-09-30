@@ -7,8 +7,10 @@
  * - `empleado`: portal personal. Solo ve Mi asistencia y sus Recibos, siempre de
  *   la ficha vinculada a su usuario. NO es admin: las APIs de `/api/admin/**` le
  *   responden 403 salvo las personales de `rutaPermitidaEmpleado`.
+ * - `ventas`: solo Leads y Padrón (`VENTAS_MODULOS`, fijos: lo guardado en `modulos` no
+ *   cuenta). NO es admin: el proxy le deja solo las páginas y APIs de esos dos módulos.
  */
-export const ROLES = ['admin', 'superadmin', 'empleado'] as const;
+export const ROLES = ['admin', 'superadmin', 'empleado', 'ventas'] as const;
 export type Rol = (typeof ROLES)[number];
 
 /**
@@ -29,6 +31,10 @@ export function isSuperadmin(rol: string | null | undefined): boolean {
 
 export function isEmpleadoRole(rol: string | null | undefined): boolean {
   return rol === 'empleado';
+}
+
+export function isVentasRole(rol: string | null | undefined): boolean {
+  return rol === 'ventas';
 }
 
 /** Páginas y APIs a las que puede entrar un `empleado` (prefijos, incluyen subrutas). */

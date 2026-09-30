@@ -50,15 +50,19 @@ export const ADMIN_MODULO_SLUGS = ADMIN_MODULOS.map((m) => m.slug);
 /** Módulos fijos del rol `empleado` (su portal personal). */
 export const EMPLEADO_MODULOS = ['mi-asistencia', 'mis-recibos'] as const satisfies readonly AdminModuloSlug[];
 
+/** Módulos fijos del rol `ventas`. */
+export const VENTAS_MODULOS = ['leads', 'padron'] as const satisfies readonly AdminModuloSlug[];
+
 /**
  * Módulos que efectivamente puede usar un usuario según su rol:
- * superadmin → todos (`[]`), empleado → siempre `EMPLEADO_MODULOS` (lo guardado en
+ * superadmin → todos (`[]`), empleado / ventas → siempre sus módulos fijos (lo guardado en
  * `Usuario.modulos` no cuenta: `[]` significaría "todos"), resto → lo guardado, siempre sin
  * `usuarios` (la gestión de usuarios es solo del superadmin).
  */
 export function modulosEfectivos(rol: string | null | undefined, modulos: readonly string[] | null | undefined): string[] {
   if (rol === 'superadmin') return [];
   if (rol === 'empleado') return [...EMPLEADO_MODULOS];
+  if (rol === 'ventas') return [...VENTAS_MODULOS];
   // Gestión de usuarios: solo superadmin (roles.ts › puedeGestionarUsuarios). `[]` significa
   // "todos", así que se explicita la lista sin `usuarios`.
   const base = modulos && modulos.length ? modulos.map((m) => SLUGS_RENOMBRADOS[m] ?? m) : ADMIN_MODULO_SLUGS;

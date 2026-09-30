@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cargarPadronDesdeBuffer, contarPadronPorEmpresa } from '@/lib/padron';
 import { isEmpresa } from '@/lib/empresas';
-import { isAdmin } from '@/lib/admin-auth';
+import { puedeUsarModulo } from '@/lib/admin-auth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 600;
 
 /** GET: cantidad de abonados cargados por empresa. */
 export async function GET() {
-  if (!(await isAdmin())) {
+  if (!(await puedeUsarModulo('padron'))) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
   try {
@@ -21,7 +21,7 @@ export async function GET() {
 
 /** POST: sube un Excel y reemplaza el padrón de la empresa indicada. */
 export async function POST(request: NextRequest) {
-  if (!(await isAdmin())) {
+  if (!(await puedeUsarModulo('padron'))) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
   try {

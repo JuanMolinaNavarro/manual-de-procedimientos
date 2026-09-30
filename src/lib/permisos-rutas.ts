@@ -12,7 +12,7 @@
  * (`modulos_edit`) sigue en cada ruta con `canEditModule`.
  */
 
-import { isAdminRole, isSuperadmin } from './roles';
+import { isAdminRole, isSuperadmin, isVentasRole } from './roles';
 import { NOMINA_SLUGS, canAccessPath, isAdminModulePath, modulosEfectivos, type AdminModuloSlug } from './modulos';
 
 type Regla = {
@@ -84,8 +84,8 @@ export function reglaApi(pathname: string): Regla | null {
 const LECTURA = new Set(['GET', 'HEAD']);
 
 /**
- * ¿Un usuario admin puede usar esta API con este método? No mira sesión ni rol empleado
- * (eso lo resuelve el proxy antes).
+ * ¿Un usuario admin (o `ventas`, con sus módulos fijos) puede usar esta API con este método?
+ * No mira sesión ni rol empleado (eso lo resuelve el proxy antes).
  */
 export function puedeUsarApi(
   pathname: string,
@@ -93,22 +93,27 @@ export function puedeUsarApi(
   rol: string | null | undefined,
   modulos: readonly string[] | null | undefined,
 ): boolean {
-  if (!isAdminRole(rol)) return false;
+  if (!isAdminRole(rol) && !isVentasRole(rol)) return false;
   if (isSuperadmin(rol)) return true;
   const regla = reglaApi(pathname);
   if (!regla) return false;
-  if (regla.modulos === 'admin') return true;
+  // "Cualquier admin" (portal personal, fotos de fichas): `ventas` no es admin.
+  if (regla.modulos === 'admin') return isAdminRole(rol);
   const efectivos = modulosEfectivos(rol, modulos);
   if (efectivos.length === 0) return true;
   const permitidos = LECTURA.has(metodo.toUpperCase()) ? [...regla.modulos, ...(regla.lectura ?? [])] : regla.modulos;
   return permitidos.some((m) => efectivos.includes(m));
 }
 
-/** ¿Un admin puede abrir esta página de `/admin`? Mismo criterio que el guard del cliente. */
+/**
+ * ¿Puede abrir esta página de `/admin`? Mismo criterio que el guard del cliente. `ventas` solo
+ * ve el inicio y las páginas de sus módulos; un admin, además, las páginas que no son de módulo.
+ */
 export function puedeVerPagina(pathname: string, rol: string | null | undefined, modulos: readonly string[] | null | undefined): boolean {
-  if (!isAdminRole(rol)) return false;
+  if (!isAdminRole(rol) && !isVentasRole(rol)) return false;
   const efectivos = modulosEfectivos(rol, modulos);
-  if (efectivos.length === 0 || !isAdminModulePath(pathname)) return true;
+  if (efectivos.length === 0) return true;
+  if (!isAdminModulePath(pathname)) return isAdminRole(rol) || pathname === '/admin';
   return canAccessPath(pathname, efectivos);
 }
 

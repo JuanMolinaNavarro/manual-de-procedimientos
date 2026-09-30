@@ -1,7 +1,7 @@
 import { cache } from 'react';
 import { cookies } from 'next/headers';
-import { canEditModule as slugEditable, type AdminModuloSlug } from './modulos';
-import { isAdminRole, isSuperadmin, puedeGestionarPin, puedeGestionarUsuarios } from './roles';
+import { canEditModule as slugEditable, modulosEfectivos, type AdminModuloSlug } from './modulos';
+import { isAdminRole, isSuperadmin, isVentasRole, puedeGestionarPin, puedeGestionarUsuarios } from './roles';
 import { COOKIE_SESION, usuarioDeToken } from './sesion';
 
 /**
@@ -14,15 +14,21 @@ export const getSesion = cache(async () => {
   return usuarioDeToken(store.get(COOKIE_SESION)?.value);
 });
 
-/** ¿Hay una sesión vigente (cualquier rol)? */
-export async function haySesion(): Promise<boolean> {
-  return (await getSesion()) != null;
-}
-
 /** ¿La sesión actual es de un usuario activo con rol admin o superadmin? */
 export async function isAdmin(): Promise<boolean> {
   const u = await getSesion();
   return !!u && isAdminRole(u.rol);
+}
+
+/**
+ * ¿La sesión puede usar este módulo? Admin con el módulo, superadmin, o un rol con módulos
+ * fijos que lo incluya (`ventas` → Leads y Padrón). Para rutas que no son solo de admins.
+ */
+export async function puedeUsarModulo(slug: AdminModuloSlug): Promise<boolean> {
+  const u = await getSesion();
+  if (!u || !(isAdminRole(u.rol) || isVentasRole(u.rol))) return false;
+  const efectivos = modulosEfectivos(u.rol, u.modulos);
+  return efectivos.length === 0 || efectivos.includes(slug);
 }
 
 /** Nombre de usuario de la sesión actual (para created_by/updated_by). */

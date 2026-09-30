@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { EMPLEADO_MODULOS, canAccessPath, getModulosForUser, modulosEfectivos } from './modulos';
+import { EMPLEADO_MODULOS, VENTAS_MODULOS, canAccessPath, getModulosForUser, modulosEfectivos } from './modulos';
 import { isAdminRole, puedeGestionarPin, puedeGestionarUsuarios, rolValido, rutaPermitidaEmpleado } from './roles';
 
 describe('modulosEfectivos', () => {
@@ -7,6 +7,10 @@ describe('modulosEfectivos', () => {
     expect(modulosEfectivos('empleado', [])).toEqual([...EMPLEADO_MODULOS]);
     expect(modulosEfectivos('empleado', ['usuarios', 'organigrama'])).toEqual(['mi-asistencia', 'mis-recibos']);
     expect(getModulosForUser(modulosEfectivos('empleado', [])).map((m) => m.href)).toEqual(['/admin/mi-asistencia', '/admin/mis-recibos']);
+  });
+  it('ventas: siempre Leads y Padrón, aunque tenga [] u otros módulos guardados', () => {
+    expect(modulosEfectivos('ventas', [])).toEqual([...VENTAS_MODULOS]);
+    expect(modulosEfectivos('ventas', ['usuarios', 'nomina-tablero'])).toEqual(['leads', 'padron']);
   });
   it('superadmin: todos; admin: lo guardado (sin usuarios)', () => {
     expect(modulosEfectivos('superadmin', ['usuarios'])).toEqual([]);
@@ -50,7 +54,6 @@ describe('rol empleado', () => {
 
   it.each([
     '/',
-    '/carga-ventas',
     '/admin/nomina',
     '/admin/nomina/recibos',
     '/admin/gestion-recibos',
@@ -80,6 +83,7 @@ describe('separación de funciones', () => {
   it('el rol agente (del manual separado) ya no existe', () => {
     expect(rolValido('admin')).toBe(true);
     expect(rolValido('empleado')).toBe(true);
+    expect(rolValido('ventas')).toBe(true);
     expect(rolValido('agente')).toBe(false);
     expect(rolValido(null)).toBe(false);
   });

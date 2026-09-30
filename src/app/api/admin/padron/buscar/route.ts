@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { buscarPadron } from '@/lib/padron';
 import { isEmpresa } from '@/lib/empresas';
-import { isAdmin } from '@/lib/admin-auth';
+import { puedeUsarModulo } from '@/lib/admin-auth';
 
 export const dynamic = 'force-dynamic';
 
 /** GET /api/admin/padron/buscar?empresa=&dni=&nombre=&domicilio=&page= */
 export async function GET(request: NextRequest) {
-  if (!(await isAdmin())) {
+  if (!(await puedeUsarModulo('padron'))) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 

@@ -45,7 +45,7 @@ export default function SiteLoginPage() {
       // otra cosa, así que el `from` solo vale si es del portal.
       const destination = isEmpleadoRole(data.rol)
         ? (from === '/admin/mi-asistencia' || from === '/admin/mis-recibos' ? from : '/admin')
-        : (from?.startsWith('/admin') || from?.startsWith('/carga-ventas') ? from : '/admin');
+        : (from?.startsWith('/admin') ? from : '/admin');
       router.push(destination);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');

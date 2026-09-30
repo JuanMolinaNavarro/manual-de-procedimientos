@@ -260,6 +260,7 @@ export default function UsuariosAdminPage() {
               >
                 <option value="admin">Admin</option>
                 <option value="empleado">Empleado (solo Mi asistencia y Recibos)</option>
+                <option value="ventas">Ventas (solo Leads y Padrón)</option>
                 {esSuperadmin && <option value="superadmin">Superadmin</option>}
               </select>
             </div>
