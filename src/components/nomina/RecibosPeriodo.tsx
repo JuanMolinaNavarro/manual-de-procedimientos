@@ -44,7 +44,8 @@ type FiltroEntrega = 'todos' | EstadoEntrega;
 function detalle(x: ReciboPanelView): string {
   if (x.constancia) return `Firmó el ${fechaCorta(x.constancia.fecha)}${x.caso ? ` · caso ${x.caso.estado}` : ''}`;
   if (x.papel) return `Papel registrado ${x.papel.registradoEn ? fechaCorta(x.papel.registradoEn) : ''}${x.papel.registradoPor ? ` por ${x.papel.registradoPor}` : ''}`;
-  return x.adherido ? 'Puede firmar en el portal' : 'Sin adhesión completa: va en papel';
+  if (x.adherido) return 'Puede firmar en el portal';
+  return x.otroEmpleador ? 'Su adhesión es con otra empresa: renovarla o va en papel' : 'Sin adhesión completa: va en papel';
 }
 
 export default function RecibosPeriodo({ panel, onCambio }: { panel: PanelRecibos | null; onCambio: () => void }) {
@@ -109,7 +110,9 @@ export default function RecibosPeriodo({ panel, onCambio }: { panel: PanelRecibo
           <li key={x.id} className="flex items-center gap-3 px-4 py-3">
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-foreground">{x.nombre}</p>
-              <p className="truncate text-xs text-muted-foreground">{x.tipoLiquidacion} · {detalle(x)}</p>
+              <p className="truncate text-xs text-muted-foreground" title={`${x.empresa} · ${x.lugar}`}>
+                {x.empresa} · {x.lugar} · {x.tipoLiquidacion} · {detalle(x)}
+              </p>
             </div>
             <span className="hidden text-sm tabular-nums text-muted-foreground sm:block">{money(x.neto)}</span>
             <div className="shrink-0 text-right sm:w-36"><BadgeEntrega r={x} /></div>

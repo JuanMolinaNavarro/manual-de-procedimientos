@@ -1,10 +1,11 @@
 'use client';
 
 /**
- * Paso 2 de Gestión de recibos: avisar por mail que los recibos del mes están disponibles. El
- * mail no lleva el recibo ni importes, solo el enlace al portal, donde cada uno lo firma con su
- * PIN. Antes de enviar se ve a quién le llega y a quién no (y por qué); cada envío queda
- * registrado como prueba de la puesta a disposición.
+ * Paso 2 de Gestión de recibos: avisar por mail que los recibos del mes están disponibles. Es un
+ * aviso por mes para todos (no depende de los filtros de empleador ni de lugar). El mail no lleva
+ * el recibo ni importes, solo el enlace al portal, donde cada uno lo firma con su PIN. Antes de
+ * enviar se ve a quién le llega y a quién no (y por qué); cada envío queda registrado como prueba
+ * de la puesta a disposición.
  */
 
 import { useState } from 'react';
@@ -25,19 +26,20 @@ import { Banner, ErrorCarga } from './ui';
 const MOTIVO: Record<SinAviso['motivo'], string> = {
   sin_adhesion: 'Sin adhesión',
   pendiente_acta: 'Falta subir el acta',
+  otro_empleador: 'Adhesión con otra empresa: renovarla',
   sin_email: 'Sin email',
   sin_usuario: 'Sin usuario del portal',
 };
 
 export default function PasoAviso({ onEnviado }: { onEnviado: () => void }) {
-  const { organigramaId, periodo } = useNomina();
-  const url = organigramaId != null ? `/api/admin/nomina/firma/aviso?organigramaId=${organigramaId}&periodo=${periodo}` : null;
+  const { periodo } = useNomina();
+  const url = `/api/admin/nomina/firma/aviso?periodo=${periodo}`;
   const q = useNominaData<PreviaAviso & { historial: AvisoView[] }>(url);
   const [abierto, setAbierto] = useState(false);
   const [enviando, setEnviando] = useState(false);
   // Resultado del último envío hecho desde esta pantalla (con los fallidos por nombre), solo
-  // mientras se siga viendo la misma empresa y mes.
-  const [envio, setEnvio] = useState<{ url: string | null; r: ResultadoAviso } | null>(null);
+  // mientras se siga viendo el mismo mes.
+  const [envio, setEnvio] = useState<{ url: string; r: ResultadoAviso } | null>(null);
   const ultimoEnvio = envio && envio.url === url ? envio.r : null;
 
   const d = q.data;
@@ -52,7 +54,7 @@ export default function PasoAviso({ onEnviado }: { onEnviado: () => void }) {
     try {
       const r = await nominaFetch<ResultadoAviso>('/api/admin/nomina/firma/aviso', {
         method: 'POST',
-        body: JSON.stringify({ organigramaId, periodo }),
+        body: JSON.stringify({ periodo }),
       });
       if (r.fallidos.length) toast.warning(`${r.enviados} aviso(s) enviados, ${r.fallidos.length} con error`);
       else toast.success(`${r.enviados} aviso(s) ${r.modo === 'prueba' ? 'generados en modo prueba (no se enviaron)' : 'enviados'}`);

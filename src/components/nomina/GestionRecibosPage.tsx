@@ -2,9 +2,11 @@
 
 /**
  * Gestión de recibos (RR.HH., `/admin/gestion-recibos`): módulo propio, fuera de Nómina. Arriba
- * empresa y mes; el ciclo del mes en tres pasos — importar de Finnegans, avisar por mail, seguir
- * las firmas — y abajo las pestañas Recibos / Adhesiones / Disconformidades. La firma la hace
- * cada trabajador desde Mis recibos, en su celular, con su PIN.
+ * el mes y dos filtros que no se mezclan: el EMPLEADOR (la empresa que liquida, de Finnegans) y
+ * el LUGAR de trabajo (organigrama de la ficha). El ciclo del mes en tres pasos — importar de
+ * Finnegans, avisar por mail (a todos los del mes), seguir las firmas — y abajo las pestañas
+ * Recibos / Adhesiones / Disconformidades. La firma la hace cada trabajador desde Mis recibos, en
+ * su celular, con su PIN.
  */
 
 import { useState, type ReactNode } from 'react';
@@ -15,8 +17,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { RecibosData } from '@/lib/nomina';
-import type { CasoView, PanelRecibos } from '@/lib/recibos-finnegans';
+import type { CadenaEmpleador, RecibosData } from '@/lib/nomina';
+import type { CasoView, EmpleadorOpcion, PanelRecibos } from '@/lib/recibos-finnegans';
 import { cn } from '@/lib/utils';
 import AdhesionesTabla from './AdhesionesTabla';
 import PasoAviso from './AvisoRecibos';
@@ -25,11 +27,25 @@ import { useNomina, useNominaData } from './NominaContext';
 import { PasoCard, type EstadoPaso } from './PasoCard';
 import PasoImportar from './RecibosFinnegans';
 import RecibosPeriodo from './RecibosPeriodo';
-import { ErrorCarga, Estado } from './ui';
+import { ErrorCarga } from './ui';
 
-/** Título + empresa y mes (compartidos con Nómina por localStorage). */
-function Encabezado({ extra }: { extra?: ReactNode }) {
-  const { organigramas, organigramaId, setOrganigramaId, periodo, setPeriodo } = useNomina();
+/** Filtros de la página: empleador (CUIT) y lugar de trabajo (organigrama). '' = todos. */
+interface Filtros { empleador: string; lugar: string }
+
+const TODOS = '__todos__';
+
+/** Título + mes (compartido con Nómina por localStorage) + filtros por empleador y lugar. */
+function Encabezado({ extra, filtros, onFiltros, empleadores }: {
+  extra?: ReactNode;
+  filtros: Filtros;
+  onFiltros: (f: Filtros) => void;
+  empleadores: EmpleadorOpcion[];
+}) {
+  const { organigramas, periodo, setPeriodo } = useNomina();
+  // Un empleador elegido que no tiene recibos este mes sigue figurando (si no, el Select queda vacío).
+  const opciones = filtros.empleador && !empleadores.some((e) => e.cuit === filtros.empleador)
+    ? [...empleadores, { cuit: filtros.empleador, nombre: `CUIT ${filtros.empleador}` }]
+    : empleadores;
   return (
     <header className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -40,15 +56,25 @@ function Encabezado({ extra }: { extra?: ReactNode }) {
         {extra}
       </div>
       <div className="flex flex-wrap gap-2">
-        <Select value={organigramaId != null ? String(organigramaId) : undefined} onValueChange={(v) => setOrganigramaId(Number(v))}>
-          <SelectTrigger className="h-9 w-full sm:w-64" aria-label="Empresa">
-            <SelectValue placeholder={organigramas.length ? 'Empresa' : 'Sin organigramas'} />
+        <Input type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} className="h-9 w-full sm:w-44" aria-label="Mes" />
+        <Select value={filtros.empleador || TODOS} onValueChange={(v) => onFiltros({ ...filtros, empleador: v === TODOS ? '' : v })}>
+          <SelectTrigger className="h-9 w-full sm:w-64" aria-label="Empleador">
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value={TODOS}>Todos los empleadores</SelectItem>
+            {opciones.map((e) => <SelectItem key={e.cuit} value={e.cuit}>{e.nombre}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filtros.lugar || TODOS} onValueChange={(v) => onFiltros({ ...filtros, lugar: v === TODOS ? '' : v })}>
+          <SelectTrigger className="h-9 w-full sm:w-56" aria-label="Lugar de trabajo">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODOS}>Todos los lugares</SelectItem>
             {organigramas.map((o) => <SelectItem key={o.id} value={String(o.id)}>{o.nombre}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Input type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} className="h-9 w-full sm:w-44" aria-label="Mes" />
       </div>
     </header>
   );
@@ -63,14 +89,14 @@ function Ayuda() {
       <PopoverContent align="end" className="w-96 space-y-2 text-sm">
         <p className="font-semibold">Recibos digitales, paso a paso</p>
         <ol className="list-decimal space-y-1.5 pl-5 text-muted-foreground">
-          <li><b className="text-foreground">Adhesión (una vez, en persona):</b> el trabajador declara su email y elige su PIN. Se imprime el acta, la firman él y la empresa, y se sube escaneada.</li>
+          <li><b className="text-foreground">Adhesión (una vez, en persona):</b> el trabajador declara su email y elige su PIN. Se imprime el acta, que nombra a la empresa que le paga el sueldo; la firman él y la empresa, y se sube escaneada. Si pasa a liquidarlo otra empresa, se renueva.</li>
           <li><b className="text-foreground">Importar:</b> se traen de Finnegans los PDF oficiales del mes.</li>
           <li><b className="text-foreground">Avisar:</b> un mail sin adjuntos ni importes avisa que están disponibles.</li>
           <li><b className="text-foreground">Firmar:</b> cada uno entra al portal desde el celular, lo lee y lo firma con su PIN, en conformidad o disconformidad.</li>
           <li><b className="text-foreground">Papel:</b> quien no adhirió o no firmó en 15 días lo recibe impreso y se sube el escaneo.</li>
         </ol>
         <p className="text-xs text-muted-foreground">
-          Cada firma guarda el SHA-256 del PDF y se encadena con la anterior. Cinco PIN incorrectos bloquean 15 minutos. El PIN lo
+          Cada firma guarda el SHA-256 del PDF y se encadena con la anterior del mismo empleador. Cinco PIN incorrectos bloquean 15 minutos. El PIN lo
           cambia solo el trabajador; si lo olvida, se revoca y se renueva la adhesión. Art. 139 LCT (Ley 27.802), Ley 25.506 art. 5.
         </p>
       </PopoverContent>
@@ -78,16 +104,19 @@ function Ayuda() {
   );
 }
 
-function SelloCadena({ cadena }: { cadena: RecibosData['cadena'] }) {
-  const rota = cadena.rotos > 0;
-  const Icono = rota ? ShieldAlert : ShieldCheck;
+/** Integridad de las cadenas de constancias: una por empleador (todas, sin filtrar). */
+function SelloCadena({ cadenas }: { cadenas: CadenaEmpleador[] }) {
+  const rotos = cadenas.reduce((s, c) => s + c.rotos, 0);
+  const total = cadenas.reduce((s, c) => s + c.total, 0);
+  const Icono = rotos ? ShieldAlert : ShieldCheck;
+  const detalle = cadenas.map((c) => `${c.nombre}: ${c.total} firma(s)${c.rotos ? `, ${c.rotos} alterada(s)` : ''}`).join('\n');
   return (
     <span
-      className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs', rota ? 'border-red-500/50 text-red-600 dark:text-red-400' : 'border-border text-muted-foreground')}
-      title="Cada constancia de firma se encadena con la anterior: si alguien modificara una, la cadena lo delata."
+      className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs', rotos ? 'border-red-500/50 text-red-600 dark:text-red-400' : 'border-border text-muted-foreground')}
+      title={`Cada constancia de firma se encadena con la anterior del mismo empleador: si alguien modificara una, la cadena lo delata.${detalle ? `\n\n${detalle}` : ''}`}
     >
       <Icono className="h-3.5 w-3.5" />
-      {rota ? `${cadena.rotos} constancia(s) alterada(s)` : `Constancias íntegras (${cadena.total})`}
+      {rotos ? `${rotos} constancia(s) alterada(s)` : `Constancias íntegras (${total})`}
     </span>
   );
 }
@@ -130,19 +159,23 @@ function PasoFirmas({ panel, error, onReintentar, onVer }: {
 }
 
 export default function GestionRecibosPage() {
-  const { organigramaId, periodo, listo, refrescar } = useNomina();
-  const q = organigramaId != null ? `organigramaId=${organigramaId}` : null;
-  const rec = useNominaData<RecibosData>(q ? `/api/admin/nomina/recibos?${q}` : null);
-  const panel = useNominaData<PanelRecibos>(q ? `/api/admin/nomina/firma/panel?${q}&periodo=${periodo}` : null);
-  const casos = useNominaData<CasoView[]>(q ? `/api/admin/nomina/firma/casos?${q}` : null);
+  const { periodo, refrescar } = useNomina();
+  const [filtros, setFiltros] = useState<Filtros>({ empleador: '', lugar: '' });
+  const q = new URLSearchParams(Object.entries(filtros).filter(([, v]) => v)).toString();
+  const rec = useNominaData<RecibosData>(`/api/admin/nomina/recibos?${q}`);
+  const panel = useNominaData<PanelRecibos>(`/api/admin/nomina/firma/panel?periodo=${periodo}${q ? `&${q}` : ''}`);
+  const casos = useNominaData<CasoView[]>(`/api/admin/nomina/firma/casos?${q}`);
   const [tab, setTab] = useState('recibos');
 
+  const encabezado = (extra?: ReactNode) => (
+    <Encabezado extra={extra} filtros={filtros} onFiltros={setFiltros} empleadores={panel.data?.empleadores ?? []} />
+  );
   const d = rec.data;
-  if (!d || organigramaId == null) {
+  if (!d) {
     return (
       <div className="mx-auto w-full max-w-5xl space-y-6">
-        <Encabezado />
-        <Estado loading={rec.loading} error={rec.error} sinOrg={listo && organigramaId == null} />
+        {encabezado()}
+        {rec.error ? <ErrorCarga error={rec.error} onReintentar={rec.reload} /> : <p className="text-sm text-muted-foreground">Cargando…</p>}
       </div>
     );
   }
@@ -152,7 +185,7 @@ export default function GestionRecibosPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6">
-      <Encabezado extra={<div className="flex items-center gap-2"><SelloCadena cadena={d.cadena} /><Ayuda /></div>} />
+      {encabezado(<div className="flex items-center gap-2"><SelloCadena cadenas={d.cadenas} /><Ayuda /></div>)}
       <section className="grid gap-3 md:grid-cols-3" aria-label="Pasos del mes">
         <PasoImportar onCambio={refrescar} />
         <PasoAviso onEnviado={refrescar} />
@@ -174,7 +207,7 @@ export default function GestionRecibosPage() {
         </TabsContent>
         <TabsContent value="adhesiones"><AdhesionesTabla adhesiones={d.adhesiones} onCambio={refrescar} /></TabsContent>
         <TabsContent value="casos">
-          {casos.error && !casos.data ? <ErrorCarga error={casos.error} onReintentar={casos.reload} /> : <CasosDisconformidad casos={casos.data} onCambio={refrescar} />}
+          {casos.error && !casos.data ? <ErrorCarga error={casos.error} onReintentar={casos.reload} /> : <CasosDisconformidad casos={casos.data} filtros={q} onCambio={refrescar} />}
         </TabsContent>
       </Tabs>
     </div>

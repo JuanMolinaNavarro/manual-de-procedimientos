@@ -16,7 +16,7 @@ import { fechaHora, periodLabel } from '@/lib/nomina-calc';
 import type { CasoView } from '@/lib/recibos-finnegans';
 import { cn } from '@/lib/utils';
 import { mensajeError, nominaFetch } from './api';
-import { useNomina, useNominaData } from './NominaContext';
+import { useNominaData } from './NominaContext';
 import { Empty, ErrorCarga } from './ui';
 
 function Encabezado({ c }: { c: CasoView }) {
@@ -24,7 +24,7 @@ function Encabezado({ c }: { c: CasoView }) {
     <>
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <span className="font-semibold text-foreground">{c.nombre}</span>
-        <span className="text-sm text-muted-foreground">{periodLabel(c.periodo)} · {c.tipoLiquidacion}</span>
+        <span className="text-sm text-muted-foreground">{c.empresa} · {periodLabel(c.periodo)} · {c.tipoLiquidacion}</span>
         <span className="ml-auto text-xs text-muted-foreground">firmó {fechaHora(c.firmadoEn)}</span>
       </div>
       <blockquote className="border-l-4 border-amber-500 bg-amber-500/10 px-3 py-2 text-sm text-foreground">
@@ -34,9 +34,8 @@ function Encabezado({ c }: { c: CasoView }) {
   );
 }
 
-function Resueltos() {
-  const { organigramaId } = useNomina();
-  const q = useNominaData<CasoView[]>(organigramaId != null ? `/api/admin/nomina/firma/casos?organigramaId=${organigramaId}&estado=resuelto` : null);
+function Resueltos({ filtros }: { filtros: string }) {
+  const q = useNominaData<CasoView[]>(`/api/admin/nomina/firma/casos?estado=resuelto${filtros ? `&${filtros}` : ''}`);
   if (q.error && !q.data) return <ErrorCarga error={q.error} onReintentar={q.reload} />;
   if (!q.data) return <p className="text-sm text-muted-foreground">Cargando…</p>;
   if (!q.data.length) return <Empty title="Todavía no hay casos resueltos" />;
@@ -57,7 +56,8 @@ function Resueltos() {
   );
 }
 
-export default function CasosDisconformidad({ casos, onCambio }: { casos: CasoView[] | null; onCambio: () => void }) {
+/** `filtros`: query string con los filtros de la página (empleador, lugar), para los resueltos. */
+export default function CasosDisconformidad({ casos, filtros, onCambio }: { casos: CasoView[] | null; filtros: string; onCambio: () => void }) {
   const [notas, setNotas] = useState<Record<number, string>>({});
   const [ocupado, setOcupado] = useState<number | null>(null);
   const [vista, setVista] = useState<'abiertos' | 'resueltos'>('abiertos');
@@ -99,7 +99,7 @@ export default function CasosDisconformidad({ casos, onCambio }: { casos: CasoVi
   );
 
   if (vista === 'resueltos') {
-    return <div className="space-y-3">{selector}<Resueltos /></div>;
+    return <div className="space-y-3">{selector}<Resueltos filtros={filtros} /></div>;
   }
   if (!casos) return <div className="space-y-3">{selector}</div>;
   if (!casos.length) {
