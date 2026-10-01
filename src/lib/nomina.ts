@@ -59,6 +59,7 @@ import {
   verificarPin,
 } from './nomina-pin';
 import { emailValido, normalizarEmail } from './recibos-aviso';
+import { formatoCuit } from './recibos-finnegans-calc';
 
 export class NominaError extends Error {
   status: number;
@@ -103,6 +104,8 @@ export interface AdhesionView {
   fecha: string;
   modo: string;
   cuil: string;
+  /** Empleador que nombra el acta (el que le liquidaba al adherir). Solo firma recibos de esa empresa. */
+  empleador: { cuit: string; nombre: string };
   pinCambiado: string | null;
   /** Completa = con acta firmada subida. Sin acta la adhesión NO habilita firmas. */
   completa: boolean;
@@ -172,12 +175,24 @@ export interface TableroData {
 export interface AdhesionRow {
   empleado: EmpleadoNomina;
   cuil: string;
+  /** Lugar de trabajo hoy (organigrama de la ficha). */
+  lugar: string;
+  /** Quién le liquida hoy: la última liquidación de Finnegans con su CUIL. null = todavía no aparece. */
+  empleadorActual: { cuit: string; nombre: string } | null;
   adhesion: AdhesionView | null;
 }
 
-/** Panel de adhesiones (Nómina › Recibos). Los recibos PDF y sus firmas: recibos-finnegans.ts. */
+/** Cadena de constancias de un empleador: cada empresa tiene la suya. */
+export interface CadenaEmpleador {
+  cuit: string;
+  nombre: string;
+  total: number;
+  rotos: number;
+}
+
+/** Panel de adhesiones de Gestión de recibos + integridad de las cadenas. Los recibos PDF: recibos-finnegans.ts. */
 export interface RecibosData {
-  cadena: { total: number; rotos: number };
+  cadenas: CadenaEmpleador[];
   adhesiones: AdhesionRow[];
 }
 
@@ -196,8 +211,8 @@ export interface ReciboVista {
 /** Recibo PDF (Finnegans) de una ficha, para la pestaña "Recibos" del organigrama. */
 export interface ReciboDeEmpleado {
   id: string;
-  organigramaId: number;
-  organigramaNombre: string;
+  /** Empleador (empresa de la liquidación). */
+  empresa: string;
   periodo: string;
   tipoLiquidacion: string;
   neto: number;
@@ -209,7 +224,6 @@ export interface ActaDatos {
   empresa: { razonSocial: string; cuit: string; domicilio: string };
   trabajador: { id: number; nombre: string; cuil: string; categoria: string };
   adhesion: { codigo: string | null; fecha: string; creadaEn: string; email: string | null } | null;
-  organigramaId: number;
 }
 
 // ─── Helpers internos ────────────────────────────────────────────────────────
@@ -275,6 +289,7 @@ export function toConstancia(c: ConstanciaDb): ConstanciaView {
 
 type AdhesionDb = {
   empleado_id: number; codigo: string | null; email: string | null; fecha: string; modo: string; cuil: string; pin_cambiado: string | null;
+  empleador_cuit: string; empleador_nombre: string;
   pin_bloqueado_hasta: Date | null; acta_archivo: string | null; acta_nombre_original: string | null; acta_tamano: number | null;
   acta_sha256: string | null; acta_subida_en: Date | null;
 };
@@ -283,6 +298,7 @@ function toAdhesion(a: AdhesionDb): AdhesionView {
   const bloqueo = a.pin_bloqueado_hasta && a.pin_bloqueado_hasta.getTime() > Date.now() ? a.pin_bloqueado_hasta.toISOString() : null;
   return {
     empleadoId: a.empleado_id, codigo: a.codigo, email: a.email, fecha: a.fecha, modo: a.modo, cuil: a.cuil, pinCambiado: a.pin_cambiado,
+    empleador: { cuit: a.empleador_cuit, nombre: a.empleador_nombre },
     completa: !!a.acta_archivo, bloqueadaHasta: bloqueo,
     acta: a.acta_archivo
       ? {
@@ -604,12 +620,20 @@ function liquidarContexto(ctx: ContextoLiq, periodo: string): Liquidacion[] {
  * cálculo propio: acá solo se informa.
  */
 async function constanciasDe(orgId: number, periodo: string): Promise<Record<number, ConstanciaView>> {
-  const rows = await prisma.nominaConstancia.findMany({ where: { organigrama_id: orgId, periodo }, orderBy: [{ fecha: 'asc' }, { id: 'asc' }] });
+  const rows = await prisma.nominaConstancia.findMany({ where: { periodo, ...deFichasDe(orgId) }, orderBy: [{ fecha: 'asc' }, { id: 'asc' }] });
   return Object.fromEntries(rows.map((c) => [c.empleado_id, toConstancia(c)]));
 }
 
+/**
+ * Firmas y adhesiones son de la persona, no del organigrama: para los contadores del motor propio
+ * (que sí es por organigrama) se toman las de las fichas que están hoy en ese organigrama.
+ */
+function deFichasDe(orgId: number) {
+  return { empleado: { organigrama_id: orgId } };
+}
+
 async function adhesionesDe(orgId: number): Promise<Record<number, AdhesionView>> {
-  const rows = await prisma.nominaAdhesion.findMany({ where: { organigrama_id: orgId } });
+  const rows = await prisma.nominaAdhesion.findMany({ where: deFichasDe(orgId) });
   return Object.fromEntries(rows.map((a) => [a.empleado_id, toAdhesion(a)]));
 }
 
@@ -688,7 +712,7 @@ export async function cerrarPeriodo(orgId: number, periodo: string, username: st
 export async function reabrirPeriodo(orgId: number, periodo: string): Promise<{ firmasConservadas: number }> {
   const cierre = await getCierre(orgId, periodo);
   if (!cierre) throw new NominaError('El período no está cerrado', 404);
-  const firmas = await prisma.nominaConstancia.count({ where: { organigrama_id: orgId, periodo } });
+  const firmas = await prisma.nominaConstancia.count({ where: { periodo, ...deFichasDe(orgId) } });
   await prisma.nominaCierre.delete({ where: { id: cierre.id } }); // cascade: liquidaciones; las constancias quedan
   return { firmasConservadas: firmas };
 }
@@ -699,7 +723,7 @@ export async function getHistorico(orgId: number): Promise<HistoricoRow[]> {
     orderBy: { periodo: 'desc' },
     include: { liquidaciones: { select: { neto: true, costo_empresa: true } } },
   });
-  const firmados = await prisma.nominaConstancia.groupBy({ by: ['periodo'], where: { organigrama_id: orgId }, _count: { _all: true } });
+  const firmados = await prisma.nominaConstancia.groupBy({ by: ['periodo'], where: deFichasDe(orgId), _count: { _all: true } });
   const firmadosPor = Object.fromEntries(firmados.map((f) => [f.periodo, f._count._all]));
   return cierres.map((c) => ({
     periodo: c.periodo, fechaCierre: c.fecha_cierre, empleados: c.liquidaciones.length,
@@ -716,7 +740,7 @@ export async function getEstado(orgId: number, periodo: string): Promise<EstadoP
   ]);
   const incluidos = maestro.filter((r) => r.maestro.incluir);
   // Firmas de los recibos PDF de Finnegans del período (no dependen del cierre del motor propio).
-  const firmados = await prisma.nominaConstancia.count({ where: { organigrama_id: orgId, periodo } });
+  const firmados = await prisma.nominaConstancia.count({ where: { periodo, ...deFichasDe(orgId) } });
   return {
     total: maestro.length, incluidos: incluidos.length, conBasico: incluidos.filter((r) => r.maestro.basico > 0).length,
     cerrado: !!cierre, fechaCierre: cierre?.fecha_cierre ?? null, firmados, enCierre: cierre?._count.liquidaciones ?? 0,
@@ -825,15 +849,32 @@ function validarPin(pin: unknown, pin2: unknown): string {
   return r.pin;
 }
 
+/** Ficha por id, esté en el organigrama que esté (adhesiones y recibos son de la persona). */
+async function empleadoPorId(empleadoId: number): Promise<EmpleadoNomina> {
+  const e = await prisma.orgEmpleado.findUnique({ where: { id: empleadoId }, select: SELECT_EMPLEADO });
+  if (!e) throw new NominaError('Empleado inexistente', 404);
+  return toEmpleado(e);
+}
+
 /**
  * Adhesión presencial: el trabajador elige su PIN (dos veces) delante de RR.HH. y declara el
  * email donde recibe los avisos de recibos (queda impreso en el acta). Queda PENDIENTE hasta
  * que se sube el acta firmada en papel. Después firma sus recibos desde el portal.
+ * El acta nombra al EMPLEADOR, que sale de Finnegans (la última liquidación con su CUIL): si la
+ * persona todavía no aparece en ninguna liquidación, no se puede adherir (decisión del usuario).
  */
-export async function adherir(orgId: number, empleadoId: number, email: unknown, pin: unknown, pin2: unknown, username: string | null): Promise<AdhesionView> {
-  const empleado = await empleadoDeOrg(orgId, empleadoId);
+export async function adherir(empleadoId: number, email: unknown, pin: unknown, pin2: unknown, username: string | null): Promise<AdhesionView> {
+  const empleado = await empleadoPorId(empleadoId);
   const m = toMaestro(await prisma.nominaEmpleado.findUnique({ where: { empleado_id: empleadoId } }), empleado.estado);
   if (!m.cuil) throw new NominaError('Cargá el CUIL en el Maestro antes de adherir');
+  const empleador = await empleadorPorCuil(m.cuil);
+  if (!empleador) {
+    throw new NominaError(
+      'Todavía no hay ninguna liquidación de Finnegans con su CUIL: el acta tiene que nombrar a la empresa que le paga. ' +
+        'Buscá las liquidaciones del mes en el paso 1 y adherilo cuando aparezca.',
+      409,
+    );
+  }
   if (!emailValido(email)) throw new NominaError('Ingresá un email válido: ahí le avisamos cuando tenga recibos para firmar');
   const mail = normalizarEmail(email);
   const p = validarPin(pin, pin2);
@@ -843,7 +884,7 @@ export async function adherir(orgId: number, empleadoId: number, email: unknown,
   const row = await prisma.$transaction(async (tx) => {
     const creada = await tx.nominaAdhesion.create({
       data: {
-        empleado_id: empleadoId, organigrama_id: orgId, fecha: hoyLocal(), modo: 'papel',
+        empleado_id: empleadoId, empleador_cuit: empleador.cuit, empleador_nombre: empleador.nombre, fecha: hoyLocal(), modo: 'papel',
         cuil: m.cuil, email: mail, pin_hash: pinHash, created_by: username,
       },
     });
@@ -875,10 +916,10 @@ async function firmasConAdhesion(
  * Adhesión bloqueada (FOR UPDATE) dentro de una transacción: la firma bloquea la misma fila, así
  * que quitar/reemplazar el acta o revocar no se cruzan con una firma en curso.
  */
-async function adhesionBloqueada(tx: Prisma.TransactionClient, orgId: number, empleadoId: number) {
+async function adhesionBloqueada(tx: Prisma.TransactionClient, empleadoId: number) {
   await tx.$queryRaw`SELECT id FROM nomina_adhesiones WHERE empleado_id = ${empleadoId} FOR UPDATE`;
   const a = await tx.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } });
-  if (!a || a.organigrama_id !== orgId) throw new NominaError('El trabajador no está adherido', 404);
+  if (!a) throw new NominaError('El trabajador no está adherido', 404);
   return a;
 }
 
@@ -950,13 +991,14 @@ export async function cambiarPinPropio(
  * nada: la archiva en `NominaAdhesionRevocada` con su código y su acta escaneada (respaldo de
  * las firmas ya hechas). Después se puede adherir de nuevo (presencial, acta nueva).
  */
-export async function revocarAdhesion(orgId: number, empleadoId: number, username: string | null, motivo: unknown): Promise<void> {
+export async function revocarAdhesion(empleadoId: number, username: string | null, motivo: unknown): Promise<void> {
   const m = typeof motivo === 'string' ? motivo.trim().slice(0, 500) : '';
   await prisma.$transaction(async (tx) => {
-    const a = await adhesionBloqueada(tx, orgId, empleadoId);
+    const a = await adhesionBloqueada(tx, empleadoId);
     await tx.nominaAdhesionRevocada.create({
       data: {
-        empleado_id: a.empleado_id, organigrama_id: a.organigrama_id, codigo: a.codigo, fecha: a.fecha, cuil: a.cuil,
+        empleado_id: a.empleado_id, empleador_cuit: a.empleador_cuit, empleador_nombre: a.empleador_nombre,
+        codigo: a.codigo, fecha: a.fecha, cuil: a.cuil,
         acta_archivo: a.acta_archivo, acta_nombre_original: a.acta_nombre_original, acta_sha256: a.acta_sha256,
         adherida_por: a.created_by, adherida_en: a.created_at, revocada_por: username, motivo: m,
       },
@@ -965,16 +1007,16 @@ export async function revocarAdhesion(orgId: number, empleadoId: number, usernam
   });
 }
 
-export async function getAdhesion(orgId: number, empleadoId: number): Promise<{ view: AdhesionView; actaArchivo: string | null }> {
+export async function getAdhesion(empleadoId: number): Promise<{ view: AdhesionView; actaArchivo: string | null }> {
   const a = await prisma.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } });
-  if (!a || a.organigrama_id !== orgId) throw new NominaError('El trabajador no está adherido', 404);
+  if (!a) throw new NominaError('El trabajador no está adherido', 404);
   return { view: toAdhesion(a), actaArchivo: a.acta_archivo };
 }
 
 /** Registra el acta escaneada; devuelve el archivo anterior (para borrarlo). */
-export async function setActa(orgId: number, empleadoId: number, acta: { archivo: string; nombreOriginal: string; tamano: number; sha256: string }): Promise<{ anterior: string | null; view: AdhesionView }> {
+export async function setActa(empleadoId: number, acta: { archivo: string; nombreOriginal: string; tamano: number; sha256: string }): Promise<{ anterior: string | null; view: AdhesionView }> {
   return prisma.$transaction(async (tx) => {
-    const a = await adhesionBloqueada(tx, orgId, empleadoId);
+    const a = await adhesionBloqueada(tx, empleadoId);
     if (a.acta_archivo && (await firmasConAdhesion(a, tx)) > 0) {
       throw new NominaError('Ya hay recibos firmados con esta adhesión: el acta no se reemplaza. Para corregirla, revocá y renová la adhesión', 409);
     }
@@ -989,9 +1031,9 @@ export async function setActa(orgId: number, empleadoId: number, acta: { archivo
   });
 }
 
-export async function clearActa(orgId: number, empleadoId: number): Promise<{ anterior: string | null }> {
+export async function clearActa(empleadoId: number): Promise<{ anterior: string | null }> {
   return prisma.$transaction(async (tx) => {
-    const a = await adhesionBloqueada(tx, orgId, empleadoId);
+    const a = await adhesionBloqueada(tx, empleadoId);
     if ((await firmasConAdhesion(a, tx)) > 0) {
       throw new NominaError('Ya hay recibos firmados con esta adhesión: el acta es su respaldo y no se puede quitar', 409);
     }
@@ -1003,42 +1045,69 @@ export async function clearActa(orgId: number, empleadoId: number): Promise<{ an
   });
 }
 
-/**
- * Empleador según la última liquidación de Finnegans de ese CUIL. Los organigramas son lugares
- * físicos y en uno pueden trabajar personas de distintas empresas: el empleador del acta no es
- * el de Nómina › Parámetros sino quien le liquida el sueldo. Sin liquidación indexada → null.
- */
-async function empleadorPorCuil(cuil: string): Promise<ActaDatos['empresa'] | null> {
-  const digitos = cuil.replace(/\D/g, '');
-  if (digitos.length !== 11) return null;
-  const [l] = await prisma.$queryRaw<{ empresa_nombre: string; empresa_cuit: string; domicilio: string | null }[]>`
-    SELECT l.empresa_nombre, l.empresa_cuit, f->>'EMPRESADIRECCION' AS domicilio
-    FROM nomina_finn_liquidaciones l, jsonb_array_elements(l.filas) f
-    WHERE regexp_replace(f->>'IDENTIFICACIONTRIBUTARIANUMERO', '\\D', '', 'g') = ${digitos}
-    ORDER BY l.periodo DESC, l.id DESC
-    LIMIT 1`;
-  if (!l) return null;
-  const c = l.empresa_cuit;
-  return {
-    razonSocial: l.empresa_nombre,
-    cuit: c.length === 11 ? `${c.slice(0, 2)}-${c.slice(2, 10)}-${c[10]}` : c,
-    domicilio: (l.domicilio ?? '').trim(),
-  };
+/** Empleador de Finnegans: CUIT (11 dígitos) y razón social. */
+export interface EmpleadorFinn {
+  cuit: string;
+  nombre: string;
 }
 
-export async function getActaDatos(orgId: number, empleadoId: number): Promise<ActaDatos> {
-  const [empleado, config] = await Promise.all([empleadoDeOrg(orgId, empleadoId), getConfig(orgId)]);
+/**
+ * Empleador actual de cada CUIL (solo dígitos): el de su última liquidación de Finnegans (mayor
+ * período; empate → la indexada última). Sin `cuiles` trae todos. Un CUIL que todavía no aparece
+ * en ninguna liquidación no figura.
+ */
+async function empleadoresPorCuil(cuiles?: string[]): Promise<Map<string, EmpleadorFinn>> {
+  const filtro = cuiles ? cuiles.map((c) => c.replace(/\D/g, '')).filter((c) => c.length === 11) : null;
+  if (filtro && !filtro.length) return new Map();
+  const rows = await prisma.$queryRaw<{ cuil: string; empresa_cuit: string; empresa_nombre: string }[]>`
+    SELECT DISTINCT ON (x.cuil) x.cuil, x.empresa_cuit, x.empresa_nombre
+    FROM (
+      SELECT regexp_replace(f->>'IDENTIFICACIONTRIBUTARIANUMERO', '\\D', '', 'g') AS cuil,
+             regexp_replace(l.empresa_cuit, '\\D', '', 'g') AS empresa_cuit, l.empresa_nombre, l.periodo, l.id
+      FROM nomina_finn_liquidaciones l, jsonb_array_elements(l.filas) f
+    ) x
+    WHERE ${filtro}::text[] IS NULL OR x.cuil = ANY(${filtro}::text[])
+    ORDER BY x.cuil, x.periodo DESC, x.id DESC`;
+  return new Map(rows.map((r) => [r.cuil, { cuit: r.empresa_cuit, nombre: r.empresa_nombre }]));
+}
+
+/**
+ * Empleador según la última liquidación de Finnegans de ese CUIL: el que nombra el acta (los
+ * organigramas son lugares de trabajo y en uno trabaja gente de varias empresas). Sin
+ * liquidación indexada → null.
+ */
+async function empleadorPorCuil(cuil: string): Promise<EmpleadorFinn | null> {
+  return (await empleadoresPorCuil([cuil])).get(cuil.replace(/\D/g, '')) ?? null;
+}
+
+/** Domicilio de un empleador según sus liquidaciones de Finnegans ('' si no lo trae ninguna). */
+async function domicilioEmpleador(cuit: string): Promise<string> {
+  const [l] = await prisma.$queryRaw<{ domicilio: string | null }[]>`
+    SELECT l.filas->0->>'EMPRESADIRECCION' AS domicilio
+    FROM nomina_finn_liquidaciones l
+    WHERE regexp_replace(l.empresa_cuit, '\\D', '', 'g') = ${cuit}
+    ORDER BY coalesce(l.filas->0->>'EMPRESADIRECCION', '') = '', l.periodo DESC, l.id DESC
+    LIMIT 1`;
+  return (l?.domicilio ?? '').trim();
+}
+
+/**
+ * Datos del acta. El empleador es el congelado en la adhesión (el que nombra el acta firmada);
+ * antes de adherir, el actual de Finnegans. Sin ninguno de los dos no hay acta: 409.
+ */
+export async function getActaDatos(empleadoId: number): Promise<ActaDatos> {
+  const empleado = await empleadoPorId(empleadoId);
   const m = toMaestro(await prisma.nominaEmpleado.findUnique({ where: { empleado_id: empleadoId } }), empleado.estado);
   const a = await prisma.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } });
   const cuil = a?.cuil ?? m.cuil;
-  const finn = await empleadorPorCuil(cuil);
+  const empleador = a ? { cuit: a.empleador_cuit, nombre: a.empleador_nombre } : await empleadorPorCuil(cuil);
+  if (!empleador) {
+    throw new NominaError('Todavía no hay ninguna liquidación de Finnegans con su CUIL: el acta no tiene a qué empleador nombrar', 409);
+  }
   return {
-    empresa: finn
-      ? { ...finn, domicilio: finn.domicilio || config.empresa.domicilio }
-      : { razonSocial: config.empresa.razonSocial, cuit: config.empresa.cuit, domicilio: config.empresa.domicilio },
+    empresa: { razonSocial: empleador.nombre, cuit: formatoCuit(empleador.cuit), domicilio: await domicilioEmpleador(empleador.cuit) },
     trabajador: { id: empleado.id, nombre: empleado.nombre, cuil, categoria: m.categoria },
-    adhesion: a && a.organigrama_id === orgId ? { codigo: a.codigo, fecha: a.fecha, creadaEn: a.created_at.toISOString(), email: a.email } : null,
-    organigramaId: orgId,
+    adhesion: a ? { codigo: a.codigo, fecha: a.fecha, creadaEn: a.created_at.toISOString(), email: a.email } : null,
   };
 }
 
@@ -1046,17 +1115,55 @@ export async function getActaDatos(orgId: number, empleadoId: number): Promise<A
 // el trabajador firma desde el portal (su celular) con usuario + PIN (scrypt, nomina-pin.ts)
 // y bloqueo persistente. El recibo calculado por el motor propio NO se firma.
 
-export async function verificarCadenaOrg(orgId: number): Promise<{ total: number; rotos: number }> {
-  const rows = await prisma.nominaConstancia.findMany({ where: { organigrama_id: orgId }, orderBy: [{ fecha: 'asc' }, { id: 'asc' }] });
-  return verificarCadena(rows);
+/** Integridad de las cadenas de constancias, una por empleador. */
+export async function verificarCadenas(): Promise<CadenaEmpleador[]> {
+  const rows = await prisma.nominaConstancia.findMany({ orderBy: [{ fecha: 'asc' }, { id: 'asc' }] });
+  const porEmpleador = new Map<string, typeof rows>();
+  for (const r of rows) porEmpleador.set(r.empleador_cuit, [...(porEmpleador.get(r.empleador_cuit) ?? []), r]);
+  if (!porEmpleador.size) return [];
+  const nombres = new Map(
+    (await prisma.nominaFinnLiquidacion.findMany({ select: { empresa_cuit: true, empresa_nombre: true } }))
+      .map((l) => [l.empresa_cuit.replace(/\D/g, ''), l.empresa_nombre]),
+  );
+  return [...porEmpleador]
+    .map(([cuit, cadena]) => ({ cuit, nombre: nombres.get(cuit) ?? formatoCuit(cuit), ...verificarCadena(cadena) }))
+    .sort((x, y) => x.nombre.localeCompare(y.nombre, 'es'));
 }
 
-export async function getRecibos(orgId: number): Promise<RecibosData> {
-  const [maestro, adhesiones, cadena] = await Promise.all([getMaestro(orgId), adhesionesDe(orgId), verificarCadenaOrg(orgId)]);
-  return {
-    cadena,
-    adhesiones: maestro.map((r) => ({ empleado: r.empleado, cuil: r.maestro.cuil, adhesion: adhesiones[r.empleado.id] ?? null })),
-  };
+/**
+ * Panel de adhesiones de Gestión de recibos: todas las personas con CUIL en el Maestro, estén en
+ * el organigrama que estén, con su lugar de trabajo, su empleador actual (Finnegans) y su
+ * adhesión. Filtros opcionales: empleador actual (CUIT) y lugar (organigrama).
+ */
+export async function getRecibos(filtros: { empleador?: string | null; lugar?: number | null } = {}): Promise<RecibosData> {
+  const [maestros, organigramas, empleadores, cadenas] = await Promise.all([
+    prisma.nominaEmpleado.findMany({
+      where: { cuil: { not: '' }, ...(filtros.lugar != null ? { empleado: { organigrama_id: filtros.lugar } } : {}) },
+      select: {
+        cuil: true,
+        empleado: { select: { ...SELECT_EMPLEADO, organigrama_id: true, nomina_adhesion: true } },
+      },
+      orderBy: { empleado: { nombre: 'asc' } },
+    }),
+    prisma.organigrama.findMany({ select: { id: true, nombre: true } }),
+    empleadoresPorCuil(),
+    verificarCadenas(),
+  ]);
+  const nombreOrg = new Map(organigramas.map((o) => [o.id, o.nombre]));
+  const adhesiones: AdhesionRow[] = [];
+  for (const m of maestros) {
+    const empleadorActual = empleadores.get(m.cuil.replace(/\D/g, '')) ?? null;
+    if (filtros.empleador && empleadorActual?.cuit !== filtros.empleador) continue;
+    const e = m.empleado;
+    adhesiones.push({
+      empleado: toEmpleado(e),
+      cuil: m.cuil,
+      lugar: e.organigrama_id == null ? 'Sin organigrama' : nombreOrg.get(e.organigrama_id) ?? `#${e.organigrama_id}`,
+      empleadorActual,
+      adhesion: e.nomina_adhesion ? toAdhesion(e.nomina_adhesion) : null,
+    });
+  }
+  return { cadenas, adhesiones };
 }
 
 /** Recibo de un empleado en un período: snapshot si está cerrado, en vivo si no. */
@@ -1096,17 +1203,11 @@ export async function getReciboVista(orgId: number, periodo: string, empleadoId:
 export async function getRecibosDeEmpleado(empleadoId: number): Promise<ReciboDeEmpleado[]> {
   const rows = await prisma.nominaReciboPdf.findMany({
     where: { empleado_id: empleadoId },
-    include: { constancia: { select: { conformidad: true, fecha: true } } },
+    include: { constancia: { select: { conformidad: true, fecha: true } }, liquidacion: { select: { empresa_nombre: true } } },
     orderBy: [{ periodo: 'desc' }, { created_at: 'desc' }],
   });
-  if (!rows.length) return [];
-  const orgs = await prisma.organigrama.findMany({
-    where: { id: { in: [...new Set(rows.map((r) => r.organigrama_id))] } },
-    select: { id: true, nombre: true },
-  });
-  const nombreOrg = new Map(orgs.map((o) => [o.id, o.nombre]));
   return rows.map((r) => ({
-    id: r.id, organigramaId: r.organigrama_id, organigramaNombre: nombreOrg.get(r.organigrama_id) ?? '',
+    id: r.id, empresa: r.liquidacion.empresa_nombre,
     periodo: r.periodo, tipoLiquidacion: r.tipo_liquidacion, neto: r.neto, estado: r.estado,
     constancia: r.constancia ? { conformidad: r.constancia.conformidad, fecha: r.constancia.fecha } : null,
   }));

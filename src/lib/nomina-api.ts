@@ -50,6 +50,16 @@ export function parseOrgId(v: unknown): number {
   return n;
 }
 
+/**
+ * Filtros opcionales de Gestión de recibos: `empleador` (CUIT de la empresa que liquida) y
+ * `lugar` (organigrama de la ficha). Vacíos o inválidos = sin filtro.
+ */
+export function parseFiltrosRecibos(p: URLSearchParams): { empleador: string | null; lugar: number | null } {
+  const cuit = (p.get('empleador') ?? '').replace(/\D/g, '');
+  const lugar = Number(p.get('lugar'));
+  return { empleador: cuit.length === 11 ? cuit : null, lugar: Number.isInteger(lugar) && lugar > 0 ? lugar : null };
+}
+
 export function parsePeriodo(v: unknown): string {
   if (typeof v !== 'string' || !PERIODO_RE.test(v)) throw new NominaError('Período inválido (formato YYYY-MM)', 400);
   return v;
