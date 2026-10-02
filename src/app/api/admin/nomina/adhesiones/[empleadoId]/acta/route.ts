@@ -9,7 +9,7 @@ import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { createHash, randomUUID } from 'crypto';
 import { puedeGestionarPinSesion } from '@/lib/admin-auth';
-import { handle, parseId, parseOrgId } from '@/lib/nomina-api';
+import { handle, parseId } from '@/lib/nomina-api';
 import { NominaError, clearActa, getAdhesion, setActa } from '@/lib/nomina';
 import { ACTAS_DIR, ACTA_MAX_BYTES } from '@/lib/nomina-actas';
 import { headersArchivo } from '@/lib/archivos';
@@ -28,11 +28,10 @@ function borrar(archivo: string | null) {
   try { unlinkSync(join(ACTAS_DIR, archivo)); } catch { /* puede no existir */ }
 }
 
-export async function GET(request: NextRequest, { params }: Ctx) {
+export async function GET(_request: NextRequest, { params }: Ctx) {
   return handle('GET /api/admin/nomina/adhesiones/[empleadoId]/acta', async () => {
     const { empleadoId } = await params;
-    const orgId = parseOrgId(request.nextUrl.searchParams.get('organigramaId'));
-    const { view, actaArchivo } = await getAdhesion(orgId, parseId(empleadoId, 'empleadoId'));
+    const { view, actaArchivo } = await getAdhesion(parseId(empleadoId, 'empleadoId'));
     if (!actaArchivo || !view.acta) throw new NominaError('Sin acta cargada', 404);
     let buffer: Buffer;
     try {
@@ -52,7 +51,6 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     await exigirRrhh();
     const { empleadoId } = await params;
     const formData = await request.formData();
-    const orgId = parseOrgId(formData.get('organigramaId') ?? request.nextUrl.searchParams.get('organigramaId'));
     const file = formData.get('archivo');
     if (!(file instanceof File) || !file.size) throw new NominaError('Falta el archivo del acta');
     if (!file.name.toLowerCase().endsWith('.pdf')) throw new NominaError('El acta debe ser un PDF');
@@ -64,7 +62,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     mkdirSync(ACTAS_DIR, { recursive: true });
     writeFileSync(join(ACTAS_DIR, storedName), buffer);
     try {
-      const { anterior, view } = await setActa(orgId, parseId(empleadoId, 'empleadoId'), {
+      const { anterior, view } = await setActa(parseId(empleadoId, 'empleadoId'), {
         archivo: storedName, nombreOriginal: file.name, tamano: buffer.length,
         sha256: createHash('sha256').update(buffer).digest('hex'),
       });
@@ -77,12 +75,11 @@ export async function POST(request: NextRequest, { params }: Ctx) {
   });
 }
 
-export async function DELETE(request: NextRequest, { params }: Ctx) {
+export async function DELETE(_request: NextRequest, { params }: Ctx) {
   return handle('DELETE /api/admin/nomina/adhesiones/[empleadoId]/acta', async () => {
     await exigirRrhh();
     const { empleadoId } = await params;
-    const orgId = parseOrgId(request.nextUrl.searchParams.get('organigramaId'));
-    const { anterior } = await clearActa(orgId, parseId(empleadoId, 'empleadoId'));
+    const { anterior } = await clearActa(parseId(empleadoId, 'empleadoId'));
     borrar(anterior);
     return NextResponse.json({ ok: true });
   });

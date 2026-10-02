@@ -61,7 +61,7 @@ export default function RecibosDelEmpleado({ recibos, error }: EstadoRecibosEmpl
               <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
             </a>
             <p className="font-mono text-[11px] text-muted-foreground">
-              {r.organigramaNombre} · {r.tipoLiquidacion}
+              {r.empresa} · {r.tipoLiquidacion}
               {r.constancia ? ` · firmado ${fechaHora(r.constancia.fecha)}` : ''}
             </p>
           </div>

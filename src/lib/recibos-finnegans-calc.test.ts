@@ -4,8 +4,10 @@ import {
   asignarPaginas,
   clasificarRespuestaPdf,
   contieneImporte,
+  errorEmpleadorAdhesion,
   estadoEntrega,
   fichasPorCuil,
+  formatoCuit,
   validarFirmaInput,
   fechaIso,
   formatoNeto,
@@ -111,12 +113,12 @@ describe('asignarPaginas', () => {
 
 describe('fichasPorCuil', () => {
   const f = (empleadoId: number, organigramaId: number, cuil: string) =>
-    ({ empleadoId, organigramaId, cuil, nombre: `F${empleadoId}`, organigrama: `O${organigramaId}` });
+    ({ empleadoId, cuil, nombre: `F${empleadoId}`, organigrama: `O${organigramaId}` });
 
   it('indexa por CUIL en todos los organigramas, con o sin guiones', () => {
     const { porCuil, duplicados } = fichasPorCuil([f(1, 1, '20-11111111-2'), f(2, 5, B), f(3, 1, '')]);
-    expect(porCuil.get(A)?.organigramaId).toBe(1);
-    expect(porCuil.get(B)?.organigramaId).toBe(5);
+    expect(porCuil.get(A)?.empleadoId).toBe(1);
+    expect(porCuil.get(B)?.empleadoId).toBe(2);
     expect(porCuil.size).toBe(2);
     expect(duplicados.size).toBe(0);
   });
@@ -128,6 +130,27 @@ describe('fichasPorCuil', () => {
     expect([...duplicados.keys()]).toEqual([A]);
     expect(duplicados.get(A)).toContain('F1 (O1)');
     expect(duplicados.get(A)).toContain('F2 (O6)');
+  });
+});
+
+describe('errorEmpleadorAdhesion', () => {
+  const adh = { empleador_cuit: '30714140252', empleador_nombre: 'PROVIDERS SA' };
+  it('vale si el recibo es del mismo empleador (con o sin guiones)', () => {
+    expect(errorEmpleadorAdhesion(adh, { empresa_cuit: '30-71414025-2', empresa_nombre: 'PROVIDERS SA' })).toBeNull();
+  });
+  it('no vale si lo liquida otra empresa: hay que renovar la adhesión', () => {
+    const e = errorEmpleadorAdhesion(adh, { empresa_cuit: '30612790813', empresa_nombre: 'CCC SA' });
+    expect(e).toContain('PROVIDERS SA');
+    expect(e).toContain('CCC SA');
+    expect(e).toContain('renueve');
+  });
+});
+
+describe('formatoCuit', () => {
+  it('pone los guiones a 11 dígitos y deja lo demás', () => {
+    expect(formatoCuit('30714140252')).toBe('30-71414025-2');
+    expect(formatoCuit('30-71414025-2')).toBe('30-71414025-2');
+    expect(formatoCuit('123')).toBe('123');
   });
 });
 

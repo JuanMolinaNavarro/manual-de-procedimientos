@@ -4,15 +4,20 @@
  * de Finnegans". Prisma + fs: solo servidor.
  *
  * Flujo:
+ * Dos ejes que no se mezclan (decisión del usuario 2026-09-30):
+ * - EMPLEADOR = la empresa que le paga el sueldo: la de la liquidación de Finnegans. Es el eje
+ *   legal: el recibo, el acta de adhesión y la cadena de constancias son por empleador.
+ * - LUGAR DE TRABAJO = el organigrama de la ficha, hoy. En recibos solo sirve para filtrar; no se
+ *   guarda en ninguna tabla de recibos, así que mover una ficha de organigrama no toca nada acá.
+ *
+ * Flujo:
  * 1. `buscarLiquidaciones(periodo)`: 1 llamada paga a RESUMENLIQ (todas las empresas)
- *    → una `NominaFinnLiquidacion` por transacción. No se ata a ningún organigrama: los
- *    organigramas son lugares físicos y una empresa liquida gente de varios.
+ *    → una `NominaFinnLiquidacion` por transacción.
  * 2. `importarLiquidacion(tx)`: 1 llamada paga para bajar la sábana (se guarda y se
  *    reutiliza), se asigna cada página a un legajo por CUIL, se vincula con la
- *    ficha por `NominaEmpleado.cuil` en CUALQUIER organigrama y, si TODO coincide, se parte
- *    en un PDF por persona con su SHA-256; cada recibo queda en el organigrama de su ficha.
- *    Cualquier diferencia → no se publica nada.
- * 3. `enviarAviso`: RR.HH. avisa por mail (sin adjuntos) que los recibos están disponibles.
+ *    ficha por `NominaEmpleado.cuil` (cualquiera, esté donde esté) y, si TODO coincide, se
+ *    parte en un PDF por persona con su SHA-256. Cualquier diferencia → no se publica nada.
+ * 3. `enviarAviso`: RR.HH. avisa por mail (sin adjuntos) que los recibos del mes están disponibles.
  * 4. `misRecibos` / `reciboPropio` / `firmarRecibo`: el empleado ve y firma SOLO lo suyo,
  *    desde el portal con su PIN; el hash se verifica antes de entregar y antes de firmar.
  */
@@ -31,6 +36,7 @@ import { getResumenLiq, getSabana, TeamplaceError, type InfoLlamada } from './te
 import {
   agruparPorTransaccion,
   asignarPaginas,
+  errorEmpleadorAdhesion,
   estadoEntrega,
   fichasPorCuil,
   soloDigitos,
@@ -49,6 +55,32 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 function sha256(b: Uint8Array): string {
   return createHash('sha256').update(b).digest('hex');
+}
+
+async function nombresOrganigramas(): Promise<Map<number, string>> {
+  return new Map((await prisma.organigrama.findMany({ select: { id: true, nombre: true } })).map((o) => [o.id, o.nombre]));
+}
+
+/** Nombre del lugar de trabajo (organigrama) de una ficha, para mostrar. */
+function lugarDe(nombres: Map<number, string>, organigramaId: number | null): string {
+  return organigramaId == null ? 'Sin organigrama' : nombres.get(organigramaId) ?? `#${organigramaId}`;
+}
+
+/**
+ * Filtros de Gestión de recibos: el empleador (CUIT de la liquidación, 11 dígitos) y el lugar de
+ * trabajo (organigrama de la ficha HOY). Ninguno es obligatorio.
+ */
+export interface FiltrosRecibos {
+  empleador?: string | null;
+  lugar?: number | null;
+}
+
+function whereRecibo(periodo: string, f: FiltrosRecibos): Prisma.NominaReciboPdfWhereInput {
+  return {
+    periodo,
+    ...(f.empleador ? { liquidacion: { empresa_cuit: f.empleador } } : {}),
+    ...(f.lugar != null ? { empleado: { organigrama_id: f.lugar } } : {}),
+  };
 }
 
 // ─── Consumo de la API (interacciones pagas) ────────────────────────────────
@@ -314,27 +346,24 @@ async function importarLiquidacionSinCandado(transaccionId: number, usuario: str
   const textos = await extraerTextos(sabana);
   const { grupos, diferencias } = asignarPaginas(textos, esperados, liq.empresa_cuit);
 
-  const [fichas, organigramas] = await Promise.all([
+  const [fichas, nombreOrg] = await Promise.all([
     prisma.nominaEmpleado.findMany({
       where: { cuil: { not: '' } },
       select: { cuil: true, empleado_id: true, empleado: { select: { nombre: true, organigrama_id: true } } },
     }),
-    prisma.organigrama.findMany({ select: { id: true, nombre: true } }),
+    nombresOrganigramas(),
   ]);
-  const nombreOrg = new Map(organigramas.map((o) => [o.id, o.nombre]));
-  // Una ficha suelta (sin organigrama) no cuenta: el recibo tiene que quedar en algún lugar.
   const { porCuil: fichaPorCuil, duplicados } = fichasPorCuil(
-    fichas.flatMap(({ empleado: e, ...f }) => e.organigrama_id == null ? [] : [{
-      empleadoId: f.empleado_id, organigramaId: e.organigrama_id, cuil: f.cuil,
-      nombre: e.nombre, organigrama: nombreOrg.get(e.organigrama_id) ?? `#${e.organigrama_id}`,
-    }]),
+    fichas.map(({ empleado: e, ...f }) => ({
+      empleadoId: f.empleado_id, cuil: f.cuil, nombre: e.nombre, organigrama: lugarDe(nombreOrg, e.organigrama_id),
+    })),
   );
   // Solo frenan los CUIL de esta liquidación: un duplicado de otra empresa no es asunto suyo.
   for (const e of esperados) {
     const dup = duplicados.get(e.cuil);
     if (dup) diferencias.push(dup);
     else if (!fichaPorCuil.has(e.cuil)) {
-      diferencias.push(`${e.nombre || e.cuil} (CUIL ${e.cuil}) no tiene ficha con ese CUIL en ningún organigrama.`);
+      diferencias.push(`${e.nombre || e.cuil} (CUIL ${e.cuil}) no tiene ficha con ese CUIL (Nómina › Maestro).`);
     }
   }
   const yaPublicados = await prisma.nominaReciboPdf.findMany({
@@ -369,7 +398,6 @@ async function importarLiquidacionSinCandado(transaccionId: number, usuario: str
       return {
         id,
         liquidacion_id: liq.id,
-        organigrama_id: ficha.organigramaId, // el lugar físico de la persona, no la empresa que liquida
         empleado_id: ficha.empleadoId,
         liquidacion_legajo_id: g.liquidacionLegajoId,
         cuil: g.cuil,
@@ -516,14 +544,18 @@ export interface FirmaReciboInput {
 
 /**
  * Firma de un recibo propio desde el portal (usuario + PIN). La ficha sale de la sesión y el
- * recibo tiene que ser suyo (404 si no). Orden: recibo propio → adhesión COMPLETA (con acta)
- * y mismo CUIL → hash del PDF → bloqueo → entrada (lectura, conformidad explícita,
- * observaciones) → PIN (scrypt; los fallos se guardan) → constancia encadenada bajo lock,
- * re-chequeando dentro de la transacción que no esté firmado. Disconforme → caso para RR.HH.
+ * recibo tiene que ser suyo (404 si no). Orden: recibo propio → adhesión COMPLETA (con acta),
+ * mismo CUIL y mismo EMPLEADOR que el recibo → hash del PDF → bloqueo → entrada (lectura,
+ * conformidad explícita, observaciones) → PIN (scrypt; los fallos se guardan) → constancia
+ * encadenada en la cadena de ese empleador, bajo lock, re-chequeando dentro de la transacción
+ * que no esté firmado. Disconforme → caso para RR.HH.
  */
 export async function firmarRecibo(empleadoId: number, reciboId: string, input: FirmaReciboInput): Promise<ConstanciaView> {
   const propio = await reciboDelEmpleado(empleadoId, reciboId); // 404 si no es suyo
-  const r = await prisma.nominaReciboPdf.findUnique({ where: { id: propio.id }, include: { empleado: { select: { nombre: true } } } });
+  const r = await prisma.nominaReciboPdf.findUnique({
+    where: { id: propio.id },
+    include: { empleado: { select: { nombre: true } }, liquidacion: { select: { empresa_cuit: true, empresa_nombre: true } } },
+  });
   if (!r) throw new NominaError('Recibo no encontrado', 404);
   if (r.estado === 'firmado') throw new NominaError('Este recibo ya está firmado', 409);
   if (r.estado === 'papel') throw new NominaError('Este recibo se te entregó en papel: no se firma en el portal', 409);
@@ -534,6 +566,8 @@ export async function firmarRecibo(empleadoId: number, reciboId: string, input: 
   if (soloDigitos(adh.cuil) !== soloDigitos(r.cuil)) {
     throw new NominaError('El CUIL de tu adhesión no coincide con el del recibo: avisá a RR.HH.', 409);
   }
+  const otroEmpleador = errorEmpleadorAdhesion(adh, r.liquidacion);
+  if (otroEmpleador) throw new NominaError(otroEmpleador, 409);
 
   leerReciboVerificado(r); // 409 si el PDF cambió: no se firma algo distinto de lo publicado
   // "Leído" tiene que tener respaldo: el PDF se le entregó al menos una vez (accedido_en).
@@ -552,11 +586,11 @@ export async function firmarRecibo(empleadoId: number, reciboId: string, input: 
   );
 
   const { conformidad, observaciones } = v.firma;
-  const orgId = r.organigrama_id;
+  const empleador = soloDigitos(r.liquidacion.empresa_cuit);
   try {
     const row = await prisma.$transaction(async (tx) => {
-      // Serializa las firmas del organigrama: la cadena nunca se bifurca.
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('nomina_cadena'), ${orgId}::int)`;
+      // Serializa las firmas del empleador: su cadena nunca se bifurca.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('nomina_cadena'), hashtext(${empleador}))`;
       // Recibo y adhesión bloqueados hasta el commit: la entrega en papel, quitar el acta y
       // revocar la adhesión esperan, y ven el resultado de la firma.
       const [actual] = await tx.$queryRaw<{ estado: string }[]>`
@@ -568,7 +602,7 @@ export async function firmarRecibo(empleadoId: number, reciboId: string, input: 
       if (!adhAhora || adhAhora.id !== adh.id || !adhAhora.acta_archivo) {
         throw new NominaError('Tu adhesión cambió mientras firmabas: volvé a cargar la página', 409);
       }
-      const last = await tx.nominaConstancia.findFirst({ where: { organigrama_id: orgId }, orderBy: [{ fecha: 'desc' }, { id: 'desc' }] });
+      const last = await tx.nominaConstancia.findFirst({ where: { empleador_cuit: empleador }, orderBy: [{ fecha: 'desc' }, { id: 'desc' }] });
       const fecha = new Date().toISOString();
       const prev = last?.chain_hash ?? GENESIS;
       const firmante = { empId: r.empleado_id, nombre: r.empleado.nombre, cuil: adh.cuil, adhesion: adh.codigo ?? '' };
@@ -581,7 +615,7 @@ export async function firmarRecibo(empleadoId: number, reciboId: string, input: 
       };
       const c = await tx.nominaConstancia.create({
         data: {
-          organigrama_id: orgId, periodo: r.periodo, empleado_id: r.empleado_id, recibo_id: r.id, hash: r.sha256,
+          empleador_cuit: empleador, periodo: r.periodo, empleado_id: r.empleado_id, recibo_id: r.id, hash: r.sha256,
           prev_hash: prev, chain_hash: chainHash(prev, base), fecha, conformidad, observaciones,
           formato: FORMATO_CADENA, ...evidencia,
         },
@@ -592,7 +626,7 @@ export async function firmarRecibo(empleadoId: number, reciboId: string, input: 
       });
       if (firmado.count !== 1) throw new NominaError('Este recibo ya está firmado', 409);
       if (conformidad === 'disconforme') {
-        await tx.nominaCasoRecibo.create({ data: { constancia_id: c.id, organigrama_id: orgId, empleado_id: r.empleado_id } });
+        await tx.nominaCasoRecibo.create({ data: { constancia_id: c.id, empleado_id: r.empleado_id } });
       }
       return c;
     });
@@ -635,7 +669,7 @@ export interface DestinatarioAviso {
 export interface SinAviso {
   empleadoId: number;
   nombre: string;
-  motivo: 'sin_adhesion' | 'pendiente_acta' | 'sin_email' | 'sin_usuario';
+  motivo: 'sin_adhesion' | 'pendiente_acta' | 'otro_empleador' | 'sin_email' | 'sin_usuario';
   recibos: number;
 }
 
@@ -648,29 +682,32 @@ export interface PreviaAviso {
 }
 
 /**
- * Quiénes recibirían el aviso: personas del organigrama con recibos del período sin firmar ni
- * entregar en papel. Solo se avisa a quien tiene la adhesión completa, email declarado y un
- * usuario activo del portal (el mail le dice que entre con su usuario); el resto figura en
- * `sinAviso` (se le entrega en papel o hay que completar su adhesión / crearle el usuario).
+ * Quiénes recibirían el aviso del mes: todas las personas con recibos del período sin firmar ni
+ * entregar en papel, sean de la empresa y el lugar que sean (el aviso es uno por mes). Solo se
+ * avisa a quien puede firmarlos: adhesión completa y con el mismo empleador que sus recibos,
+ * email declarado y usuario activo del portal; el resto figura en `sinAviso` con el motivo (se le
+ * entrega en papel o hay que completar / renovar su adhesión o crearle el usuario).
  */
-export async function previaAviso(orgId: number, periodo: string): Promise<PreviaAviso> {
+export async function previaAviso(periodo: string): Promise<PreviaAviso> {
   if (!PERIODO_RE.test(periodo)) throw new NominaError('Período inválido (yyyy-mm)', 400);
   const rows = await prisma.nominaReciboPdf.findMany({
-    where: { organigrama_id: orgId, periodo, estado: { in: ['disponible', 'accedido'] } },
+    where: { periodo, estado: { in: ['disponible', 'accedido'] } },
     include: {
-      empleado: { select: { nombre: true, nomina_adhesion: { select: { acta_archivo: true, email: true } } } },
-      liquidacion: { select: { empresa_nombre: true } },
+      empleado: { select: { nombre: true, nomina_adhesion: { select: { acta_archivo: true, email: true, empleador_cuit: true } } } },
+      liquidacion: { select: { empresa_nombre: true, empresa_cuit: true } },
     },
   });
+  type Adh = { acta_archivo: string | null; email: string | null; empleador_cuit: string };
   const porPersona = new Map<number, {
-    nombre: string; adh: { acta_archivo: string | null; email: string | null } | null; recibos: number; avisados: number; empresas: Set<string>;
+    nombre: string; adh: Adh | null; recibos: number; avisados: number; empresas: Set<string>; cuits: Set<string>;
   }>();
   for (const r of rows) {
     const p = porPersona.get(r.empleado_id) ?? {
-      nombre: r.empleado.nombre, adh: r.empleado.nomina_adhesion, recibos: 0, avisados: 0, empresas: new Set<string>(),
+      nombre: r.empleado.nombre, adh: r.empleado.nomina_adhesion, recibos: 0, avisados: 0, empresas: new Set<string>(), cuits: new Set<string>(),
     };
     p.recibos++;
     p.empresas.add(r.liquidacion.empresa_nombre);
+    p.cuits.add(soloDigitos(r.liquidacion.empresa_cuit));
     if (r.notificado_en) p.avisados++;
     porPersona.set(r.empleado_id, p);
   }
@@ -687,6 +724,10 @@ export async function previaAviso(orgId: number, periodo: string): Promise<Previ
   for (const [empleadoId, p] of porPersona) {
     if (!p.adh) sinAviso.push({ empleadoId, nombre: p.nombre, motivo: 'sin_adhesion', recibos: p.recibos });
     else if (!p.adh.acta_archivo) sinAviso.push({ empleadoId, nombre: p.nombre, motivo: 'pendiente_acta', recibos: p.recibos });
+    // Algún recibo de otra empresa que la del acta: no lo podría firmar, hay que renovar la adhesión.
+    else if ([...p.cuits].some((c) => c !== soloDigitos(p.adh!.empleador_cuit))) {
+      sinAviso.push({ empleadoId, nombre: p.nombre, motivo: 'otro_empleador', recibos: p.recibos });
+    }
     else if (!emailValido(p.adh.email)) sinAviso.push({ empleadoId, nombre: p.nombre, motivo: 'sin_email', recibos: p.recibos });
     else if (!conUsuario.has(empleadoId)) sinAviso.push({ empleadoId, nombre: p.nombre, motivo: 'sin_usuario', recibos: p.recibos });
     else destinatarios.push({
@@ -694,7 +735,7 @@ export async function previaAviso(orgId: number, periodo: string): Promise<Previ
     });
   }
   const orden = (a: { nombre: string }, b: { nombre: string }) => a.nombre.localeCompare(b.nombre, 'es');
-  const recibosDelPeriodo = await prisma.nominaReciboPdf.count({ where: { organigrama_id: orgId, periodo } });
+  const recibosDelPeriodo = await prisma.nominaReciboPdf.count({ where: { periodo } });
   return { modo: modoMail(), destinatarios: destinatarios.sort(orden), sinAviso: sinAviso.sort(orden), recibosDelPeriodo };
 }
 
@@ -706,7 +747,7 @@ export interface ResultadoAviso {
   sinAviso: number;
 }
 
-/** Avisos en curso (organigrama:período). Hay un solo proceso de Node: alcanza con memoria. */
+/** Avisos en curso (período). Hay un solo proceso de Node: alcanza con memoria. */
 const avisosEnCurso = new Set<string>();
 
 /**
@@ -729,24 +770,24 @@ function exigirMailReal(modo: ModoMail): void {
  * ya consta) y se marca `notificado_en` en los recibos avisados que todavía no lo tenían: desde
  * ahí corren los 15 días de "no retirado". En modo prueba (desarrollo, sin SMTP) se registra el
  * aviso pero **no** se marca `notificado_en`: nadie recibió nada. Volver a apretarlo reenvía a
- * los pendientes (recordatorio); la fecha del primer aviso no se pisa. Un aviso por
- * organigrama y período a la vez.
+ * los pendientes (recordatorio); la fecha del primer aviso no se pisa. Un aviso por período a
+ * la vez.
  */
-export async function enviarAviso(orgId: number, periodo: string, usuario: string | null): Promise<ResultadoAviso> {
-  const clave = `${orgId}:${periodo}`;
+export async function enviarAviso(periodo: string, usuario: string | null): Promise<ResultadoAviso> {
+  const clave = periodo;
   if (avisosEnCurso.has(clave)) {
     throw new NominaError('Ya se está enviando el aviso de este mes: esperá a que termine', 409);
   }
   avisosEnCurso.add(clave);
   try {
-    const previa = await previaAviso(orgId, periodo);
+    const previa = await previaAviso(periodo);
     if (previa.destinatarios.length === 0) {
       throw new NominaError('No hay a quién avisar: nadie con recibos pendientes tiene la adhesión completa, email y usuario', 409);
     }
     exigirMailReal(previa.modo);
     const url = `${appUrl()}/admin/mis-recibos`;
     const aviso = await prisma.nominaAviso.create({
-      data: { organigrama_id: orgId, periodo, modo: previa.modo, enviado_por: usuario, enviados: 0, fallidos: 0 },
+      data: { periodo, modo: previa.modo, enviado_por: usuario, enviados: 0, fallidos: 0 },
     });
     let enviados = 0;
     const fallidos: { nombre: string; error: string }[] = [];
@@ -768,7 +809,7 @@ export async function enviarAviso(orgId: number, periodo: string, usuario: strin
           ? [
               prisma.nominaReciboPdf.updateMany({
                 where: {
-                  organigrama_id: orgId, periodo, empleado_id: d.empleadoId,
+                  periodo, empleado_id: d.empleadoId,
                   estado: { in: ['disponible', 'accedido'] }, notificado_en: null,
                 },
                 data: { notificado_en: new Date() },
@@ -796,9 +837,9 @@ export interface AvisoView {
   destinatarios: { nombre: string; email: string; estado: string; error: string }[];
 }
 
-export async function listarAvisos(orgId: number, periodo: string): Promise<AvisoView[]> {
+export async function listarAvisos(periodo: string): Promise<AvisoView[]> {
   const rows = await prisma.nominaAviso.findMany({
-    where: { organigrama_id: orgId, periodo },
+    where: { periodo },
     orderBy: { created_at: 'desc' },
     include: { destinatarios: { orderBy: { id: 'asc' } } },
   });
@@ -820,47 +861,71 @@ export interface ReciboPanelView {
   id: string;
   empleadoId: number;
   nombre: string;
+  /** Empleador (empresa de la liquidación). */
+  empresa: string;
+  /** Lugar de trabajo hoy (organigrama de la ficha). */
+  lugar: string;
   tipoLiquidacion: string;
   neto: number;
   entrega: EstadoEntrega;
   dias: number;
+  /** Puede firmarlo en el portal: adhesión completa y con este mismo empleador. */
   adherido: boolean;
+  /** Tiene adhesión completa, pero con otra empresa: hay que renovarla para firmar este recibo. */
+  otroEmpleador: boolean;
   constancia: ConstanciaView | null;
   caso: { id: number; estado: string } | null;
   papel: { registradoEn: string | null; registradoPor: string | null } | null;
+}
+
+export interface EmpleadorOpcion {
+  cuit: string; // 11 dígitos
+  nombre: string;
 }
 
 export interface PanelRecibos {
   recibos: ReciboPanelView[];
   resumen: { total: number; firmados: number; pendientes: number; noRetirados: number; papel: number; disconformes: number };
   casosAbiertos: number;
+  /** Empleadores con recibos publicados en el período (sin filtrar): opciones del filtro. */
+  empleadores: EmpleadorOpcion[];
 }
 
-export async function panelRecibos(orgId: number, periodo: string): Promise<PanelRecibos> {
+/** Recibos del período con su entrega, firma y caso. Filtros opcionales: empleador y lugar. */
+export async function panelRecibos(periodo: string, filtros: FiltrosRecibos = {}): Promise<PanelRecibos> {
   if (!PERIODO_RE.test(periodo)) throw new NominaError('Período inválido (yyyy-mm)', 400);
-  const [rows, casosAbiertos] = await Promise.all([
+  const [rows, casosAbiertos, empleadores, nombreOrg] = await Promise.all([
     prisma.nominaReciboPdf.findMany({
-      where: { organigrama_id: orgId, periodo },
+      where: whereRecibo(periodo, filtros),
       include: {
-        empleado: { select: { nombre: true, nomina_adhesion: { select: { acta_archivo: true } } } },
+        empleado: { select: { nombre: true, organigrama_id: true, nomina_adhesion: { select: { acta_archivo: true, empleador_cuit: true } } } },
+        liquidacion: { select: { empresa_cuit: true, empresa_nombre: true } },
         constancia: { include: { caso: { select: { id: true, estado: true } } } },
       },
       orderBy: [{ empleado: { nombre: 'asc' } }, { created_at: 'asc' }],
     }),
-    prisma.nominaCasoRecibo.count({ where: { organigrama_id: orgId, estado: 'abierto' } }),
+    prisma.nominaCasoRecibo.count({ where: { estado: 'abierto', constancia: whereConstancia(filtros) } }),
+    empleadoresDelPeriodo(periodo),
+    nombresOrganigramas(),
   ]);
   const hoy = new Date();
   const recibos: ReciboPanelView[] = rows.map((r) => {
     const e = estadoEntrega({ estado: r.estado, publicado: r.notificado_en ?? r.created_at }, hoy);
+    const adh = r.empleado.nomina_adhesion;
+    const completa = !!adh?.acta_archivo;
+    const mismoEmpleador = !!adh && soloDigitos(adh.empleador_cuit) === soloDigitos(r.liquidacion.empresa_cuit);
     return {
       id: r.id,
       empleadoId: r.empleado_id,
       nombre: r.empleado.nombre,
+      empresa: r.liquidacion.empresa_nombre,
+      lugar: lugarDe(nombreOrg, r.empleado.organigrama_id),
       tipoLiquidacion: r.tipo_liquidacion,
       neto: r.neto,
       entrega: e.estado,
       dias: e.dias,
-      adherido: !!r.empleado.nomina_adhesion?.acta_archivo,
+      adherido: completa && mismoEmpleador,
+      otroEmpleador: completa && !mismoEmpleador,
       constancia: r.constancia ? toConstancia(r.constancia) : null,
       caso: r.constancia?.caso ?? null,
       papel: r.estado === 'papel'
@@ -880,6 +945,25 @@ export async function panelRecibos(orgId: number, periodo: string): Promise<Pane
       disconformes: recibos.filter((r) => r.constancia?.conformidad === 'disconforme').length,
     },
     casosAbiertos,
+    empleadores,
+  };
+}
+
+/** Empleadores con recibos publicados en el período (CUIT + razón social), por nombre. */
+async function empleadoresDelPeriodo(periodo: string): Promise<EmpleadorOpcion[]> {
+  const liqs = await prisma.nominaFinnLiquidacion.findMany({
+    where: { periodo, recibos: { some: {} } },
+    select: { empresa_cuit: true, empresa_nombre: true },
+  });
+  const porCuit = new Map(liqs.map((l) => [soloDigitos(l.empresa_cuit), l.empresa_nombre]));
+  return [...porCuit].map(([cuit, nombre]) => ({ cuit, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+}
+
+/** Los mismos filtros, aplicados a una constancia (casos de disconformidad). */
+function whereConstancia(f: FiltrosRecibos): Prisma.NominaConstanciaWhereInput {
+  return {
+    ...(f.empleador ? { empleador_cuit: f.empleador } : {}),
+    ...(f.lugar != null ? { empleado: { organigrama_id: f.lugar } } : {}),
   };
 }
 
@@ -939,16 +1023,25 @@ export interface CasoView {
   resueltoEn: string | null;
   resueltoPor: string | null;
   nombre: string;
+  /** Empleador del recibo firmado. */
+  empresa: string;
   periodo: string;
   tipoLiquidacion: string;
   observaciones: string;
   firmadoEn: string;
 }
 
-export async function listarCasos(orgId: number, estado: 'abierto' | 'resuelto' | 'todos' = 'abierto'): Promise<CasoView[]> {
+export async function listarCasos(estado: 'abierto' | 'resuelto' | 'todos' = 'abierto', filtros: FiltrosRecibos = {}): Promise<CasoView[]> {
   const rows = await prisma.nominaCasoRecibo.findMany({
-    where: { organigrama_id: orgId, ...(estado === 'todos' ? {} : { estado }) },
-    include: { constancia: { include: { empleado: { select: { nombre: true } }, recibo: { select: { tipo_liquidacion: true } } } } },
+    where: { ...(estado === 'todos' ? {} : { estado }), constancia: whereConstancia(filtros) },
+    include: {
+      constancia: {
+        include: {
+          empleado: { select: { nombre: true } },
+          recibo: { select: { tipo_liquidacion: true, liquidacion: { select: { empresa_nombre: true } } } },
+        },
+      },
+    },
     orderBy: { created_at: 'desc' },
   });
   return rows.map((c) => ({
@@ -959,6 +1052,7 @@ export async function listarCasos(orgId: number, estado: 'abierto' | 'resuelto' 
     resueltoEn: c.resuelto_en?.toISOString() ?? null,
     resueltoPor: c.resuelto_por,
     nombre: c.constancia.empleado.nombre,
+    empresa: c.constancia.recibo.liquidacion.empresa_nombre,
     periodo: c.constancia.periodo,
     tipoLiquidacion: c.constancia.recibo.tipo_liquidacion,
     observaciones: c.constancia.observaciones,

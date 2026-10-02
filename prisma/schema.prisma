@@ -81,24 +81,24 @@ model OnDemand {
 }
 
 model Usuario {
-  id           Int          @id @default(autoincrement())
-  usuario      String       @unique
-  password     String
-  nombre       String?
-  apellido     String?
-  rol          String       @default("admin")
-  isActive     Boolean      @default(true)
-  modulos      String[]     @default([])
-  modulos_edit String[]     @default([])
+  id                    Int          @id @default(autoincrement())
+  usuario               String       @unique
+  password              String
+  nombre                String?
+  apellido              String?
+  rol                   String       @default("admin")
+  isActive              Boolean      @default(true)
+  modulos               String[]     @default([])
+  modulos_edit          String[]     @default([])
   // Vínculo con la ficha del organigrama (1 a 1). SetNull: borrar la ficha
   // deja al usuario "sin vincular", nunca lo borra ni lo bloquea.
-  empleado_id  Int?         @unique
-  empleado     OrgEmpleado? @relation("UsuarioEmpleado", fields: [empleado_id], references: [id], onDelete: SetNull)
-  created_at   DateTime     @default(now())
-  updated_at   DateTime     @updatedAt
-  sesiones     Sesion[]
+  empleado_id           Int?         @unique
+  empleado              OrgEmpleado? @relation("UsuarioEmpleado", fields: [empleado_id], references: [id], onDelete: SetNull)
+  created_at            DateTime     @default(now())
+  updated_at            DateTime     @updatedAt
+  sesiones              Sesion[]
   // Bloqueo de login por contraseñas incorrectas (ver src/lib/login-limite.ts).
-  login_fallos         Int       @default(0)
+  login_fallos          Int          @default(0)
   login_bloqueado_hasta DateTime?
 
   @@map("usuarios")
@@ -181,8 +181,8 @@ model Lead {
   resultado  String?
   asignado   String?
   created_at DateTime @default(now())
-  @@index([created_at])
 
+  @@index([created_at])
   @@map("leads")
 }
 
@@ -282,9 +282,9 @@ model SaltoImporte {
 
   contrato_comprador ContratoComprador? @relation(fields: [contrato_comprador_id], references: [id])
   contrato_vendedor  ContratoVendedor?  @relation(fields: [contrato_vendedor_id], references: [id])
+
   @@index([contrato_comprador_id])
   @@index([contrato_vendedor_id])
-
   @@map("saltos_importe")
 }
 
@@ -301,9 +301,9 @@ model ArchivoContrato {
 
   contrato_comprador ContratoComprador? @relation(fields: [contrato_comprador_id], references: [id], onDelete: Cascade)
   contrato_vendedor  ContratoVendedor?  @relation(fields: [contrato_vendedor_id], references: [id], onDelete: Cascade)
+
   @@index([contrato_comprador_id])
   @@index([contrato_vendedor_id])
-
   @@map("archivos_contrato")
 }
 
@@ -325,14 +325,12 @@ model Organigrama {
   nomina_bonos           NominaBono[]
   nomina_bonos_otorgados NominaBonoOtorgado[]
   nomina_cierres         NominaCierre[]
-  nomina_adhesiones      NominaAdhesion[]
-  nomina_constancias     NominaConstancia[]
 
   @@map("organigramas")
 }
 
 model OrgEmpleado {
-  id               Int     @id @default(autoincrement())
+  id               Int       @id @default(autoincrement())
   organigrama_id   Int? // empresa/ubicación a la que pertenece
   nombre           String
   rol              String
@@ -341,7 +339,7 @@ model OrgEmpleado {
   email            String?
   telefono         String? // interno ("phone")
   foto_archivo     String? // filename en uploads/organigrama/fotos
-  estado           String  @default("active") // active | inactive
+  estado           String    @default("active") // active | inactive
   // Quitada del organigrama (no se borra nada: sale del lienzo y queda inactiva). null = visible.
   oculto_en        DateTime?
   sede             String?
@@ -360,15 +358,15 @@ model OrgEmpleado {
   fecha_nacimiento String?
 
   // CV (Json) — espejo de las arrays del HTML
-  experiencia        Json? // [{role,company,period,gray?}]
-  resp_primarias     Json? // string[]
-  resp_secundarias   Json? // string[]
-  inputs             Json? // string[]
-  outputs            Json? // string[]
-  hard_skills        Json? // [{name,level,label}]
-  soft_skills        Json? // [{name,rating}]
-  skills             Json? // string[]
-  projects           Json? // string[]
+  experiencia      Json? // [{role,company,period,gray?}]
+  resp_primarias   Json? // string[]
+  resp_secundarias Json? // string[]
+  inputs           Json? // string[]
+  outputs          Json? // string[]
+  hard_skills      Json? // [{name,level,label}]
+  soft_skills      Json? // [{name,rating}]
+  skills           Json? // string[]
+  projects         Json? // string[]
 
   // estado del lienzo (posición libre arrastrada; null = anclado a su área)
   free_x Float?
@@ -411,9 +409,9 @@ model OrgEmpleado {
   updated_by String?
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
+
   @@index([organigrama_id])
   @@index([manager_id])
-
   @@map("org_empleados")
 }
 
@@ -494,9 +492,9 @@ model OrgLinea {
   color          String   @default("#86868b")
   etiqueta       String?
   created_at     DateTime @default(now())
+
   @@index([from_id])
   @@index([to_id])
-
   @@map("org_lineas")
 }
 
@@ -776,7 +774,10 @@ model NominaLiquidacion {
 model NominaAdhesion {
   id                   Int       @id @default(autoincrement())
   empleado_id          Int       @unique
-  organigrama_id       Int
+  // Empleador que figura en el acta (el que le liquidaba el sueldo en Finnegans al adherir). Si
+  // Finnegans pasa a liquidarlo otra empresa, la adhesión no vale para esos recibos: se renueva.
+  empleador_cuit       String // 11 dígitos
+  empleador_nombre     String
   codigo               String?   @unique // ADH-000123-<8 hex>: se imprime en el acta y ata papel ↔ registro
   fecha                String // ISO yyyy-mm-dd
   modo                 String    @default("papel") // siempre papel: la adhesión es presencial, con acta firmada
@@ -795,19 +796,17 @@ model NominaAdhesion {
   created_by           String?
   created_at           DateTime  @default(now())
 
-  empleado    OrgEmpleado @relation(fields: [empleado_id], references: [id], onDelete: Restrict)
-  organigrama Organigrama @relation(fields: [organigrama_id], references: [id], onDelete: Restrict)
+  empleado OrgEmpleado @relation(fields: [empleado_id], references: [id], onDelete: Restrict)
 
   @@map("nomina_adhesiones")
 }
 
-// Constancia de recepción y firma electrónica de un recibo. Encadenada con la
-// anterior del mismo organigrama (chain_hash). Sin FK a NominaLiquidacion a
-// propósito: reabrir un período (borra el cierre) conserva la constancia y al
-// re-cerrar se marca "hash no coincide".
+// Constancia de recepción y firma electrónica de un recibo PDF de Finnegans. Encadenada con
+// la anterior del mismo EMPLEADOR (chain_hash): cada empresa que liquida tiene su propia cadena,
+// la que presentaría si se desconoce una firma. El lugar de trabajo (organigrama) no interviene.
 model NominaConstancia {
   id             Int      @id @default(autoincrement())
-  organigrama_id Int
+  empleador_cuit String // 11 dígitos: el de la liquidación del recibo; define la cadena
   periodo        String // copia del recibo (listados)
   empleado_id    Int
   recibo_id      String   @unique // NominaReciboPdf firmado: una constancia por recibo
@@ -825,13 +824,12 @@ model NominaConstancia {
   formato        Int      @default(1) // fórmula del chain_hash (nomina-hash.ts): 1 las viejas, 2 incluye firmante/ip/dispositivo/canal/leído
   created_at     DateTime @default(now())
 
-  organigrama Organigrama       @relation(fields: [organigrama_id], references: [id], onDelete: Restrict)
-  empleado    OrgEmpleado       @relation(fields: [empleado_id], references: [id], onDelete: Restrict)
-  recibo      NominaReciboPdf   @relation(fields: [recibo_id], references: [id], onDelete: Restrict)
-  caso        NominaCasoRecibo?
+  empleado OrgEmpleado       @relation(fields: [empleado_id], references: [id], onDelete: Restrict)
+  recibo   NominaReciboPdf   @relation(fields: [recibo_id], references: [id], onDelete: Restrict)
+  caso     NominaCasoRecibo?
 
-  @@index([organigrama_id, fecha])
-  @@index([organigrama_id, periodo])
+  @@index([empleador_cuit, fecha])
+  @@index([periodo])
   @@map("nomina_constancias")
 }
 
@@ -840,8 +838,8 @@ model NominaConstancia {
 // "Recibos de Finnegans". Independiente del motor propio (NominaCierre).
 
 // Una liquidación de Finnegans (transacción del subtipo LIQSUELDOS): una empresa,
-// un tipo de liquidación y un período, con N legajos. Sale de RESUMENLIQ. No pertenece a
-// ningún organigrama (lugares físicos): cada recibo va al organigrama de la ficha de su CUIL.
+// un tipo de liquidación y un período, con N legajos. Sale de RESUMENLIQ. Su empresa es el
+// EMPLEADOR de esos recibos; no pertenece a ningún organigrama (lugar de trabajo).
 model NominaFinnLiquidacion {
   id               Int       @id @default(autoincrement())
   transaccion_id   Int       @unique // TRANSACCIONID = primaryKey de report/execute
@@ -873,8 +871,7 @@ model NominaFinnLiquidacion {
 // El recibo de una persona: una o más páginas de la sábana, guardadas como PDF propio.
 model NominaReciboPdf {
   id                    String    @id @default(uuid()) // opaco: es el que viaja en la URL
-  liquidacion_id        Int
-  organigrama_id        Int // el de la ficha al publicarse (lugar físico), no el de la empresa que liquida
+  liquidacion_id        Int // su empresa_cuit es el empleador del recibo
   empleado_id           Int
   liquidacion_legajo_id Int       @unique // LIQUIDACIONLEGAJOID de Finnegans
   cuil                  String
@@ -899,7 +896,7 @@ model NominaReciboPdf {
   constancia  NominaConstancia?
 
   @@index([empleado_id])
-  @@index([organigrama_id, periodo])
+  @@index([periodo])
   @@map("nomina_recibos_pdf")
 }
 
@@ -909,7 +906,8 @@ model NominaReciboPdf {
 model NominaAdhesionRevocada {
   id                   Int      @id @default(autoincrement())
   empleado_id          Int
-  organigrama_id       Int
+  empleador_cuit       String
+  empleador_nombre     String
   codigo               String?
   fecha                String // fecha de la adhesión original (yyyy-mm-dd)
   cuil                 String
@@ -944,39 +942,37 @@ model NominaPinCambio {
 // Disconformidad de una firma: la sigue RR.HH. (reunión, ajuste). La constancia nunca
 // se modifica; la resolución se anota acá.
 model NominaCasoRecibo {
-  id             Int       @id @default(autoincrement())
-  constancia_id  Int       @unique
-  organigrama_id Int
-  empleado_id    Int
-  estado         String    @default("abierto") // abierto | resuelto
-  notas          String    @default("")
-  resuelto_en    DateTime?
-  resuelto_por   String?
-  created_at     DateTime  @default(now())
-  updated_at     DateTime  @updatedAt
+  id            Int       @id @default(autoincrement())
+  constancia_id Int       @unique
+  empleado_id   Int
+  estado        String    @default("abierto") // abierto | resuelto
+  notas         String    @default("")
+  resuelto_en   DateTime?
+  resuelto_por  String?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
 
   constancia NominaConstancia @relation(fields: [constancia_id], references: [id], onDelete: Restrict)
 
-  @@index([organigrama_id, estado])
+  @@index([estado])
   @@map("nomina_casos_recibo")
 }
 
-// Aviso por mail "tus recibos están disponibles" (botón de RR.HH. por empresa y período).
+// Aviso por mail "tus recibos están disponibles" (botón de RR.HH., uno por mes para todos).
 // Sin adjuntos ni importes: solo el enlace al portal, donde se firman. Cada envío queda
 // registrado con sus destinatarios: es la prueba de la puesta a disposición.
 model NominaAviso {
-  id             Int      @id @default(autoincrement())
-  organigrama_id Int
-  periodo        String
-  modo           String // smtp | prueba (sin SMTP configurado: se guarda el .eml y no se envía)
-  enviados       Int
-  fallidos       Int
-  enviado_por    String?
-  created_at     DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  periodo     String
+  modo        String // smtp | prueba (sin SMTP configurado: se guarda el .eml y no se envía)
+  enviados    Int
+  fallidos    Int
+  enviado_por String?
+  created_at  DateTime @default(now())
 
   destinatarios NominaAvisoDestinatario[]
 
-  @@index([organigrama_id, periodo])
+  @@index([periodo])
   @@map("nomina_avisos")
 }
 
@@ -1027,7 +1023,7 @@ model AsistenciaReloj {
   // los ve más.
   limpiar_nuevos Boolean   @default(false)
   ultimo_sync    DateTime?
-  ultimo_ok     DateTime? // último sync sin error (ultimo_sync se actualiza también cuando falla)
+  ultimo_ok      DateTime? // último sync sin error (ultimo_sync se actualiza también cuando falla)
   ultimo_error   String?
   reg_total      Int?
   reg_nuevos     Int?
@@ -1057,8 +1053,8 @@ model AsistenciaPersona {
   updated_at   DateTime @updatedAt
 
   empleado OrgEmpleado? @relation(fields: [empleado_id], references: [id], onDelete: SetNull)
-  @@index([empleado_id])
 
+  @@index([empleado_id])
   @@map("asistencia_personas")
 }
 

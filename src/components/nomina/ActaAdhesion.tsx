@@ -38,8 +38,8 @@ function clausulas(empresa: string, email: string | null): string[] {
 
 export default function ActaAdhesion() {
   const sp = useSearchParams();
-  const organigramaId = sp.get('organigramaId'), empleadoId = sp.get('empleadoId');
-  const url = organigramaId && empleadoId ? `/api/admin/nomina/acta-datos?organigramaId=${organigramaId}&empleadoId=${empleadoId}` : null;
+  const empleadoId = sp.get('empleadoId');
+  const url = empleadoId ? `/api/admin/nomina/acta-datos?empleadoId=${empleadoId}` : null;
   const datos = useNominaData<ActaDatos>(url);
   const d = datos.data;
   const impreso = useRef(false);
@@ -53,7 +53,7 @@ export default function ActaAdhesion() {
     return () => clearTimeout(id);
   }, [d, auto]);
 
-  if (!url) return <p className="text-sm text-muted-foreground">Faltan parámetros (organigramaId, empleadoId).</p>;
+  if (!url) return <p className="text-sm text-muted-foreground">Falta el parámetro empleadoId.</p>;
   if (datos.error) return <p className="text-sm text-destructive">{datos.error}</p>;
   if (!d) return <p className="text-sm text-muted-foreground">Cargando acta…</p>;
 

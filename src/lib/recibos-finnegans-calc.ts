@@ -206,16 +206,16 @@ export function asignarPaginas(
 
 export interface FichaConCuil {
   empleadoId: number;
-  organigramaId: number;
   cuil: string;
   nombre: string;
+  /** Lugar de trabajo, solo para que el mensaje de un duplicado diga dónde está cada ficha. */
   organigrama: string;
 }
 
 /**
- * Índice CUIL → ficha sobre **todos** los organigramas: los organigramas son lugares físicos y
- * una misma empresa liquida gente de varios. Un CUIL en más de una ficha es ambiguo (no se sabe
- * a quién publicarle el recibo): va a `duplicados` (CUIL → mensaje) y queda fuera del índice.
+ * Índice CUIL → ficha sobre **todas** las fichas: el recibo es de la persona, no del lugar donde
+ * trabaja (organigrama). Un CUIL en más de una ficha es ambiguo (no se sabe a quién publicarle
+ * el recibo): va a `duplicados` (CUIL → mensaje) y queda fuera del índice.
  */
 export function fichasPorCuil(fichas: FichaConCuil[]): { porCuil: Map<string, FichaConCuil>; duplicados: Map<string, string> } {
   const grupos = new Map<string, FichaConCuil[]>();
@@ -230,6 +230,26 @@ export function fichasPorCuil(fichas: FichaConCuil[]): { porCuil: Map<string, Fi
     else duplicados.set(c, `El CUIL ${c} está cargado en más de una ficha: ${fs.map((f) => `${f.nombre} (${f.organigrama})`).join(', ')}.`);
   }
   return { porCuil, duplicados };
+}
+
+/** CUIT de 11 dígitos con guiones (30-71414025-2); otra cosa vuelve tal cual. */
+export function formatoCuit(c: string): string {
+  const d = soloDigitos(c);
+  return d.length === 11 ? `${d.slice(0, 2)}-${d.slice(2, 10)}-${d[10]}` : c;
+}
+
+/**
+ * ¿La adhesión sirve para firmar un recibo de este empleador? El acta nombra a la empresa que le
+ * liquidaba el sueldo al adherir: si Finnegans pasa a liquidarlo otra, esa adhesión no vale para
+ * sus recibos y RR.HH. la renueva (decisión del usuario). Devuelve el error, o null si vale.
+ */
+export function errorEmpleadorAdhesion(
+  adhesion: { empleador_cuit: string; empleador_nombre: string },
+  recibo: { empresa_cuit: string; empresa_nombre: string },
+): string | null {
+  if (soloDigitos(adhesion.empleador_cuit) === soloDigitos(recibo.empresa_cuit)) return null;
+  return `Tu adhesión al recibo digital es con ${adhesion.empleador_nombre} y este recibo es de ${recibo.empresa_nombre}: ` +
+    'pedile a RR.HH. que la renueve (es presencial, con acta nueva).';
 }
 
 export type RespuestaPdf = { ok: true } | { ok: false; motivo: string };

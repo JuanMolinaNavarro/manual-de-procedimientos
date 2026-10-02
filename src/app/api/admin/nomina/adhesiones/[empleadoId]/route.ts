@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUsername, puedeGestionarPinSesion } from '@/lib/admin-auth';
-import { handle, parseId, parseOrgId, readJson } from '@/lib/nomina-api';
+import { handle, parseId, readJson } from '@/lib/nomina-api';
 import { NominaError, revocarAdhesion } from '@/lib/nomina';
 
 type Ctx = { params: Promise<{ empleadoId: string }> };
@@ -18,9 +18,8 @@ export async function DELETE(request: NextRequest, { params }: Ctx) {
       throw new NominaError('Las adhesiones las gestiona RR.HH. (un admin): el superadmin no puede adherir, revocar ni cargar actas', 403);
     }
     const { empleadoId } = await params;
-    const orgId = parseOrgId(request.nextUrl.searchParams.get('organigramaId'));
     const body = await readJson(request);
-    await revocarAdhesion(orgId, parseId(empleadoId, 'empleadoId'), await getSessionUsername(), body.motivo);
+    await revocarAdhesion(parseId(empleadoId, 'empleadoId'), await getSessionUsername(), body.motivo);
     return NextResponse.json({ ok: true });
   });
 }
