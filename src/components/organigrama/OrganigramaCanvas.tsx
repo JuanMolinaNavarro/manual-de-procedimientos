@@ -9,6 +9,7 @@ import {
   MiniMap,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   Panel,
   MarkerType,
   type Node,
@@ -17,6 +18,7 @@ import {
   type OnNodeDrag,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { ChevronDown } from 'lucide-react';
 
 import { useOrganigrama } from './useOrganigrama';
 import { computeLayout, CARD_W, CARD_H, type AreaBox } from './layout';
@@ -72,6 +74,8 @@ function CanvasInner({ canEdit }: { canEdit: boolean }) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [search, setSearch] = useState('');
+  const [areasAbierto, setAreasAbierto] = useState(true);
+  const { fitView, setCenter } = useReactFlow();
   // Últimas cajas de área y posiciones calculadas, para detección de drop y snap-back.
   const areaBoxesRef = useRef<Record<string, AreaBox>>({});
   const empAbsRef = useRef<Record<number, { x: number; y: number }>>({});
@@ -342,6 +346,19 @@ function CanvasInner({ canEdit }: { canEdit: boolean }) {
     setModalOpen(true);
   }, []);
 
+  const irAArea = useCallback(
+    (id: number) => fitView({ nodes: [{ id: `area-${id}` }], padding: 0.15, duration: 500 }),
+    [fitView],
+  );
+
+  const irAEmpleado = useCallback(
+    (id: number) => {
+      const pos = empAbsRef.current[id];
+      if (pos) setCenter(pos.x + CARD_W / 2, pos.y + CARD_H / 2, { zoom: 1.2, duration: 500 });
+    },
+    [setCenter],
+  );
+
   const handleAddArea = useCallback(() => {
     setAreaDialog({ open: true, area: null });
   }, []);
@@ -379,6 +396,8 @@ function CanvasInner({ canEdit }: { canEdit: boolean }) {
         onEditOrg={handleEditOrg}
         search={search}
         onSearch={setSearch}
+        empleados={empleados}
+        onPickEmpleado={irAEmpleado}
         onAddEmpleado={handleAddEmpleado}
         onAddArea={handleAddArea}
         onReorganizar={handleReorganizar}
@@ -456,11 +475,16 @@ function CanvasInner({ canEdit }: { canEdit: boolean }) {
           <MiniMap pannable zoomable className="!hidden md:!block" />
           {areas.length > 0 && (
             <Panel position="top-left" className="neu-raised !m-3 max-w-[260px] rounded-2xl p-3">
-              <div className="mb-2 flex items-center justify-between gap-2 px-1">
-                <span className="text-xs font-bold uppercase tracking-wide text-[var(--neu-fg-soft)]">
+              <div className="flex items-center justify-between gap-2 px-1">
+                <button
+                  onClick={() => setAreasAbierto((v) => !v)}
+                  aria-expanded={areasAbierto}
+                  className="flex items-center gap-1 text-xs font-bold uppercase tracking-wide text-[var(--neu-fg-soft)]"
+                >
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${areasAbierto ? '' : '-rotate-90'}`} />
                   Áreas
-                </span>
-                {canEdit && (
+                </button>
+                {canEdit && areasAbierto && (
                   <button
                     onClick={handleAddArea}
                     className="text-xs font-semibold text-[var(--neu-accent)] hover:underline"
@@ -469,34 +493,27 @@ function CanvasInner({ canEdit }: { canEdit: boolean }) {
                   </button>
                 )}
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {areas.map((a) => {
-                  const count = empleados.filter((e) => e.area === a.nombre).length;
-                  const inner = (
-                    <>
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: a.color }} />
-                      <span className="text-[var(--neu-fg)]">{a.nombre}</span>
-                      <span className="text-[var(--neu-fg-soft)]">{count}</span>
-                    </>
-                  );
-                  const cls =
-                    'neu-raised-sm flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px]';
-                  return canEdit ? (
-                    <button
-                      key={a.id}
-                      onClick={() => onEditArea(a.id)}
-                      className={`${cls} transition-shadow active:shadow-none`}
-                      title="Editar área"
-                    >
-                      {inner}
-                    </button>
-                  ) : (
-                    <div key={a.id} className={cls}>
-                      {inner}
-                    </div>
-                  );
-                })}
-              </div>
+              {areasAbierto && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {areas.map((a) => {
+                    const count = empleados.filter((e) => e.area === a.nombre).length;
+                    // Un área sin miembros no se dibuja en el lienzo: no hay adónde ir.
+                    return (
+                      <button
+                        key={a.id}
+                        onClick={() => irAArea(a.id)}
+                        disabled={count === 0}
+                        className="neu-raised-sm flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] transition-shadow active:shadow-none disabled:opacity-50"
+                        title={count === 0 ? 'Área sin miembros' : 'Ir al área'}
+                      >
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: a.color }} />
+                        <span className="text-[var(--neu-fg)]">{a.nombre}</span>
+                        <span className="text-[var(--neu-fg-soft)]">{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </Panel>
           )}
         </ReactFlow>
@@ -554,6 +571,12 @@ function CanvasInner({ canEdit }: { canEdit: boolean }) {
           await api.uploadFoto(id, blob);
         }}
         onDeleteFoto={api.deleteFoto}
+        organigramas={organigramas}
+        onTransferir={async (id, organigramaId, area) => {
+          await api.transferirEmpleado(id, organigramaId, area);
+          setModalOpen(false);
+          setSelectedId(null);
+        }}
       />
 
       <EdgeEditDialog

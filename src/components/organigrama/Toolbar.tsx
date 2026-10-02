@@ -12,7 +12,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { EmpleadoOculto, Organigrama } from '@/lib/organigrama';
+import type { EmpleadoOculto, OrgEmpleado, Organigrama } from '@/lib/organigrama';
+import { fotoUrl, iniciales } from './foto';
+
+const sinTildes = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 interface ToolbarProps {
   organigramas: Organigrama[];
@@ -22,6 +25,9 @@ interface ToolbarProps {
   onEditOrg: () => void;
   search: string;
   onSearch: (v: string) => void;
+  /** Fichas del lienzo, para sugerir por nombre mientras se escribe. */
+  empleados: OrgEmpleado[];
+  onPickEmpleado: (id: number) => void;
   onAddEmpleado: () => void;
   onAddArea: () => void;
   onReorganizar: () => void;
@@ -40,6 +46,8 @@ export default function Toolbar({
   onEditOrg,
   search,
   onSearch,
+  empleados,
+  onPickEmpleado,
   onAddEmpleado,
   onAddArea,
   onReorganizar,
@@ -49,6 +57,11 @@ export default function Toolbar({
 }: ToolbarProps) {
   const [verOcultos, setVerOcultos] = useState(false);
   const [restaurando, setRestaurando] = useState<number | null>(null);
+  const [sugerir, setSugerir] = useState(false);
+  const q = sinTildes(search.trim());
+  const sugerencias = q
+    ? empleados.filter((e) => sinTildes(e.nombre).includes(q)).slice(0, 8)
+    : [];
 
   async function restaurar(id: number) {
     setRestaurando(id);
@@ -111,10 +124,50 @@ export default function Toolbar({
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--neu-fg-soft)]" />
         <Input
           value={search}
-          onChange={(e) => onSearch(e.target.value)}
+          onChange={(e) => {
+            onSearch(e.target.value);
+            setSugerir(true);
+          }}
+          onFocus={() => setSugerir(true)}
+          onBlur={() => setSugerir(false)}
+          onKeyDown={(e) => e.key === 'Escape' && setSugerir(false)}
           placeholder="Buscar por nombre, rol, área, email o skill…"
           className="neu-field h-10 w-72 rounded-xl pl-9 placeholder:text-[var(--neu-fg-soft)] focus-visible:ring-0"
         />
+        {sugerir && sugerencias.length > 0 && (
+          <ul className="absolute left-0 top-full z-50 mt-1 w-72 overflow-hidden rounded-xl border bg-popover py-1 shadow-lg">
+            {sugerencias.map((e) => {
+              const url = fotoUrl(e);
+              return (
+                <li key={e.id}>
+                  <button
+                    type="button"
+                    onMouseDown={(ev) => ev.preventDefault()}
+                    onClick={() => {
+                      onSearch(e.nombre);
+                      setSugerir(false);
+                      onPickEmpleado(e.id);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent"
+                  >
+                    {url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={url} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover" />
+                    ) : (
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
+                        {iniciales(e.nombre)}
+                      </span>
+                    )}
+                    <span className="min-w-0">
+                      <span className="block truncate">{e.nombre}</span>
+                      <span className="block truncate text-xs text-muted-foreground">{e.rol}</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
 
       {canEdit && (

@@ -5,6 +5,7 @@ import {
   updateEmpleado,
   ocultarEmpleado,
   restaurarEmpleado,
+  transferirEmpleado,
   ocultarConvenio,
   validateNoCycle,
   type UpdateOrgEmpleadoData,
@@ -74,15 +75,34 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 }
 
 // PATCH { oculto: false } — restaurar una ficha oculta al lienzo (vuelve activa).
+// PATCH { organigrama_id, area } — transferirla a otro organigrama (`transferirEmpleado`).
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     if (!(await canEditModule('organigrama'))) {
       return NextResponse.json({ error: 'Sin permiso de edición' }, { status: 403 });
     }
     const { id } = await params;
-    const body = (await request.json().catch(() => null)) as { oculto?: unknown } | null;
+    const body = (await request.json().catch(() => null)) as
+      | { oculto?: unknown; organigrama_id?: unknown; area?: unknown }
+      | null;
+    if (body?.organigrama_id !== undefined) {
+      const orgId = Number(body.organigrama_id);
+      const area = typeof body.area === 'string' ? body.area : '';
+      if (!Number.isInteger(orgId) || orgId <= 0) {
+        return NextResponse.json({ error: 'Organigrama inválido' }, { status: 400 });
+      }
+      const r = await transferirEmpleado(Number(id), orgId, area, await getSessionUsername());
+      if (r === 'no_existe') return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+      if (r === 'destino_invalido') {
+        return NextResponse.json({ error: 'El organigrama destino no existe o es el actual' }, { status: 400 });
+      }
+      if (r === 'area_invalida') {
+        return NextResponse.json({ error: 'El área no pertenece al organigrama destino' }, { status: 400 });
+      }
+      return NextResponse.json({ ok: true });
+    }
     if (body?.oculto !== false) {
-      return NextResponse.json({ error: 'Solo se admite { "oculto": false }' }, { status: 400 });
+      return NextResponse.json({ error: 'Solo se admite { "oculto": false } o { "organigrama_id", "area" }' }, { status: 400 });
     }
     const ok = await restaurarEmpleado(Number(id), await getSessionUsername());
     if (!ok) return NextResponse.json({ error: 'No encontrado o no estaba oculto' }, { status: 404 });

@@ -407,6 +407,38 @@ export async function restaurarEmpleado(id: number, usuario: string | null): Pro
   return count > 0;
 }
 
+/**
+ * Pasa una ficha a otro organigrama con todo lo suyo (documentos, nómina, recibos, asistencia
+ * cuelgan del empleado, no del organigrama). Como el jefe y las áreas son del organigrama de
+ * origen, queda sin jefe y en `area` (del destino, o ''); sus subordinados y las áreas que
+ * encabezaba quedan sin jefe, igual que al ocultarla.
+ */
+export async function transferirEmpleado(
+  id: number,
+  organigramaId: number,
+  area: string,
+  usuario: string | null,
+): Promise<'ok' | 'no_existe' | 'destino_invalido' | 'area_invalida'> {
+  const [existing, destino] = await Promise.all([
+    prisma.orgEmpleado.findUnique({ where: { id } }),
+    prisma.organigrama.findUnique({ where: { id: organigramaId } }),
+  ]);
+  if (!existing) return 'no_existe';
+  if (!destino || existing.organigrama_id === organigramaId) return 'destino_invalido';
+  if (area && !(await prisma.orgArea.findFirst({ where: { organigrama_id: organigramaId, nombre: area } }))) {
+    return 'area_invalida';
+  }
+  await prisma.$transaction([
+    prisma.orgEmpleado.updateMany({ where: { manager_id: id }, data: { manager_id: null } }),
+    prisma.orgArea.updateMany({ where: { jefe_id: id }, data: { jefe_id: null } }),
+    prisma.orgEmpleado.update({
+      where: { id },
+      data: { organigrama_id: organigramaId, area, manager_id: null, free_x: null, free_y: null, updated_by: usuario },
+    }),
+  ]);
+  return 'ok';
+}
+
 export async function setFotoEmpleado(id: number, filename: string | null): Promise<void> {
   await prisma.orgEmpleado.update({ where: { id }, data: { foto_archivo: filename } });
 }

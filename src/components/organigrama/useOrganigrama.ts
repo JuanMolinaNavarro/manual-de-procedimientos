@@ -57,6 +57,7 @@ export interface OrganigramaApi {
   updateEmpleado: (id: number, data: UpdateOrgEmpleadoData) => Promise<OrgEmpleado>;
   ocultarEmpleado: (id: number) => Promise<void>;
   restaurarEmpleado: (id: number) => Promise<void>;
+  transferirEmpleado: (id: number, organigramaId: number, area: string) => Promise<void>;
   uploadFoto: (id: number, file: Blob) => Promise<string>;
   deleteFoto: (id: number) => Promise<void>;
   // áreas
@@ -204,6 +205,18 @@ export function useOrganigrama(): OrganigramaApi {
     [aplicarGrafo],
   );
 
+  // Pasa la ficha a otro organigrama: sale de este lienzo y sus subordinados quedan sin jefe.
+  const transferirEmpleado = useCallback(
+    async (id: number, organigramaId: number, area: string) => {
+      await jsonFetch(`${BASE}/empleados/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ organigrama_id: organigramaId, area }),
+      });
+      if (orgIdRef.current != null) await aplicarGrafo(orgIdRef.current);
+    },
+    [aplicarGrafo],
+  );
+
   const uploadFoto = useCallback(async (id: number, file: Blob) => {
     const fd = new FormData();
     fd.append('foto', file, 'foto.jpg');
@@ -296,6 +309,7 @@ export function useOrganigrama(): OrganigramaApi {
       updateEmpleado,
       ocultarEmpleado,
       restaurarEmpleado,
+      transferirEmpleado,
       uploadFoto,
       deleteFoto,
       createArea,
@@ -322,6 +336,7 @@ export function useOrganigrama(): OrganigramaApi {
       updateEmpleado,
       ocultarEmpleado,
       restaurarEmpleado,
+      transferirEmpleado,
       uploadFoto,
       deleteFoto,
       createArea,

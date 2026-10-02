@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, X, EyeOff, Upload, Pencil } from 'lucide-react';
+import { Plus, X, EyeOff, Upload, Pencil, ArrowRightLeft } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
@@ -25,6 +26,7 @@ import { Label } from '@/components/ui/label';
 import type {
   OrgEmpleado,
   OrgArea,
+  Organigrama,
   CreateOrgEmpleadoData,
   UpdateOrgEmpleadoData,
   Experiencia,
@@ -56,6 +58,9 @@ interface FichaModalProps {
   onDelete: (id: number) => Promise<void>;
   onUploadFoto: (id: number, blob: Blob) => Promise<void>;
   onDeleteFoto: (id: number) => Promise<void>;
+  /** Organigramas a los que se puede transferir la ficha (el actual se excluye). */
+  organigramas: Organigrama[];
+  onTransferir: (id: number, organigramaId: number, area: string) => Promise<void>;
 }
 
 type Form = OrgEmpleado;
@@ -119,6 +124,8 @@ export default function FichaModal({
   onDelete,
   onUploadFoto,
   onDeleteFoto,
+  organigramas,
+  onTransferir,
 }: FichaModalProps) {
   const defaultArea = areas[0]?.nombre ?? '';
   const [form, setForm] = useState<Form | null>(empleado);
@@ -133,6 +140,7 @@ export default function FichaModal({
     [pendingFoto],
   );
   const fileRef = useRef<HTMLInputElement>(null);
+  const [transferir, setTransferir] = useState(false);
 
   // Proyectos del módulo Proyectos y finanzas en los que participa la persona.
   // Se pide acá (y no en la pestaña) porque el resultado define si la pestaña
@@ -496,6 +504,11 @@ export default function FichaModal({
                   </>
                 ) : edit ? (
                   <>
+                    {organigramas.some((o) => o.id !== emp.organigrama_id) && (
+                      <Button size="sm" variant="ghost" onClick={() => setTransferir(true)}>
+                        <ArrowRightLeft className="mr-1 h-3.5 w-3.5" /> Transferir
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="ghost"
@@ -660,12 +673,122 @@ export default function FichaModal({
             </Tabs>
           </div>
         </div>
+        {transferir && (
+          <TransferirDialog
+            empleado={emp}
+            organigramas={organigramas.filter((o) => o.id !== emp.organigrama_id)}
+            onClose={() => setTransferir(false)}
+            onTransferir={(orgId, area) => onTransferir(emp.id, orgId, area)}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );
 }
 
 // ── Subcomponentes ──────────────────────────────────────────────────────────
+
+/** Elegir organigrama y área destino. Las áreas son del destino (las del actual no existen allá). */
+function TransferirDialog({
+  empleado,
+  organigramas,
+  onClose,
+  onTransferir,
+}: {
+  empleado: OrgEmpleado;
+  organigramas: Organigrama[];
+  onClose: () => void;
+  onTransferir: (organigramaId: number, area: string) => Promise<void>;
+}) {
+  const [destino, setDestino] = useState<number | null>(null);
+  const [area, setArea] = useState('');
+  const [areas, setAreas] = useState<OrgArea[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/admin/organigrama/areas')
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setAreas)
+      .catch(() => {});
+  }, []);
+
+  const areasDestino = areas.filter((a) => a.organigrama_id === destino);
+
+  async function confirmar() {
+    if (destino == null) return;
+    setSaving(true);
+    setErr(null);
+    try {
+      await onTransferir(destino, area);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo transferir');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="neu-surface max-w-sm rounded-3xl">
+        <DialogHeader>
+          <DialogTitle>Transferir a otro organigrama</DialogTitle>
+          <DialogDescription>
+            {empleado.nombre} pasa con todo su historial (documentos, nómina, recibos, asistencia). Queda sin
+            jefe y quienes le reportaban, sin jefe.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label>Organigrama destino</Label>
+            <Select
+              value={destino != null ? String(destino) : undefined}
+              onValueChange={(v) => {
+                setDestino(Number(v));
+                setArea('');
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Elegí uno" />
+              </SelectTrigger>
+              <SelectContent>
+                {organigramas.map((o) => (
+                  <SelectItem key={o.id} value={String(o.id)}>
+                    {o.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Área en el destino</Label>
+            <Select value={area || 'none'} onValueChange={(v) => setArea(v === 'none' ? '' : v)} disabled={destino == null}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— Sin área —</SelectItem>
+                {areasDestino.map((a) => (
+                  <SelectItem key={a.id} value={a.nombre}>
+                    {a.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {err && <p className="text-sm text-destructive">{err}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button onClick={confirmar} disabled={destino == null || saving}>
+            {saving ? 'Transfiriendo…' : 'Transferir'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function Field({
   label,
