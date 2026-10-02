@@ -734,3 +734,48 @@ export async function updateOrganigrama(
     },
   }) as Promise<Organigrama>;
 }
+
+// ─── Pendientes de asistencia ─────────────────────────────────────────────────
+
+export interface PendienteAsistencia {
+  id: number;
+  organigrama_id: number | null;
+  nombre: string;
+  rol: string;
+  area: string;
+  /** Ninguna persona del reloj vinculada a esta ficha. */
+  sinLegajo: boolean;
+  /** Sin versión de horario vigente hoy o a futuro. */
+  sinHorario: boolean;
+}
+
+/**
+ * Fichas activas y visibles a las que les falta el vínculo con el reloj o el horario
+ * (lo que se completa en Asistencia › Personas). Un horario con `incluir = false`
+ * cuenta como configurado: es una exclusión a propósito.
+ */
+export async function getPendientesAsistencia(hoy: string): Promise<PendienteAsistencia[]> {
+  const horarioVigente = { OR: [{ vigente_hasta: null }, { vigente_hasta: { gte: hoy } }] };
+  const rows = await prisma.orgEmpleado.findMany({
+    where: {
+      oculto_en: null,
+      estado: 'active',
+      OR: [{ asistencia_personas: { none: {} } }, { asistencia_horarios: { none: horarioVigente } }],
+    },
+    select: {
+      id: true,
+      organigrama_id: true,
+      nombre: true,
+      rol: true,
+      area: true,
+      asistencia_personas: { select: { id: true }, take: 1 },
+      asistencia_horarios: { where: horarioVigente, select: { id: true }, take: 1 },
+    },
+    orderBy: { nombre: 'asc' },
+  });
+  return rows.map(({ asistencia_personas, asistencia_horarios, ...e }) => ({
+    ...e,
+    sinLegajo: asistencia_personas.length === 0,
+    sinHorario: asistencia_horarios.length === 0,
+  }));
+}

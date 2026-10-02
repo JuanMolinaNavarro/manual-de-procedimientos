@@ -14,6 +14,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { EmpleadoOculto, OrgEmpleado, Organigrama } from '@/lib/organigrama';
 import { fotoUrl, iniciales } from './foto';
+import PendientesAsistencia from './PendientesAsistencia';
 
 const sinTildes = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -181,6 +182,7 @@ export default function Toolbar({
           <Button size="sm" variant="ghost" onClick={onReorganizar} className="neu-btn h-10 rounded-xl">
             <LayoutGrid className="mr-1 h-4 w-4" /> Reorganizar
           </Button>
+          <PendientesAsistencia organigramas={organigramas} orgId={orgId} />
           {ocultos.length > 0 && (
             <Button size="sm" variant="ghost" onClick={() => setVerOcultos(true)} className="neu-btn h-10 rounded-xl">
               <EyeOff className="mr-1 h-4 w-4" /> Ocultos ({ocultos.length})
