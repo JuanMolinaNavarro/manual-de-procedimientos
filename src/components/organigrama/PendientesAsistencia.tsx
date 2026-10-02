@@ -6,40 +6,32 @@ import { ClockAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { Organigrama, PendienteAsistencia } from '@/lib/organigrama';
+import type { PendienteAsistencia } from '@/lib/organigrama';
 
 /**
- * Botón + diálogo de la barra: fichas activas de todas las empresas que todavía no tienen
+ * Botón + diálogo de la barra: fichas activas del organigrama elegido que todavía no tienen
  * legajo del reloj vinculado o no tienen horario. Se completan en Asistencia › Personas.
  */
-export default function PendientesAsistencia({ organigramas, orgId }: { organigramas: Organigrama[]; orgId: number | null }) {
-  const [pendientes, setPendientes] = useState<PendienteAsistencia[] | null>(null);
+export default function PendientesAsistencia({ orgId }: { orgId: number | null }) {
+  // Con el id del organigrama: al cambiar de empresa no se muestra la lista de la anterior.
+  const [datos, setDatos] = useState<{ orgId: number; lista: PendienteAsistencia[] } | null>(null);
   const [abierto, setAbierto] = useState(false);
 
   const cargar = useCallback(
-    () =>
-      fetch('/api/admin/organigrama/pendientes-asistencia')
+    (id: number) =>
+      fetch(`/api/admin/organigrama/pendientes-asistencia?organigramaId=${id}`)
         .then((res) => (res.ok ? res.json() : null))
-        .then((data: PendienteAsistencia[] | null) => data && setPendientes(data))
+        .then((lista: PendienteAsistencia[] | null) => lista && setDatos({ orgId: id, lista }))
         .catch(() => {}),
     [],
   );
 
   useEffect(() => {
-    void cargar();
-  }, [cargar]);
+    if (orgId != null) void cargar(orgId);
+  }, [orgId, cargar]);
 
-  if (!pendientes?.length) return null;
-
-  // La empresa del lienzo primero; el resto en el orden del selector; sin empresa al final.
-  const orden = [
-    ...organigramas.filter((o) => o.id === orgId),
-    ...organigramas.filter((o) => o.id !== orgId),
-    { id: null, nombre: 'Sin empresa' },
-  ];
-  const grupos = orden
-    .map((o) => ({ ...o, fichas: pendientes.filter((p) => p.organigrama_id === o.id) }))
-    .filter((g) => g.fichas.length > 0);
+  const pendientes = datos?.orgId === orgId ? datos.lista : [];
+  if (orgId == null || pendientes.length === 0) return null;
 
   return (
     <>
@@ -48,7 +40,7 @@ export default function PendientesAsistencia({ organigramas, orgId }: { organigr
         variant="ghost"
         onClick={() => {
           setAbierto(true);
-          cargar();
+          void cargar(orgId);
         }}
         className="neu-btn h-10 rounded-xl"
       >
@@ -60,36 +52,27 @@ export default function PendientesAsistencia({ organigramas, orgId }: { organigr
           <DialogHeader>
             <DialogTitle>Pendientes de asistencia</DialogTitle>
             <DialogDescription>
-              Personas activas sin legajo del reloj vinculado o sin horario configurado, por empresa. Se completan en{' '}
+              Personas activas de esta empresa sin legajo del reloj vinculado o sin horario configurado. Se completan en{' '}
               <Link href="/admin/asistencia?tab=personas" className="underline">
                 Asistencia › Personas
               </Link>
               .
             </DialogDescription>
           </DialogHeader>
-          <div className="max-h-[60vh] space-y-4 overflow-y-auto">
-            {grupos.map((g) => (
-              <section key={g.id ?? 'sin'}>
-                <h3 className="mb-1 text-sm font-semibold">
-                  {g.nombre} <span className="font-normal text-muted-foreground">({g.fichas.length})</span>
-                </h3>
-                <ul className="divide-y">
-                  {g.fichas.map((p) => (
-                    <li key={p.id} className="flex items-center justify-between gap-3 py-2">
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">{p.nombre}</p>
-                        <p className="truncate text-xs text-muted-foreground">{[p.rol, p.area].filter(Boolean).join(' · ')}</p>
-                      </div>
-                      <div className="flex shrink-0 gap-1">
-                        {p.sinLegajo && <Badge variant="outline">Sin vincular</Badge>}
-                        {p.sinHorario && <Badge variant="outline">Sin horario</Badge>}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </section>
+          <ul className="max-h-[60vh] divide-y overflow-y-auto">
+            {pendientes.map((p) => (
+              <li key={p.id} className="flex items-center justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{p.nombre}</p>
+                  <p className="truncate text-xs text-muted-foreground">{[p.rol, p.area].filter(Boolean).join(' · ')}</p>
+                </div>
+                <div className="flex shrink-0 gap-1">
+                  {p.sinLegajo && <Badge variant="outline">Sin vincular</Badge>}
+                  {p.sinHorario && <Badge variant="outline">Sin horario</Badge>}
+                </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </DialogContent>
       </Dialog>
     </>

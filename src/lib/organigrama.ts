@@ -739,7 +739,6 @@ export async function updateOrganigrama(
 
 export interface PendienteAsistencia {
   id: number;
-  organigrama_id: number | null;
   nombre: string;
   rol: string;
   area: string;
@@ -750,21 +749,21 @@ export interface PendienteAsistencia {
 }
 
 /**
- * Fichas activas y visibles a las que les falta el vínculo con el reloj o el horario
+ * Fichas activas y visibles de un organigrama a las que les falta el vínculo con el reloj o el horario
  * (lo que se completa en Asistencia › Personas). Un horario con `incluir = false`
  * cuenta como configurado: es una exclusión a propósito.
  */
-export async function getPendientesAsistencia(hoy: string): Promise<PendienteAsistencia[]> {
+export async function getPendientesAsistencia(organigramaId: number, hoy: string): Promise<PendienteAsistencia[]> {
   const horarioVigente = { OR: [{ vigente_hasta: null }, { vigente_hasta: { gte: hoy } }] };
   const rows = await prisma.orgEmpleado.findMany({
     where: {
+      organigrama_id: organigramaId,
       oculto_en: null,
       estado: 'active',
       OR: [{ asistencia_personas: { none: {} } }, { asistencia_horarios: { none: horarioVigente } }],
     },
     select: {
       id: true,
-      organigrama_id: true,
       nombre: true,
       rol: true,
       area: true,
