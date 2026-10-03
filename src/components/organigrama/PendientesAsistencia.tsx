@@ -12,7 +12,14 @@ import type { PendienteAsistencia } from '@/lib/organigrama';
  * Botón + diálogo de la barra: fichas activas del organigrama elegido que todavía no tienen
  * legajo del reloj vinculado o no tienen horario. Se completan en Asistencia › Personas.
  */
-export default function PendientesAsistencia({ orgId }: { orgId: number | null }) {
+export default function PendientesAsistencia({
+  orgId,
+  onAbrirFicha,
+}: {
+  orgId: number | null;
+  /** Abre la ficha del organigrama en modo edición. */
+  onAbrirFicha: (id: number) => void;
+}) {
   // Con el id del organigrama: al cambiar de empresa no se muestra la lista de la anterior.
   const [datos, setDatos] = useState<{ orgId: number; lista: PendienteAsistencia[] } | null>(null);
   const [abierto, setAbierto] = useState(false);
@@ -62,10 +69,20 @@ export default function PendientesAsistencia({ orgId }: { orgId: number | null }
           <ul className="max-h-[60vh] divide-y overflow-y-auto">
             {pendientes.map((p) => (
               <li key={p.id} className="flex items-center justify-between gap-3 py-2">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{p.nombre}</p>
-                  <p className="truncate text-xs text-muted-foreground">{[p.rol, p.area].filter(Boolean).join(' · ')}</p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAbierto(false);
+                    onAbrirFicha(p.id);
+                  }}
+                  className="min-w-0 text-left"
+                  title="Abrir la ficha para editarla"
+                >
+                  <span className="block truncate font-medium hover:underline">{p.nombre}</span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {[p.rol, p.area].filter(Boolean).join(' · ')}
+                  </span>
+                </button>
                 <div className="flex shrink-0 gap-1">
                   {p.sinLegajo && <Badge variant="outline">Sin vincular</Badge>}
                   {p.sinHorario && <Badge variant="outline">Sin horario</Badge>}

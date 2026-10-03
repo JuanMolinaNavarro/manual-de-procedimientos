@@ -346,6 +346,15 @@ function CanvasInner({ canEdit }: { canEdit: boolean }) {
     setModalOpen(true);
   }, []);
 
+  // Ficha existente directo en modo edición (lista de pendientes de asistencia).
+  const handleEditarEmpleado = useCallback((id: number) => {
+    setSelectedId(id);
+    setCreatingJefe(false);
+    setCreatingEmpleado(false);
+    setStartEdit(true);
+    setModalOpen(true);
+  }, []);
+
   const irAArea = useCallback(
     (id: number) => fitView({ nodes: [{ id: `area-${id}` }], padding: 0.15, duration: 500 }),
     [fitView],
@@ -398,6 +407,7 @@ function CanvasInner({ canEdit }: { canEdit: boolean }) {
         onSearch={setSearch}
         empleados={empleados}
         onPickEmpleado={irAEmpleado}
+        onEditarEmpleado={handleEditarEmpleado}
         onAddEmpleado={handleAddEmpleado}
         onAddArea={handleAddArea}
         onReorganizar={handleReorganizar}

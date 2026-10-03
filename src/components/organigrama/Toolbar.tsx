@@ -29,6 +29,8 @@ interface ToolbarProps {
   /** Fichas del lienzo, para sugerir por nombre mientras se escribe. */
   empleados: OrgEmpleado[];
   onPickEmpleado: (id: number) => void;
+  /** Abre la ficha en modo edición. */
+  onEditarEmpleado: (id: number) => void;
   onAddEmpleado: () => void;
   onAddArea: () => void;
   onReorganizar: () => void;
@@ -49,6 +51,7 @@ export default function Toolbar({
   onSearch,
   empleados,
   onPickEmpleado,
+  onEditarEmpleado,
   onAddEmpleado,
   onAddArea,
   onReorganizar,
@@ -182,7 +185,7 @@ export default function Toolbar({
           <Button size="sm" variant="ghost" onClick={onReorganizar} className="neu-btn h-10 rounded-xl">
             <LayoutGrid className="mr-1 h-4 w-4" /> Reorganizar
           </Button>
-          <PendientesAsistencia orgId={orgId} />
+          <PendientesAsistencia orgId={orgId} onAbrirFicha={onEditarEmpleado} />
           {ocultos.length > 0 && (
             <Button size="sm" variant="ghost" onClick={() => setVerOcultos(true)} className="neu-btn h-10 rounded-xl">
               <EyeOff className="mr-1 h-4 w-4" /> Ocultos ({ocultos.length})
