@@ -78,33 +78,6 @@ export function ControlesPeriodo() {
   );
 }
 
-/**
- * Pie de tabla: cuántas filas se están viendo y los saltos de página. Lo usan
- * tanto las tablas que pagina el server (Fichadas) como las que se paginan en
- * el navegador (Personas), así que el pie se lee igual en las dos.
- */
-export function Paginacion({
-  desdeFila, hastaFila, total, page, totalPaginas, unidad, onPage,
-}: {
-  desdeFila: number; hastaFila: number; total: number; page: number; totalPaginas: number; unidad: string;
-  onPage: (p: number) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <span className="text-xs text-muted-foreground">
-        Mostrando {desdeFila.toLocaleString('es-AR')}–{hastaFila.toLocaleString('es-AR')} de {total.toLocaleString('es-AR')} {unidad}
-      </span>
-      {totalPaginas > 1 && (
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>Anterior</Button>
-          <span className="text-sm text-muted-foreground">Página {page} de {totalPaginas}</span>
-          <Button variant="outline" size="sm" disabled={page >= totalPaginas} onClick={() => onPage(page + 1)}>Siguiente</Button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /** Perfil de una persona del reloj; con `mes`, abre en ese mes. */
 const hrefPerfil = (personaId: number, mes?: string) => `/admin/asistencia/personas/${personaId}${mes ? `?mes=${mes}` : ''}`;
 

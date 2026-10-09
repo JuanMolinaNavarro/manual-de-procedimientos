@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Pencil, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Paginacion } from "@/components/comunes/ui";
+import { usePaginaLocal } from "@/hooks/usePaginaLocal";
 import {
   Card,
   CardDescription,
@@ -151,7 +153,6 @@ export default function LeadsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<DateFilter>("todos");
-  const [currentPage, setCurrentPage] = useState(1);
   const [sortKey, setSortKey] = useState<SortKey>("fecha");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [mostrarContactados, setMostrarContactados] = useState(true);
@@ -180,11 +181,6 @@ export default function LeadsPage() {
   useEffect(() => {
     fetchLeads();
   }, [fetchLeads]);
-
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filter, mostrarContactados]);
 
   const patchLead = useCallback(
     async (
@@ -223,7 +219,6 @@ export default function LeadsPage() {
       setSortKey(key);
       setSortDir("asc");
     }
-    setCurrentPage(1);
   };
 
   const sortedLeads = useMemo(() => {
@@ -267,16 +262,8 @@ export default function LeadsPage() {
     });
   }, [filteredLeads, sortKey, sortDir]);
 
-  const totalPages = Math.max(1, Math.ceil(sortedLeads.length / PAGE_SIZE));
-
-  const paginatedLeads = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return sortedLeads.slice(start, start + PAGE_SIZE);
-  }, [sortedLeads, currentPage]);
-
-  const rangeStart =
-    filteredLeads.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
-  const rangeEnd = Math.min(currentPage * PAGE_SIZE, filteredLeads.length);
+  // Cambiar filtro u orden vuelve a la página 1.
+  const pag = usePaginaLocal(sortedLeads, `${filter}|${mostrarContactados}|${sortKey}|${sortDir}`, PAGE_SIZE);
 
   const th = (key: SortKey, label: string, className = "") => (
     <TableHead
@@ -382,7 +369,7 @@ export default function LeadsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedLeads.map((lead) => (
+                  {pag.visibles.map((lead) => (
                     <TableRow key={lead.id}>
                       <TableCell className="font-medium whitespace-nowrap">
                         {editingNombreId === lead.id ? (
@@ -559,33 +546,7 @@ export default function LeadsPage() {
             </div>
           </Card>
 
-          {/* Pagination */}
-          <div className="flex flex-wrap items-center justify-between gap-4 text-sm text-muted-foreground">
-            <span>
-              Mostrando {rangeStart}–{rangeEnd} de {filteredLeads.length} ventas
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage((p) => p - 1)}
-                disabled={currentPage === 1}
-              >
-                Anterior
-              </Button>
-              <span className="text-foreground">
-                Página {currentPage} de {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage((p) => p + 1)}
-                disabled={currentPage === totalPages}
-              >
-                Siguiente
-              </Button>
-            </div>
-          </div>
+          <Paginacion {...pag} unidad="ventas" />
         </>
       )}
     </div>

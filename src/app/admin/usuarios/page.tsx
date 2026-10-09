@@ -22,6 +22,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { isSuperadmin } from '@/lib/roles';
+import { Paginacion } from '@/components/comunes/ui';
+import { usePaginaLocal } from '@/hooks/usePaginaLocal';
 
 interface EmpleadoVinculado {
   id: number;
@@ -78,7 +80,6 @@ export default function UsuariosAdminPage() {
 
   // Busqueda + paginacion
   const [q, setQ] = useState('');
-  const [page, setPage] = useState(1);
 
   const fetchUsuarios = async () => {
     try {
@@ -127,11 +128,8 @@ export default function UsuariosAdminPage() {
     );
   }, [usuarios, q]);
 
-  const totalPages = Math.max(1, Math.ceil(filtrados.length / PAGE_SIZE));
-  const pageSafe = Math.min(page, totalPages);
-  const visibles = filtrados.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
-  const rangeStart = filtrados.length === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1;
-  const rangeEnd = Math.min(pageSafe * PAGE_SIZE, filtrados.length);
+  // Buscar, o que se dé de alta/baja a alguien, vuelve a la página 1.
+  const pag = usePaginaLocal(filtrados, `${q.trim()}|${usuarios.length}`, PAGE_SIZE);
 
   const toggleActivo = async (id: number, isActive: boolean) => {
     try {
@@ -188,7 +186,6 @@ export default function UsuariosAdminPage() {
       setModoVinculo('ninguno');
       setEmpleadoId('');
       setAreaId('');
-      setPage(1);
       fetchUsuarios();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
@@ -341,10 +338,7 @@ export default function UsuariosAdminPage() {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={q}
-              onChange={(event) => {
-                setQ(event.target.value);
-                setPage(1);
-              }}
+              onChange={(event) => setQ(event.target.value)}
               placeholder="Buscar por usuario, nombre o apellido…"
               className="pl-9"
             />
@@ -365,14 +359,14 @@ export default function UsuariosAdminPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {visibles.length === 0 ? (
+              {pag.visibles.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center text-muted-foreground">
                     {usuarios.length === 0 ? 'No hay usuarios creados.' : 'Sin resultados para la busqueda.'}
                   </TableCell>
                 </TableRow>
               ) : (
-                visibles.map((item) => (
+                pag.visibles.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>{item.usuario}</TableCell>
                     <TableCell>{item.nombre ?? "-"}</TableCell>
@@ -407,31 +401,8 @@ export default function UsuariosAdminPage() {
               )}
             </TableBody>
           </Table>
-          <div className="flex items-center justify-between border-t border-border px-4 py-3 text-sm text-muted-foreground">
-            <span>
-              Mostrando {rangeStart}–{rangeEnd} de {filtrados.length} usuarios
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={pageSafe === 1}
-              >
-                Anterior
-              </Button>
-              <span className="text-foreground">
-                Página {pageSafe} de {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={pageSafe === totalPages}
-              >
-                Siguiente
-              </Button>
-            </div>
+          <div className="border-t border-border px-4 py-3">
+            <Paginacion {...pag} unidad="usuarios" />
           </div>
         </CardContent>
       </Card>

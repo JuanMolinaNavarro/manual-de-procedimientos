@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Paginacion } from "@/components/comunes/ui";
+import { usePaginaLocal } from "@/hooks/usePaginaLocal";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -97,11 +99,9 @@ export default function CatalogoPage() {
 
   // ── Catalog data ──────────────────────────────────────────────
   const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
-  const [filtered, setFiltered] = useState<CatalogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
 
   // ── Sort ──────────────────────────────────────────────────────
   const [sortKey, setSortKey] = useState<SortKey>("imdb_votes");
@@ -115,7 +115,6 @@ export default function CatalogoPage() {
       const data = await res.json();
       if (!Array.isArray(data)) throw new Error(data.error ?? "Error al cargar");
       setCatalog(data);
-      setFiltered(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al cargar");
     } finally {
@@ -125,11 +124,8 @@ export default function CatalogoPage() {
 
   useEffect(() => { loadCatalog(); }, []);
 
-  useEffect(() => {
-    const q = search.trim().toLowerCase();
-    setFiltered(q ? catalog.filter((e) => e.name.toLowerCase().includes(q)) : catalog);
-    setPage(1);
-  }, [search, catalog]);
+  const q = search.trim().toLowerCase();
+  const filtered = q ? catalog.filter((e) => e.name.toLowerCase().includes(q)) : catalog;
 
   // ── Sort + paginate ───────────────────────────────────────────
   const handleSort = (key: SortKey) => {
@@ -139,7 +135,6 @@ export default function CatalogoPage() {
       setSortKey(key);
       setSortDir(key === "imdb_rating" || key === "imdb_votes" ? "desc" : "asc");
     }
-    setPage(1);
   };
 
   const sorted = [...filtered].sort((a, b) => {
@@ -154,8 +149,8 @@ export default function CatalogoPage() {
     return sortDir === "asc" ? cmp : -cmp;
   });
 
-  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
-  const slice = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // Buscar o cambiar el orden vuelve a la página 1.
+  const pag = usePaginaLocal(sorted, `${q}|${sortKey}|${sortDir}`, PAGE_SIZE);
 
   const handleImport = (entry: CatalogEntry) => {
     sessionStorage.setItem("mwproxy.autosearch", entry.name);
@@ -265,7 +260,7 @@ export default function CatalogoPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {slice.map((entry) => (
+                    {pag.visibles.map((entry) => (
                       <TableRow key={entry.id}>
                         <TableCell className="font-medium">{entry.name}</TableCell>
                         <TableCell className="text-muted-foreground">
@@ -323,29 +318,7 @@ export default function CatalogoPage() {
             </Card>
           )}
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => p - 1)}
-                disabled={page <= 1}
-              >
-                ← Anterior
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                {page} / {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={page >= totalPages}
-              >
-                Siguiente →
-              </Button>
-            </div>
-          )}
+          <Paginacion {...pag} unidad="películas" />
         </div>
       )}
     </div>

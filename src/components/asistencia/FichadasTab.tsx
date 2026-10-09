@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Banner, Empty, EmpleadoCell } from '@/components/comunes/ui';
+import { Banner, Empty, EmpleadoCell, Paginacion } from '@/components/comunes/ui';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { cn } from '@/lib/utils';
 import {
@@ -24,7 +24,7 @@ import {
 } from '@/lib/asistencia-datos';
 import type { FichadaDetalle, FichadaDia } from './api';
 import { mensajeError } from '@/components/comunes/api';
-import { Campo, Chip, ControlesPeriodo, FiltroChip, LinkPerfil, Paginacion } from './piezas';
+import { Campo, Chip, ControlesPeriodo, FiltroChip, LinkPerfil } from './piezas';
 import { useAsistencia, useAsistenciaData } from './AsistenciaContext';
 
 type Respuesta =

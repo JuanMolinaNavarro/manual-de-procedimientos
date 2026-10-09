@@ -2,12 +2,13 @@
 
 /**
  * Piezas chicas compartidas por las pantallas del panel (nómina, asistencia, …).
- * Nacieron en `nomina/ui.tsx`, que hoy re-exporta este módulo.
+ * Nacieron en las pantallas de nómina.
  */
 
 import type { ReactNode } from 'react';
 import { Info, Lock, AlertTriangle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { fotoUrl, iniciales } from '@/components/organigrama/foto';
@@ -151,4 +152,31 @@ export function Estado({ loading, error, sinOrg }: { loading: boolean; error: st
   if (error) return <Banner variant="warn">{error}</Banner>;
   if (loading) return <p className="py-8 text-center text-sm text-muted-foreground">Cargando…</p>;
   return null;
+}
+
+/**
+ * Pie de tabla: cuántas filas se están viendo y los saltos de página. Lo usan
+ * tanto las tablas que pagina el server (Fichadas) como las que se paginan en
+ * el navegador (Personas), así que el pie se lee igual en las dos.
+ */
+export function Paginacion({
+  desdeFila, hastaFila, total, page, totalPaginas, unidad, onPage,
+}: {
+  desdeFila: number; hastaFila: number; total: number; page: number; totalPaginas: number; unidad: string;
+  onPage: (p: number) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <span className="text-xs text-muted-foreground">
+        Mostrando {desdeFila.toLocaleString('es-AR')}–{hastaFila.toLocaleString('es-AR')} de {total.toLocaleString('es-AR')} {unidad}
+      </span>
+      {totalPaginas > 1 && (
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>Anterior</Button>
+          <span className="text-sm text-muted-foreground">Página {page} de {totalPaginas}</span>
+          <Button variant="outline" size="sm" disabled={page >= totalPaginas} onClick={() => onPage(page + 1)}>Siguiente</Button>
+        </div>
+      )}
+    </div>
+  );
 }

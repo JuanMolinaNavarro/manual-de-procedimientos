@@ -13,7 +13,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Banner, ColHelp, Empty, EmpleadoCell } from '@/components/comunes/ui';
+import { Banner, ColHelp, Empty, EmpleadoCell, Paginacion } from '@/components/comunes/ui';
 import { usePaginaLocal } from '@/hooks/usePaginaLocal';
 import { cn } from '@/lib/utils';
 import { FILAS_POR_PAGINA, fmtFechaHora, fmtRelativo, hoyLocal } from '@/lib/asistencia-datos';
@@ -22,7 +22,7 @@ import type { Persona } from './api';
 import { apiFetch, mensajeError } from '@/components/comunes/api';
 import { useAsistencia } from './AsistenciaContext';
 import EmpleadoPicker from './EmpleadoPicker';
-import { Chip, LinkPerfil, Paginacion } from './piezas';
+import { Chip, LinkPerfil } from './piezas';
 import HorarioDialog from './HorarioDialog';
 
 type Filtro = 'todas' | 'sinVincular' | 'vinculadas' | 'sinHorario';
