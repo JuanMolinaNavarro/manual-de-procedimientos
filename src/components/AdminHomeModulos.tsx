@@ -18,7 +18,7 @@ const DESCRIPCIONES: Record<SlugMenu, string> = {
   'senales-ip': 'Gestionar contratos de compradores y vendedores de señales IP.',
   organigrama: 'Visualizar y gestionar la estructura organizacional de la empresa.',
   asistencia: 'Fichadas de los relojes biométricos por empleado, sede y fecha.',
-  'mi-asistencia': 'Tu propia asistencia: calendario del último año y resumen del mes.',
+  'mi-asistencia': 'Tu asistencia mes a mes: los días que viniste, llegadas tarde y horas extra, en un calendario de colores.',
   'gestion-recibos': 'Importar los recibos de Finnegans, avisar por mail, adhesiones y seguimiento de firmas.',
   'mis-recibos': 'Tus recibos de sueldo: verlos, descargarlos y firmarlos con tu PIN.',
   vacaciones: 'Temporada de vacaciones: saldos, elección de fechas, aprobación, aviso escrito y cobertura por área.',
