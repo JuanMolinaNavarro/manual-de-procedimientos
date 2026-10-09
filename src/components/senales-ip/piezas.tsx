@@ -33,11 +33,6 @@ export const CONTRATO = {
 export const vigenciaTexto = (c: Contrato) =>
   c.vigencia_desde || c.vigencia_hasta ? `${fechaCorta(c.vigencia_desde)} – ${fechaCorta(c.vigencia_hasta)}` : 'Sin límite';
 
-/** El formulario usa '' para "sin dato"; la API espera null. */
-export function vaciosANull<T extends object>(datos: T): T {
-  return Object.fromEntries(Object.entries(datos).map(([k, v]) => [k, v === '' ? null : v])) as T;
-}
-
 export function ErrorForm({ error }: { error: string }) {
   if (!error) return null;
   return <div className="rounded-md border border-red-900/50 bg-red-950/30 p-4 text-red-300">{error}</div>;

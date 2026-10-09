@@ -13,7 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiFetch, mensajeError } from '@/components/comunes/api';
 import type { ContratoComprador } from '@/lib/senales-ip';
-import { ErrorForm, LogoContrato, vaciosANull } from './piezas';
+import { vaciosANull } from '@/lib/utils';
+import { ErrorForm, LogoContrato } from './piezas';
 
 interface FormData {
   nombre_empresa: string;

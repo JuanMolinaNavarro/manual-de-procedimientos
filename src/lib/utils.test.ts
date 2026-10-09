@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { coincide } from './utils';
+import { coincide, vaciosANull } from './utils';
+
+describe('vaciosANull', () => {
+  it('solo los textos vacíos pasan a null', () => {
+    expect(vaciosANull({ a: '', b: 'x', c: false, d: [] as string[] })).toEqual({ a: null, b: 'x', c: false, d: [] });
+  });
+});
 
 describe('coincide', () => {
   it('sin tildes ni mayúsculas, en cualquiera de los textos', () => {

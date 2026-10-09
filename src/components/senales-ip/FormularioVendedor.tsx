@@ -12,7 +12,8 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiFetch, mensajeError } from '@/components/comunes/api';
 import type { ContratoVendedor, EquipoPorSenal } from '@/lib/senales-ip';
-import { ErrorForm, LogoContrato, vaciosANull } from './piezas';
+import { vaciosANull } from '@/lib/utils';
+import { ErrorForm, LogoContrato } from './piezas';
 
 interface FormData {
   nombre_empresa: string;
