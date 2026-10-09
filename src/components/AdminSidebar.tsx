@@ -4,9 +4,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu, X, Home, Gift, Users, Film, Library, Trophy, Inbox, Wifi, Antenna, Network, Fingerprint, CalendarCheck, Database, FolderKanban, Warehouse, FileSignature, Receipt, TreePalm, Plane, type LucideIcon } from 'lucide-react';
-import type { AdminModulo } from '@/lib/modulos';
+import type { ModuloMenu, SlugMenu } from '@/lib/modulos';
 
-const ICONS: Record<string, LucideIcon> = {
+/** Ícono de cada módulo: el mismo en el menú lateral y en la grilla de inicio. */
+export const ICONOS_MODULO: Record<SlugMenu, LucideIcon> = {
   bonificaciones: Gift,
   usuarios: Users,
   peliculas: Film,
@@ -29,7 +30,7 @@ const ICONS: Record<string, LucideIcon> = {
 
 interface AdminSidebarProps {
   nombreCompleto?: string | null;
-  navLinks: readonly AdminModulo[];
+  navLinks: readonly ModuloMenu[];
   /** Título del panel lateral (default: "Panel de administracion"). */
   titulo?: string;
 }
@@ -89,7 +90,7 @@ export default function AdminSidebar({ nombreCompleto, navLinks, titulo }: Admin
           </Link>
           {navLinks.map(({ slug, href, label }) => {
             const isActive = pathname === href || pathname.startsWith(href + '/');
-            const Icon = ICONS[slug];
+            const Icon = ICONOS_MODULO[slug];
             return (
               <Link
                 key={href}
