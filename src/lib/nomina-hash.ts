@@ -22,8 +22,8 @@ export const FORMATO_CADENA = 2;
 
 export const GENESIS = '0'.repeat(64);
 
-export function sha256(s: string): string {
-  return createHash('sha256').update(s, 'utf8').digest('hex');
+export function sha256(s: string | Uint8Array): string {
+  return createHash('sha256').update(s).digest('hex');
 }
 
 export function reciboHash(payload: ReciboPayload): string {

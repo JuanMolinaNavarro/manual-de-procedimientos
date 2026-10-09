@@ -19,8 +19,8 @@
  *   liquidar es peor que ningún número.
  */
 
-import { FECHA_RE, OFFSET_RELOJ_MIN } from './asistencia-datos';
-import { DIA_MS, aMs, sumarDias } from './fechas';
+import { FECHA_RE } from './asistencia-datos';
+import { DIA_MS, aMs, sumarDias, OFFSET_AR_MIN } from './fechas';
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -223,7 +223,7 @@ export function minutosDe(hhmm: string): number {
 
 /** Minuto del día local (Argentina) de un instante ISO UTC. */
 export function minutoLocalDe(iso: string): number {
-  const t = Date.parse(iso) + OFFSET_RELOJ_MIN * 60_000;
+  const t = Date.parse(iso) + OFFSET_AR_MIN * 60_000;
   return Math.floor((((t % DIA_MS) + DIA_MS) % DIA_MS) / 60_000);
 }
 

@@ -1,6 +1,6 @@
 import { cache } from 'react';
 import { cookies } from 'next/headers';
-import { canEditModule as slugEditable, modulosEfectivos, type AdminModuloSlug } from './modulos';
+import { modulosEfectivos, type AdminModuloSlug } from './modulos';
 import { isAdminRole, isSuperadmin, isVentasRole, puedeGestionarPin, puedeGestionarUsuarios } from './roles';
 import { COOKIE_SESION, usuarioDeToken } from './sesion';
 
@@ -37,19 +37,17 @@ export async function getSessionUsername(): Promise<string | null> {
 }
 
 /** Registro del usuario de la sesión, con su ficha del organigrama. */
-export async function getUsuarioSesion() {
-  return getSesion();
-}
+export const getUsuarioSesion = getSesion;
 
 /**
  * ¿El usuario de la sesión puede EDITAR el módulo dado? Superadmin siempre puede.
- * Para admin requiere que el slug esté en su lista `modulos_edit`.
+ * Para admin requiere que el slug esté en su lista `modulos_edit`: a diferencia de `modulos`
+ * (vacío = todos), una lista de edición vacía no habilita nada (editar es opt-in).
  */
 export async function canEditModule(slug: AdminModuloSlug): Promise<boolean> {
   const u = await getSesion();
   if (!u || !isAdminRole(u.rol)) return false;
-  if (isSuperadmin(u.rol)) return true;
-  return slugEditable(slug, u.modulos_edit);
+  return isSuperadmin(u.rol) || u.modulos_edit.includes(slug);
 }
 
 /**

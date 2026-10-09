@@ -13,7 +13,8 @@
 
 import { ApiError } from './api-error';
 import { Socket } from 'node:net';
-import { MAX_REGISTROS_POR_TRAMA, OFFSET_RELOJ_MIN, PUERTO_TCB, type ModoDescarga } from './asistencia-datos';
+import { MAX_REGISTROS_POR_TRAMA, PUERTO_TCB, type ModoDescarga } from './asistencia-datos';
+import { OFFSET_AR_MIN } from './fechas';
 
 // ─── Comandos ────────────────────────────────────────────────────────────────
 
@@ -176,7 +177,7 @@ const EPOCA_RELOJ_MS = Date.UTC(2000, 0, 2);
 export function fechaReloj(segundos: number): { fechaHora: Date; fecha: string } {
   const localMs = EPOCA_RELOJ_MS + segundos * 1000;
   return {
-    fechaHora: new Date(localMs - OFFSET_RELOJ_MIN * 60_000),
+    fechaHora: new Date(localMs - OFFSET_AR_MIN * 60_000),
     fecha: new Date(localMs).toISOString().slice(0, 10),
   };
 }

@@ -7,11 +7,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { createHash, randomUUID } from 'crypto';
+import { randomUUID } from 'crypto';
 import { puedeGestionarPinSesion } from '@/lib/admin-auth';
 import { handle, parseId } from '@/lib/nomina-api';
 import { NominaError, clearActa, getAdhesion, setActa } from '@/lib/nomina';
 import { headersArchivo } from '@/lib/archivos';
+import { sha256 } from '@/lib/nomina-hash';
 
 const ACTAS_DIR = join(process.cwd(), 'uploads', 'nomina', 'actas');
 const ACTA_MAX_BYTES = 15 * 1024 * 1024;
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     try {
       const { anterior, view } = await setActa(parseId(empleadoId, 'empleadoId'), {
         archivo: storedName, nombreOriginal: file.name, tamano: buffer.length,
-        sha256: createHash('sha256').update(buffer).digest('hex'),
+        sha256: sha256(buffer),
       });
       borrar(anterior);
       return NextResponse.json(view, { status: 201 });

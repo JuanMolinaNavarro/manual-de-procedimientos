@@ -22,14 +22,14 @@
  *    desde el portal con su PIN; el hash se verifica antes de entregar y antes de firmar.
  */
 
-import { createHash, randomUUID } from 'crypto';
+import { randomUUID } from 'crypto';
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 import { NominaError, comprobarPin, toConstancia, type ConstanciaView } from './nomina';
 import { MES_RE, mesLocal, rangoMes } from './fechas';
-import { FORMATO_CADENA, GENESIS, chainHash } from './nomina-hash';
+import { FORMATO_CADENA, GENESIS, chainHash, sha256 } from './nomina-hash';
 import { canonicalJson } from './nomina-calc';
 import { estadoBloqueo } from './nomina-pin';
 import { getResumenLiq, getSabana, TeamplaceError, type InfoLlamada } from './teamplace';
@@ -52,10 +52,6 @@ export const SABANAS_DIR = join(process.cwd(), 'uploads', 'nomina', 'sabanas');
 export const RECIBOS_DIR = join(process.cwd(), 'uploads', 'nomina', 'recibos');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function sha256(b: Uint8Array): string {
-  return createHash('sha256').update(b).digest('hex');
-}
 
 async function nombresOrganigramas(): Promise<Map<number, string>> {
   return new Map((await prisma.organigrama.findMany({ select: { id: true, nombre: true } })).map((o) => [o.id, o.nombre]));

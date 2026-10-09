@@ -9,21 +9,8 @@ import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 import { conReloj, type RegistroReloj } from './anviz-tcb';
 import { updateEmpleado } from './organigrama';
-import {
-  ORIGEN_CROSSCHEX,
-  ORIGEN_RELOJ,
-  OFFSET_RELOJ_MIN,
-  ESTADO_EMPLEADO_ACTIVO,
-  ESTADO_EMPLEADO_INACTIVO,
-  esFechaImposible,
-  FILAS_POR_PAGINA,
-  PUERTO_TCB,
-  hoyLocal,
-  personaActiva,
-  type FiltrosFichadas,
-  type ModoDescarga,
-} from './asistencia-datos';
-import { sumarDias } from './fechas';
+import { ORIGEN_CROSSCHEX, ORIGEN_RELOJ, ESTADO_EMPLEADO_ACTIVO, ESTADO_EMPLEADO_INACTIVO, esFechaImposible, FILAS_POR_PAGINA, PUERTO_TCB, hoyLocal, personaActiva, type FiltrosFichadas, type ModoDescarga } from './asistencia-datos';
+import { sumarDias, OFFSET_AR_MIN } from './fechas';
 import { resumirFichadas, type FichadaDia } from './asistencia-calendario';
 
 export class AsistenciaError extends ApiError {}
@@ -698,7 +685,7 @@ export async function exportarXlsx(f: FiltrosFichadas): Promise<Buffer> {
   const nombres = await nombresPorUserId(rows.map((r) => r.user_id));
   const relojes = new Map((await prisma.asistenciaReloj.findMany({ select: { id: true, nombre: true } })).map((r) => [r.id, r.nombre]));
   for (const r of rows) {
-    const local = new Date(r.fecha_hora.getTime() + OFFSET_RELOJ_MIN * 60_000);
+    const local = new Date(r.fecha_hora.getTime() + OFFSET_AR_MIN * 60_000);
     ws.addRow({
       fecha: r.fecha,
       hora: local.toISOString().slice(11, 19),
@@ -748,7 +735,7 @@ function fechaDeMdb(v: unknown): Date | null {
 
 /** Instante real (UTC) a partir de la hora de pared local (-03:00), igual que la bajada directa. */
 function instanteReal(wall: Date): Date {
-  return new Date(wall.getTime() - OFFSET_RELOJ_MIN * 60_000);
+  return new Date(wall.getTime() - OFFSET_AR_MIN * 60_000);
 }
 
 function chunk<T>(arr: T[], n: number): T[][] {

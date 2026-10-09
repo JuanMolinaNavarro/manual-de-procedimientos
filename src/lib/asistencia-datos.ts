@@ -3,7 +3,7 @@
  * Sin dependencias de servidor: se importa desde cliente y servidor.
  */
 
-import { OFFSET_AR_MIN, aIso, aMs, hoyLocal, sumarDias } from './fechas';
+import { aIso, aMs, hoyLocal, sumarDias } from './fechas';
 
 /** Tipo de marca (byte "record type" del reloj; tabla Status de CrossChex). */
 export const TIPOS_MARCA: Record<number, string> = {
@@ -51,9 +51,6 @@ export function esFechaImposible(fechaHoraIso: string, ahora = Date.now()): bool
   const t = Date.parse(fechaHoraIso);
   return !Number.isFinite(t) || t > ahora + MARGEN_FECHA_FUTURA_MS || t < Date.parse('2010-01-01T00:00:00Z');
 }
-
-/** Zona horaria fija de los relojes (Argentina, sin horario de verano). */
-export const OFFSET_RELOJ_MIN = OFFSET_AR_MIN;
 
 /** Modo de descarga de registros del reloj. */
 export type ModoDescarga = 'nuevos' | 'todos';
