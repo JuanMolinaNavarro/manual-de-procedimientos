@@ -2,73 +2,125 @@
 
 /**
  * Mi asistencia (`/admin/mi-asistencia`): la asistencia del usuario de la
- * sesión, leída de la ficha del organigrama vinculada a su cuenta. Arriba el
- * último año como calendario de "contribuciones"; abajo el mes elegido con el
- * mismo resumen y detalle que ve quien liquida en el perfil de la persona.
- * Solo lectura: no hay nada que editar acá.
+ * sesión, leída de la ficha del organigrama vinculada a su cuenta. Pensada para
+ * que la lea de un vistazo una persona de 60 años: el mes, unas pocas frases
+ * cortas y un calendario de colores. Cada frase lleva el mismo símbolo que su
+ * color del calendario, así el resumen hace de leyenda. Tocar un día abre su
+ * detalle (entrada, salida, horas). Solo lectura.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, CalendarRange, ChevronLeft, ChevronRight, Fingerprint } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Banner, Empty, PageTitle } from '@/components/comunes/ui';
+import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Banner, Empty } from '@/components/comunes/ui';
 import { cn } from '@/lib/utils';
-import { hoyLocal } from '@/lib/asistencia-datos';
-import { MES_RE, describirHorario, fmtMes, mesAnterior, mesSiguiente, rangoMes, resumenLiquidacion, versionVigente } from '@/lib/asistencia-calendario';
-import { asistFetch, mensajeError, type MiAsistenciaRespuesta } from './api';
-import CalendarioAnual from './CalendarioAnual';
-import { Detalle, Foto, HorarioCard, Resumen } from './PerfilPiezas';
+import { fmtDiaLargo, fmtHoraCorta, hoyLocal } from '@/lib/asistencia-datos';
+import { DIAS_SEMANA_LARGO, MES_RE, fmtMes, mesAnterior, mesSiguiente, type CeldaDia, type ResumenLiquidacion } from '@/lib/asistencia-calendario';
+import { compensada, horasExtraDia, plural, tardanza, tardesCompensadas } from '@/lib/asistencia-tablero-calc';
+import { asistFetch, mensajeError, type MiAsistencia, type MiAsistenciaRespuesta } from './api';
+
+type Marca = MiAsistencia['marcas'][number];
+
+/** Lo único que el calendario distingue de un día. */
+type Tipo = 'presente' | 'tarde' | 'recuperada' | 'extra' | 'revisar' | 'libre' | 'hoy' | 'futuro';
+
+const COLOR: Record<Tipo, string> = {
+  presente: 'bg-emerald-300 text-emerald-950 dark:bg-emerald-700 dark:text-emerald-50',
+  tarde: 'bg-amber-400 text-amber-950',
+  recuperada: 'bg-amber-400 text-amber-950',
+  extra: 'bg-sky-300 text-sky-950 dark:bg-sky-700 dark:text-sky-50',
+  revisar: 'bg-red-600 text-white',
+  libre: 'text-muted-foreground/60',
+  hoy: 'border-2 border-dashed border-border',
+  futuro: 'text-muted-foreground/60',
+};
+
+/** El servidor acepta hasta 24 meses atrás (`MI_ASISTENCIA_MESES`). */
+const MESES_ATRAS = 24;
+
+
+function tipoDia(c: CeldaDia): Tipo {
+  if (c.estado === 'futuro') return 'futuro';
+  if (c.estado === 'pendiente') return 'hoy';
+  if (c.estado === 'ausente' || c.sinSalida || c.estado === 'sin_entrada') return 'revisar';
+  if (tardanza(c)) return compensada(c) ? 'recuperada' : 'tarde';
+  if (horasExtraDia(c)) return 'extra';
+  return c.marcas > 0 ? 'presente' : 'libre';
+}
+
+function Simbolo({ c }: { c: CeldaDia }) {
+  const t = tipoDia(c);
+  if (t === 'recuperada') return <Check className="size-4" strokeWidth={3.5} aria-hidden />;
+  return <>{t === 'tarde' ? 'T' : t === 'revisar' ? '!' : t === 'extra' ? `+${horasExtraDia(c)}` : ''}</>;
+}
+
+/** "2026-09-22" → "Martes 22 de septiembre". */
+function diaTitulo(fecha: string): string {
+  const s = fmtDiaLargo(fecha);
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** 542 → "9 horas y 2 minutos". */
+function horasLargo(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return [h && plural(h, 'hora', 'horas'), m && plural(m, 'minuto', 'minutos')].filter(Boolean).join(' y ') || '0 horas';
+}
+
+/** Qué pasó ese día, en una frase. */
+function fraseDia(c: CeldaDia): string {
+  const t = tardanza(c);
+  const rec = c.extra?.compensado ?? 0;
+  if (c.estado === 'ausente') return 'No hay marcas tuyas este día. Si viniste, avisale a RR.HH.';
+  if (c.sinSalida) return 'Falta tu marca de salida. Si fichaste al salir, avisale a RR.HH.';
+  if (c.estado === 'sin_entrada') return 'Falta tu marca de entrada. Avisale a RR.HH.';
+  // Un día tarde también puede sumar horas extra (el calendario muestra un solo símbolo: lo dice la frase).
+  if (compensada(c) && horasExtraDia(c)) return `Llegaste ${plural(t, 'minuto', 'minutos')} tarde, lo recuperaste y además hiciste ${plural(horasExtraDia(c), 'hora extra', 'horas extra')}.`;
+  if (compensada(c)) return `Llegaste ${plural(t, 'minuto', 'minutos')} tarde, pero lo recuperaste quedándote después de hora.`;
+  if (t && rec > 0) return `Llegaste ${plural(t, 'minuto', 'minutos')} tarde y recuperaste ${plural(rec, 'minuto', 'minutos')}.`;
+  if (t) return `Llegaste ${plural(t, 'minuto', 'minutos')} tarde.`;
+  if (horasExtraDia(c)) return `Hiciste ${plural(horasExtraDia(c), 'hora extra', 'horas extra')}.`;
+  if (c.estado === 'pendiente') return 'Todavía no hay marcas tuyas hoy.';
+  if (c.estado === 'feriado' && !c.marcas) return 'Feriado.';
+  // Sin horario no hay "a horario" ni "día libre": solo se sabe si fichó.
+  if (c.estado === 'sin_horario') return c.marcas ? 'Fichaste este día. No tenés horario cargado.' : 'No tenés horario cargado este día.';
+  if (!c.marcas) return 'Día libre.';
+  return c.estado === 'trabajo_no_laborable' ? 'Viniste un día libre.' : 'Viniste a horario.';
+}
 
 export default function MiAsistenciaPage() {
   const [hoy] = useState(() => hoyLocal());
-  const [mes, setMes] = useState(() => hoy.slice(0, 7));
+  const mesActual = hoy.slice(0, 7);
+  const [mes, setMes] = useState(mesActual);
   const [data, setData] = useState<MiAsistenciaRespuesta | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Mes al que corresponde lo último que llegó (dato o error): "cargando" es
-  // que todavía no coincide con el mes pedido. Mientras tanto se sigue
-  // mostrando el mes anterior atenuado, como en el resto del módulo.
+  // Mes al que corresponde lo último que llegó (dato o error): mientras no coincide con el pedido,
+  // se sigue mostrando el anterior atenuado.
   const [mesCargado, setMesCargado] = useState<string | null>(null);
-  // Si el mes ya está dentro de lo que se trajo (el último año), se arma acá con la misma lógica
-  // pura del servidor: cambiar de mes no vuelve a pedir y recalcular el año entero.
-  const rm = rangoMes(mes);
-  const enRango = !!data && data.vinculado && data.desde <= rm.desde && data.hasta >= rm.hasta;
-  const loading = !enRango && mesCargado !== mes;
-  // El servidor acepta hasta 24 meses atrás (MI_ASISTENCIA_MESES).
+  const [abierto, setAbierto] = useState<string | null>(null);
+  const loading = mesCargado !== mes;
   const mesMinimo = (() => {
-    const [y, m] = hoy.slice(0, 7).split('-').map(Number);
-    return new Date(Date.UTC(y, m - 1 - 24, 1)).toISOString().slice(0, 7);
+    const [y, m] = mesActual.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1 - MESES_ATRAS, 1)).toISOString().slice(0, 7);
   })();
 
   useEffect(() => {
-    if (!MES_RE.test(mes) || enRango) return;
+    if (!MES_RE.test(mes)) return;
     const ac = new AbortController();
     asistFetch<MiAsistenciaRespuesta>(`/api/admin/mi-asistencia?mes=${mes}`, { signal: ac.signal })
       .then((d) => { setData(d); setError(null); setMesCargado(mes); })
       .catch((e: unknown) => { if (!ac.signal.aborted) { setError(mensajeError(e)); setMesCargado(mes); } });
     return () => ac.abort();
-  }, [mes, enRango]);
-
-  const vista = data && data.vinculado ? data : null;
-  const vistaMes = useMemo(() => {
-    if (!vista) return null;
-    if (vista.mes.mes === mes) return vista.mes;
-    const r = rangoMes(mes);
-    if (vista.desde > r.desde || vista.hasta < r.hasta) return vista.mes;
-    const i0 = vista.dias.findIndex((x) => x.fecha === r.desde);
-    const i1 = vista.dias.findIndex((x) => x.fecha === r.hasta);
-    const tieneHorario = vista.versiones.some((v) => v.incluir && v.vigenteDesde <= r.hasta && (v.vigenteHasta == null || v.vigenteHasta >= r.desde));
-    return { mes, desde: r.desde, hasta: r.hasta, tieneHorario, resumen: resumenLiquidacion(vista.celdas.slice(i0, i1 + 1)) };
-  }, [vista, mes]);
+  }, [mes]);
 
   if (data && !data.vinculado) {
     return (
-      <div className="mx-auto w-full max-w-6xl space-y-5">
+      <div className="mx-auto w-full max-w-3xl space-y-5 text-lg">
         <VolverInicio />
-        <PageTitle title="Mi asistencia" sub="Tu calendario del último año y el resumen del mes." />
+        <h1 className="text-2xl font-bold sm:text-3xl">Mi asistencia</h1>
         <Empty title="Tu usuario no está vinculado a una ficha del organigrama">
           Para ver tu asistencia, un administrador tiene que vincular la cuenta <span className="font-medium text-foreground">{data.usuario}</span> con tu ficha desde Usuarios («Ficha del organigrama»).
         </Empty>
@@ -76,138 +128,176 @@ export default function MiAsistenciaPage() {
     );
   }
 
-  const d = vista;
-  const vigente = d ? versionVigente(d.versiones, hoy) : null;
-  // Recortes del rango completo: la ventana anual y el mes abierto.
-  const idx = (fecha: string) => d?.dias.findIndex((x) => x.fecha === fecha) ?? -1;
-  const iA0 = d ? idx(d.anio.desde) : -1;
-  const iA1 = d ? idx(d.anio.hasta) : -1;
-  const iM0 = vistaMes ? idx(vistaMes.desde) : -1;
-  const iM1 = vistaMes ? idx(vistaMes.hasta) : -1;
-  const hoyEnMes = !!d && !!vistaMes && d.hoy >= vistaMes.desde && d.hoy <= vistaMes.hasta;
+  const d = data && data.vinculado ? data : null;
+  const celdaAbierta = d && abierto ? d.celdas.find((c) => c.fecha === abierto) : undefined;
+  // El año solo se aclara si no es el actual.
+  const nombreMes = mes.slice(0, 4) === mesActual.slice(0, 4) ? fmtMes(mes).split(' ')[0] : fmtMes(mes);
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-5">
+    <div className="mx-auto w-full max-w-3xl space-y-5 text-lg sm:space-y-6 sm:text-xl">
       <VolverInicio />
-      <PageTitle title="Mi asistencia" sub="Tu calendario del último año y el resumen del mes, con las mismas reglas que usa RRHH." />
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold sm:text-3xl">Mi asistencia</h1>
+        <nav aria-label="Elegir mes" className="flex w-full items-center justify-between gap-3 sm:w-auto">
+          <Button variant="outline" className="size-14" aria-label="Mes anterior" disabled={mes <= mesMinimo} onClick={() => setMes(mesAnterior(mes))}>
+            <ChevronLeft className="size-7" />
+          </Button>
+          <span className="text-center text-2xl font-bold sm:min-w-48">{nombreMes}</span>
+          <Button variant="outline" className="size-14" aria-label="Mes siguiente" disabled={mes >= mesActual} onClick={() => setMes(mesSiguiente(mes))}>
+            <ChevronRight className="size-7" />
+          </Button>
+        </nav>
+      </div>
 
       {error && <Banner variant="warn">{error}</Banner>}
 
-      {/* Cabecera: foto y ficha */}
-      <Card>
-        <CardContent className="flex flex-wrap items-center gap-5 p-5">
-          <Foto nombre={d?.empleado.nombre ?? null} emp={d ? { id: d.empleado.id, foto_archivo: d.empleado.fotoArchivo } : undefined} />
-          <div className="min-w-0 flex-1 space-y-1">
-            {d ? (
-              <>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-2xl font-bold text-foreground">{d.empleado.nombre}</h2>
-                  {!d.empleado.activo && <Badge variant="secondary">inactivo</Badge>}
-                  {d.personas.length === 0 && <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400">sin legajo en el reloj</Badge>}
-                </div>
-                <p className="text-sm text-muted-foreground">{d.empleado.rol} · {d.empleado.area}</p>
-                <p className="text-sm text-muted-foreground">
-                  {vigente ? (
-                    <>Horario: <span className="font-medium text-foreground">{describirHorario(vigente)}</span></>
-                  ) : (
-                    <span className="text-amber-600 dark:text-amber-400">Sin horario vigente: solo se muestran tus fichadas.</span>
-                  )}
-                </p>
-              </>
-            ) : (
-              <>
-                <Skeleton className="h-7 w-64" />
-                <Skeleton className="h-4 w-48" />
-              </>
-            )}
+      {!d ? (
+        !error && (
+          <div className="space-y-5">
+            <Skeleton className="h-64 w-full rounded-2xl" />
+            <Skeleton className="h-96 w-full rounded-2xl" />
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Último año */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="inline-flex items-center gap-2 text-base"><CalendarRange className="h-4 w-4" /> Último año</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {!d ? (
-            loading ? <Skeleton className="h-40 w-full" /> : null
-          ) : (
-            <div className={cn(loading && 'opacity-60')}>
-              <CalendarioAnual dias={d.dias.slice(iA0, iA1 + 1)} celdas={d.celdas.slice(iA0, iA1 + 1)} mesActivo={mes} onVerMes={setMes} />
-            </div>
+        )
+      ) : (
+        <div className={cn('space-y-5 sm:space-y-6', loading && 'opacity-60')}>
+          {d.personas.length === 0 && (
+            <Banner variant="info">Tu ficha no tiene legajo en ningún reloj, así que no hay marcas para mostrar. Avisale a RR.HH.</Banner>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Mes */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Mes anterior" disabled={mes <= mesMinimo} onClick={() => setMes(mesAnterior(mes))}>
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <span className="min-w-40 text-center text-base font-semibold">{fmtMes(mes)}</span>
-        <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Mes siguiente" disabled={mes >= hoy.slice(0, 7)} onClick={() => setMes(mesSiguiente(mes))}>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-        {mes !== hoy.slice(0, 7) && (
-          <Button variant="ghost" size="sm" className="h-9" onClick={() => setMes(hoy.slice(0, 7))}>Hoy</Button>
-        )}
-      </div>
-
-      {/* Resumen del mes a la izquierda; horario y reloj a la derecha */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className={cn(loading && 'opacity-60')}>
-          {!d || !vistaMes ? (
-            loading ? <Skeleton className="h-64 w-full" /> : null
-          ) : !vistaMes.tieneHorario ? (
-            <Banner variant="info">
-              Sin horario vigente en {fmtMes(mes).toLowerCase()}: no se calculan ausencias, tardanzas ni horas esperadas. Si creés que es un error, hablá con RRHH.
-            </Banner>
+          {d.mes.tieneHorario ? (
+            <Resumen r={d.mes.resumen} enCurso={mes === mesActual} />
           ) : (
-            <Resumen r={vistaMes.resumen} hoyEnMes={hoyEnMes} />
+            <Banner variant="info">No tenés horario cargado este mes: solo se muestran los días que fichaste. Si creés que es un error, hablá con RR.HH.</Banner>
           )}
-        </div>
-        <div className="space-y-4">
-          <HorarioCard versiones={d?.versiones ?? []} vigente={vigente} hoy={hoy} vinculada cargando={!d} />
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="inline-flex items-center gap-2 text-base"><Fingerprint className="h-4 w-4" /> Reloj</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {!d ? (
-                <Skeleton className="h-12 w-full" />
-              ) : d.personas.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Tu ficha no tiene legajo asignado en ningún reloj: no hay fichadas para mostrar. Si fichás todos los días, avisale a RRHH para que vincule tu legajo.</p>
-              ) : (
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-                  {d.personas.map((p) => (
-                    <div key={p.id} className="contents">
-                      <dt className="text-muted-foreground">Legajo</dt>
-                      <dd className="tabular-nums">{p.userId}{p.nombreReloj ? <span className="ml-1.5 text-muted-foreground">({p.nombreReloj})</span> : null}</dd>
-                    </div>
-                  ))}
-                </dl>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Día por día: último, a todo el ancho (sin fila Total: eso es del perfil de RRHH) */}
-      {d && (
-        <div className={cn(loading && 'opacity-60')}>
-          <Detalle celdas={d.celdas.slice(iM0, iM1 + 1)} dias={d.dias.slice(iM0, iM1 + 1)} />
+          <Calendario celdas={d.celdas} onAbrir={setAbierto} />
         </div>
       )}
+
+      <Dialog open={!!celdaAbierta} onOpenChange={(o) => !o && setAbierto(null)}>
+        <DialogContent
+          aria-describedby={undefined}
+          className="top-auto bottom-0 left-0 max-h-[90dvh] max-w-full translate-x-0 translate-y-0 gap-5 overflow-y-auto rounded-t-2xl rounded-b-none bg-card p-5 text-lg sm:top-[50%] sm:bottom-auto sm:left-[50%] sm:max-w-md sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-2xl"
+        >
+          {celdaAbierta && <DetalleDia c={celdaAbierta} marcas={d!.marcas.filter((m) => m.fecha === celdaAbierta.fecha)} />}
+          <DialogClose asChild>
+            <Button className="h-14 w-full text-lg">Cerrar</Button>
+          </DialogClose>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-/** Mismo estilo que el «Personas» del perfil: un link discreto arriba del título. */
 function VolverInicio() {
   return (
-    <Link href="/admin" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-      <ArrowLeft className="h-4 w-4" /> Volver a inicio
+    <Link href="/admin" className="inline-flex min-h-11 items-center gap-2 text-base text-muted-foreground hover:text-foreground">
+      <ArrowLeft className="size-5" /> Volver a inicio
     </Link>
+  );
+}
+
+/** Cuadrado de color con su símbolo: el mismo en el resumen y en el calendario. */
+function Muestra({ tipo, children }: { tipo: Tipo; children?: ReactNode }) {
+  return <span className={cn('inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-base font-bold', COLOR[tipo])} aria-hidden>{children}</span>;
+}
+
+function Linea({ muestra, children }: { muestra: ReactNode; children: ReactNode }) {
+  return <li className="flex items-center gap-4 py-4">{muestra}<span>{children}</span></li>;
+}
+
+/** El mes en frases cortas. Una frase aparece solo si tiene algo que decir. */
+function Resumen({ r, enCurso }: { r: ResumenLiquidacion; enCurso: boolean }) {
+  const esperadas = Math.round((enCurso ? r.minutosEsperadosHastaHoy : r.minutosEsperadosMes) / 60);
+  const recuperadas = tardesCompensadas(r);
+  const extra = r.horasExtra50 + r.horasExtra100;
+  const revisar = new Set([...r.ausentes, ...r.sinSalida, ...r.sinEntrada]).size;
+  return (
+    <ul className="divide-y divide-border rounded-2xl border border-border bg-card px-5 sm:px-6">
+      <Linea muestra={<Muestra tipo="presente" />}>
+        {enCurso ? 'Hasta hoy viniste' : 'Viniste'} <strong>{r.laborables - r.ausentes.length} de {plural(r.laborables, 'día', 'días')}</strong>
+      </Linea>
+      <Linea muestra={<span className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border-2 border-border text-muted-foreground" aria-hidden><Clock className="size-5" /></span>}>
+        Trabajaste <strong>{plural(Math.floor(r.minutosTrabajados / 60), 'hora', 'horas')}</strong> de {esperadas}
+      </Linea>
+      <Linea muestra={<Muestra tipo="tarde">T</Muestra>}>
+        {r.tardes.length ? <>Llegaste tarde <strong>{plural(r.tardes.length, 'vez', 'veces')}</strong></> : 'No llegaste tarde ningún día'}
+      </Linea>
+      {r.tardes.length > 0 && (
+        <Linea muestra={<Muestra tipo="recuperada"><Check className="size-5" strokeWidth={3.5} /></Muestra>}>
+          Recuperaste <strong>{recuperadas}</strong> de esas veces
+        </Linea>
+      )}
+      {extra > 0 && (
+        <Linea muestra={<Muestra tipo="extra">+</Muestra>}>
+          Hiciste <strong>{plural(extra, 'hora extra', 'horas extra')}</strong>
+        </Linea>
+      )}
+      {revisar > 0 && (
+        <Linea muestra={<Muestra tipo="revisar">!</Muestra>}>
+          <strong>{plural(revisar, 'día', 'días')}</strong> para revisar con RR.HH.
+        </Linea>
+      )}
+    </ul>
+  );
+}
+
+function Calendario({ celdas, onAbrir }: { celdas: CeldaDia[]; onAbrir: (fecha: string) => void }) {
+  // 0 = lunes: huecos antes del día 1.
+  const huecos = (new Date(`${celdas[0]?.fecha}T12:00:00Z`).getUTCDay() + 6) % 7;
+  return (
+    <section aria-label="Calendario del mes" className="space-y-3 rounded-2xl border border-border bg-card p-3 sm:p-5">
+      <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+        {DIAS_SEMANA_LARGO.map((n) => (
+          <span key={n} className="text-center text-base font-semibold text-muted-foreground">
+            <span className="sm:hidden">{n.slice(0, 2)}</span>
+            <span className="hidden sm:inline">{n}</span>
+          </span>
+        ))}
+        {Array.from({ length: huecos }, (_, i) => <span key={`h${i}`} aria-hidden />)}
+        {celdas.map((c) => {
+          const tipo = tipoDia(c);
+          return (
+            <button
+              key={c.fecha}
+              type="button"
+              disabled={tipo === 'futuro'}
+              onClick={() => onAbrir(c.fecha)}
+              aria-label={`${diaTitulo(c.fecha)}. ${fraseDia(c)}`}
+              className={cn(
+                'flex h-16 flex-col items-center justify-start gap-0.5 rounded-lg pt-2 leading-tight focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none sm:h-20 sm:pt-3',
+                COLOR[tipo],
+              )}
+            >
+              <span className="text-xl font-semibold sm:text-2xl">{Number(c.fecha.slice(8))}</span>
+              <span className="text-base font-bold sm:text-lg"><Simbolo c={c} /></span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="pt-1 text-center text-base text-muted-foreground">Tocá un día para ver a qué hora entraste y saliste.</p>
+    </section>
+  );
+}
+
+function DetalleDia({ c, marcas }: { c: CeldaDia; marcas: Marca[] }) {
+  const tipo = tipoDia(c);
+  return (
+    <div className="space-y-5">
+      <DialogTitle className="pr-8 text-2xl leading-tight font-bold">{diaTitulo(c.fecha)}</DialogTitle>
+      <p className="flex items-start gap-3 rounded-xl bg-muted p-4 leading-relaxed">
+        {tipo !== 'libre' && tipo !== 'hoy' && <Muestra tipo={tipo}><Simbolo c={c} /></Muestra>}
+        <span>{fraseDia(c)}</span>
+      </p>
+      {(c.entrada || c.salida) && (
+        <ul className="divide-y divide-border text-xl">
+          <li className="py-3">{c.entrada ? <>Entraste a las <strong className="font-mono">{fmtHoraCorta(c.entrada)}</strong></> : 'No hay marca de entrada'}</li>
+          <li className="py-3">{c.salida ? <>Saliste a las <strong className="font-mono">{fmtHoraCorta(c.salida)}</strong></> : 'No hay marca de salida'}</li>
+          {c.minutosTrabajados != null && <li className="py-3">Trabajaste <strong>{horasLargo(c.minutosTrabajados)}</strong></li>}
+        </ul>
+      )}
+      {marcas.length > 2 && (
+        <p className="text-base text-muted-foreground">Todas tus marcas del reloj: <span className="font-mono">{marcas.map((m) => fmtHoraCorta(m.fechaHora)).join(' · ')}</span></p>
+      )}
+      <p className="text-base text-muted-foreground">¿No es lo que fichaste? Hablá con RR.HH.</p>
+    </div>
   );
 }

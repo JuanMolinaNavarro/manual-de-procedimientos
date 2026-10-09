@@ -101,14 +101,14 @@ export const ESTADOS_DIA: Record<EstadoDia, { label: string; desc: string }> = {
   tarde_grave: { label: 'Tarde grave', desc: 'Entró con más minutos de atraso que el umbral general.' },
   ausente: { label: 'Ausente', desc: 'Tenía horario y no hay ninguna fichada.' },
   sin_entrada: { label: 'Sin entrada', desc: 'Vino, pero fichó una sola marca y fue de salida: no se sabe a qué hora entró. No cuenta como tardanza; hay que verificarlo.' },
-  feriado: { label: 'Feriado', desc: 'Detectado: ese día fichó menos del 20 % de las personas activas (todos los relojes). Cuenta como no laborable; quien fichó tiene toda la jornada como extra al 100 %.' },
+  feriado: { label: 'Feriado', desc: 'Detectado: ese día fichó menos del 20 % de las personas de los relojes con datos. Cuenta como no laborable; quien fichó tiene toda la jornada como extra al 100 %.' },
 };
 
 /**
  * Feriado detectado: un día ya pasado, que no sea domingo, en el que fichó
- * menos de esta fracción de las personas **activas** del reloj (todos los
- * relojes combinados, tengan o no horario). No hay tabla de feriados: se
- * infiere de la asistencia real.
+ * menos de esta fracción de las personas **activas** (tengan o no horario) de
+ * los relojes con datos ese día (ver `detectarFeriados`). No hay tabla de
+ * feriados: se infiere de la asistencia real.
  */
 export const FERIADO_UMBRAL = 0.2;
 
@@ -436,7 +436,8 @@ export interface ResumenLiquidacion {
   /** Días con jornada en todo el mes, futuro incluido. */
   laborablesMes: number;
   ausentes: string[]; // fechas
-  tardes: { fecha: string; minutos: number; grave: boolean }[];
+  /** `recuperado`: minutos de esa llegada tarde que compensó quedándose después de hora. */
+  tardes: { fecha: string; minutos: number; grave: boolean; recuperado: number }[];
   minutosTarde: number;
   trabajoNoLaborable: string[];
   /** Días con entrada pero sin salida: sus horas no se pueden contar. */
@@ -479,7 +480,7 @@ export function resumenLiquidacion(celdas: readonly CeldaDia[]): ResumenLiquidac
     if (c.estado === 'ausente') r.ausentes.push(c.fecha);
     if (c.estado === 'feriado') r.feriados.push(c.fecha);
     if (c.estado === 'tarde' || c.estado === 'tarde_grave') {
-      r.tardes.push({ fecha: c.fecha, minutos: c.minutosTarde ?? 0, grave: c.estado === 'tarde_grave' });
+      r.tardes.push({ fecha: c.fecha, minutos: c.minutosTarde ?? 0, grave: c.estado === 'tarde_grave', recuperado: c.extra?.compensado ?? 0 });
       r.minutosTarde += c.minutosTarde ?? 0;
     }
     if (c.estado === 'trabajo_no_laborable') r.trabajoNoLaborable.push(c.fecha);

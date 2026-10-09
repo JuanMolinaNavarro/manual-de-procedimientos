@@ -11,7 +11,6 @@ import {
   armarCalendario,
   detectarFeriados,
   diasDelRango,
-  lunesDe,
   rangoMes,
   resumenLiquidacion,
   type CeldaDia,
@@ -340,8 +339,8 @@ export async function calendarioRango(desde: string, hasta: string, incluirSinHo
       GROUP BY rd.fecha`;
     for (const g of pool) poolPorFecha.set(g.fecha, g.n);
     // Cuántas personas distintas ficharon cada día. Se agrega en la base (una
-    // fila por día) porque el rango puede ser un año entero (Mi asistencia):
-    // un groupBy por persona × día traería decenas de miles de filas.
+    // fila por día): un groupBy por persona × día de toda la nómina traería
+    // decenas de miles de filas.
     const grupos = await prisma.$queryRaw<{ fecha: string; n: number }[]>`
       SELECT fecha, COUNT(DISTINCT user_id)::int AS n
       FROM asistencia_fichadas
@@ -382,6 +381,27 @@ export async function calendarioRango(desde: string, hasta: string, incluirSinHo
   return { desde, hasta, hoy, config: cfg, dias: cal.dias, filas: filasOrdenadas, sinHorario, feriados: [...feriados].sort(), truncado: fichadas.length === MAX_FILAS_CALENDARIO };
 }
 
+// ─── Marcas crudas ───────────────────────────────────────────────────────────
+
+/** Una marca tal como la registró el reloj: lo que la persona fichó, para poder verificarlo. */
+export interface MarcaReloj {
+  fecha: string;
+  fechaHora: string;
+  tipo: number;
+  reloj: string;
+}
+
+/** Marcas de unos legajos del reloj en un rango de días, en orden. */
+async function marcasDelRango(userIds: string[], desde: string, hasta: string): Promise<MarcaReloj[]> {
+  if (!userIds.length) return [];
+  const rows = await prisma.asistenciaFichada.findMany({
+    where: { user_id: { in: userIds }, fecha: { gte: desde, lte: hasta } },
+    select: { fecha: true, fecha_hora: true, tipo: true, reloj: { select: { nombre: true } } },
+    orderBy: { fecha_hora: 'asc' },
+  });
+  return rows.map((m) => ({ fecha: m.fecha, fechaHora: m.fecha_hora.toISOString(), tipo: m.tipo, reloj: m.reloj.nombre }));
+}
+
 // ─── Perfil de una persona ───────────────────────────────────────────────────
 
 export interface PerfilPersona extends Omit<CalendarioMes, 'filas' | 'sinHorario' | 'truncado'> {
@@ -392,6 +412,8 @@ export interface PerfilPersona extends Omit<CalendarioMes, 'filas' | 'sinHorario
   resumen: ResumenLiquidacion | null;
   /** Versiones de horario de la ficha vinculada (vacío si no está vinculada). */
   versiones: HorarioVersion[];
+  /** Marcas del reloj del mes (de todos sus legajos), en orden. */
+  marcas: MarcaReloj[];
 }
 
 /** Mes de una persona con el resumen para liquidar (ausencias, tardanzas, horas). */
@@ -404,6 +426,7 @@ export async function perfilPersona(personaId: number, mes: string): Promise<Per
   const clave = p.empleado_id != null ? `e:${p.empleado_id}` : `u:${p.user_id}`;
   const [cal, versiones] = await Promise.all([calendarioMes(mes, true, clave), p.empleado_id != null ? listarHorarios(p.empleado_id) : Promise.resolve([])]);
   const fila = cal.filas[0] ?? null;
+  const marcas = await marcasDelRango(fila?.userIds ?? [p.user_id], cal.desde, cal.hasta);
   return {
     mes: cal.mes,
     desde: cal.desde,
@@ -423,45 +446,38 @@ export async function perfilPersona(personaId: number, mes: string): Promise<Per
     fila,
     resumen: fila ? resumenLiquidacion(fila.celdas) : null,
     versiones,
+    marcas,
   };
 }
 
 // ─── Mi asistencia (la ficha del usuario de la sesión) ───────────────────────
-
-/** Semanas que abarca el calendario anual de Mi asistencia (la de hoy incluida). */
-export const SEMANAS_ANIO = 53;
 
 export interface MiAsistencia {
   empleado: { id: number; nombre: string; rol: string; area: string; fotoArchivo: string | null; activo: boolean };
   /** Legajos del reloj vinculados a la ficha (puede no haber ninguno). */
   personas: { id: number; userId: string; nombreReloj: string }[];
   hoy: string;
-  /** Rango completo devuelto: unión de la ventana anual y del mes elegido. */
-  desde: string;
-  hasta: string;
+  /** Días y celdas del mes elegido, alineados. */
   dias: DiaCalendario[];
   celdas: CeldaDia[];
-  tieneHorario: boolean;
-  /** Ventana del calendario anual: `SEMANAS_ANIO` semanas enteras, la última es la de hoy. */
-  anio: { desde: string; hasta: string };
-  /** Mes elegido con su resumen para leer el propio desempeño. `tieneHorario` es del mes, no del rango. */
+  /** Mes elegido con su resumen para leer el propio desempeño. */
   mes: { mes: string; desde: string; hasta: string; tieneHorario: boolean; resumen: ResumenLiquidacion };
+  /** Marcas crudas del reloj del mes, en orden: lo que la persona fichó, para que lo pueda verificar. */
+  marcas: MarcaReloj[];
   versiones: HorarioVersion[];
-  feriados: string[];
 }
 
-/**
- * Vista personal de asistencia de una ficha del organigrama: el último año
- * (para el calendario tipo "contribuciones") más el mes elegido con el mismo
- * resumen del perfil. Es el mismo `evaluarDia` del calendario general: un
- * empleado ve exactamente lo que ve quien liquida.
- */
 /** Meses hacia atrás que se pueden pedir en Mi asistencia (además del actual). */
 export const MI_ASISTENCIA_MESES = 24;
 
+/**
+ * Vista personal de asistencia de una ficha del organigrama: el mes elegido
+ * con el mismo resumen del perfil y sus marcas del reloj. Es el mismo
+ * `evaluarDia` del calendario general: un empleado ve exactamente lo que ve
+ * quien liquida.
+ */
 export async function miAsistencia(empleadoId: number, mes: string): Promise<MiAsistencia> {
-  // El rango es la unión del año y del mes pedido: sin tope, `mes=9999-12` armaba millones de
-  // días y tiraba el servidor. Se acepta del mes actual hacia atrás, `MI_ASISTENCIA_MESES`.
+  // Se acepta del mes actual hacia atrás, `MI_ASISTENCIA_MESES` (un mes futuro no tiene nada que mostrar).
   const actual = hoyLocal().slice(0, 7);
   const [ay, am] = actual.split('-').map(Number);
   const tope = new Date(Date.UTC(ay, am - 1 - MI_ASISTENCIA_MESES, 1)).toISOString().slice(0, 7);
@@ -476,16 +492,14 @@ export async function miAsistencia(empleadoId: number, mes: string): Promise<MiA
   if (!emp) throw new AsistenciaError('La ficha vinculada al usuario ya no existe', 404);
 
   const hoy = hoyLocal();
-  const anio = { desde: lunesDe(sumarDias(hoy, -7 * (SEMANAS_ANIO - 1))), hasta: sumarDias(lunesDe(hoy), 6) };
-  const rm = rangoMes(mes);
-  const desde = rm.desde < anio.desde ? rm.desde : anio.desde;
-  const hasta = rm.hasta > anio.hasta ? rm.hasta : anio.hasta;
+  const { desde, hasta } = rangoMes(mes);
 
   const [cal, versiones, personas] = await Promise.all([
     calendarioRango(desde, hasta, true, `e:${emp.id}`),
     listarHorarios(emp.id),
     prisma.asistenciaPersona.findMany({ where: { empleado_id: emp.id }, select: { id: true, user_id: true, nombre_reloj: true }, orderBy: { user_id: 'asc' } }),
   ]);
+  const marcas = await marcasDelRango(personas.map((p) => p.user_id), desde, hasta);
   // Sin legajo en el reloj ni horario no hay fila en el calendario general:
   // se arma igual, con todos los días en "sin horario", para que la pantalla
   // explique la situación en vez de quedar vacía.
@@ -494,25 +508,18 @@ export async function miAsistencia(empleadoId: number, mes: string): Promise<MiA
     filas: [{ versiones: [], fichadasPorFecha: {} }],
     feriados: new Set(cal.feriados),
   }).filas[0];
-  const iDesde = cal.dias.findIndex((d) => d.fecha === rm.desde);
-  const iHasta = cal.dias.findIndex((d) => d.fecha === rm.hasta);
-  const celdasMes = fila.celdas.slice(iDesde, iHasta + 1);
-  const horarioEnMes = versiones.some((v) => v.incluir && v.vigenteDesde <= rm.hasta && (v.vigenteHasta == null || v.vigenteHasta >= rm.desde));
+  const horarioEnMes = versiones.some((v) => v.incluir && v.vigenteDesde <= hasta && (v.vigenteHasta == null || v.vigenteHasta >= desde));
 
   return {
     empleado: { id: emp.id, nombre: emp.nombre, rol: emp.rol, area: emp.area, fotoArchivo: emp.foto_archivo, activo: emp.estado === ESTADO_EMPLEADO_ACTIVO },
     personas: personas.map((p) => ({ id: p.id, userId: p.user_id, nombreReloj: p.nombre_reloj })),
     hoy,
-    desde,
-    hasta,
     dias: cal.dias,
     celdas: fila.celdas,
-    tieneHorario: fila.tieneHorario,
-    anio,
-    mes: { mes, desde: rm.desde, hasta: rm.hasta, tieneHorario: horarioEnMes, resumen: resumenLiquidacion(celdasMes) },
+    mes: { mes, desde, hasta, tieneHorario: horarioEnMes, resumen: resumenLiquidacion(fila.celdas) },
+    marcas,
     // La tolerancia no se le muestra al empleado (decisión del usuario): tampoco viaja.
     versiones: versiones.map((v) => ({ ...v, toleranciaMin: null })),
-    feriados: cal.feriados,
   };
 }
 

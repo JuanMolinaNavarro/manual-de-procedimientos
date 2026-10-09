@@ -31,6 +31,8 @@ import {
   FileSignature,
   SlidersHorizontal,
   Receipt,
+  TreePalm,
+  Plane,
 } from 'lucide-react';
 
 const MODULE_META: Record<
@@ -88,6 +90,14 @@ const MODULE_META: Record<
   'mis-recibos': {
     icon: <Receipt className="h-8 w-8" />,
     description: 'Tus recibos de sueldo: verlos, descargarlos y firmarlos con tu PIN.',
+  },
+  vacaciones: {
+    icon: <TreePalm className="h-8 w-8" />,
+    description: 'Temporada de vacaciones: saldos, elección de fechas, aprobación, aviso escrito y cobertura por área.',
+  },
+  'mis-vacaciones': {
+    icon: <Plane className="h-8 w-8" />,
+    description: 'Tus vacaciones: cuántos días te corresponden, elegir fechas y seguir la aprobación.',
   },
   padron: {
     icon: <Database className="h-8 w-8" />,
@@ -150,7 +160,8 @@ const CATEGORIAS: {
   {
     titulo: 'RRHH',
     icon: <UsersRound className="h-8 w-8" />,
-    description: 'Usuarios, organigrama y nómina de la empresa.',
+    description: 'Usuarios, organigrama, asistencia, recibos y vacaciones de la empresa.',
+    // Los de Nómina pertenecen acá pero no se muestran: `getModulosParaMenu` los filtra antes.
     slugs: [
       'usuarios',
       'organigrama',
@@ -158,6 +169,8 @@ const CATEGORIAS: {
       'mi-asistencia',
       'gestion-recibos',
       'mis-recibos',
+      'vacaciones',
+      'mis-vacaciones',
       'nomina-tablero',
       'nomina-maestro',
       'nomina-novedades',

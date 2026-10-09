@@ -65,7 +65,7 @@ export function parseBool(v: unknown, nombre: string): boolean | undefined {
   throw new AsistenciaError(`${nombre} tiene que ser true o false`);
 }
 
-/** Días máximos de un rango de consulta pesada (export, Resumen). */
+/** Días máximos de un rango de consulta pesada (export). */
 export const MAX_DIAS_RANGO = 366;
 
 /** 400 si el rango de fechas supera `MAX_DIAS_RANGO` días. */
@@ -93,6 +93,13 @@ export function parseFiltros(url: URL): FiltrosFichadas {
   if (p.get('soloSospechosas') === '1') f.soloSospechosas = true;
   if (p.get('soloIncompletos') === '1') f.soloIncompletos = true;
   return f;
+}
+
+/** `yyyy-mm-dd` del query string; default hoy. */
+export function parseFecha(v: string | null): string {
+  if (!v) return hoyLocal();
+  if (!FECHA_RE.test(v)) throw new AsistenciaError('fecha inválida (yyyy-mm-dd)');
+  return v;
 }
 
 /** `yyyy-mm` del query string; default el mes actual. */

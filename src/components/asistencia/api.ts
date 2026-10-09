@@ -80,8 +80,9 @@ export interface ResultadoSync {
   error?: string;
 }
 
-export type { HorarioVersion, ConfigAsistencia, CeldaDia, TotalesFila, DiaCalendario, ResumenLiquidacion } from '@/lib/asistencia-calendario';
-export type { CalendarioMes, FilaCalendarioMes, PerfilPersona, ResultadoGuardar } from '@/lib/asistencia-horarios';
+export type { ConfigAsistencia, CeldaDia } from '@/lib/asistencia-calendario';
+export type { CalendarioMes, FilaCalendarioMes, MarcaReloj, PerfilPersona, ResultadoGuardar } from '@/lib/asistencia-horarios';
+export type { PersonaDia, PersonaMes, TableroDia, TableroMes } from '@/lib/asistencia-tablero';
 export type { MiAsistencia } from '@/lib/asistencia-horarios';
 /** Respuesta de `GET /api/admin/mi-asistencia`: el usuario puede no tener ficha vinculada. */
 export type MiAsistenciaRespuesta =

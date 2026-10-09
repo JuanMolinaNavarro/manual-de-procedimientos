@@ -1076,7 +1076,7 @@ async function empleadoresPorCuil(cuiles?: string[]): Promise<Map<string, Emplea
  * organigramas son lugares de trabajo y en uno trabaja gente de varias empresas). Sin
  * liquidación indexada → null.
  */
-async function empleadorPorCuil(cuil: string): Promise<EmpleadorFinn | null> {
+export async function empleadorPorCuil(cuil: string): Promise<EmpleadorFinn | null> {
   return (await empleadoresPorCuil([cuil])).get(cuil.replace(/\D/g, '')) ?? null;
 }
 

@@ -19,11 +19,9 @@ import {
   PUERTO_TCB,
   hoyLocal,
   sumarDias,
-  armarResumen,
   personaActiva,
   type FiltrosFichadas,
   type ModoDescarga,
-  type ResumenAsistencia,
 } from './asistencia-datos';
 import { resumirFichadas, type FichadaDia } from './asistencia-calendario';
 
@@ -242,7 +240,7 @@ export async function sincronizarTodos(modo: ModoDescarga = 'nuevos'): Promise<R
 /**
  * Filtra las fichadas que ya existen para la misma persona y el mismo instante en **cualquier**
  * reloj. El unique de la tabla incluye `reloj_id`, así que la misma marca que llegaba por el
- * .mdb (con otro Sensorid) y por TCP quedaba dos veces e inflaba conteos, Resumen y export.
+ * .mdb (con otro Sensorid) y por TCP quedaba dos veces e inflaba conteos y el export.
  */
 async function sinRepetidas<T extends { user_id: string; fecha_hora: Date | string; fecha: string }>(data: T[]): Promise<T[]> {
   if (!data.length) return data;
@@ -659,8 +657,7 @@ export async function resumenPorDia(f: FiltrosFichadas, page = 1) {
         incompleto: r.salida == null,
       };
     })
-    // Mismo criterio que el KPI del Resumen: hoy no cuenta como día sin salida,
-    // la jornada todavía está abierta.
+    // Hoy no cuenta como día sin salida: la jornada todavía está abierta.
     .filter((d) => (f.soloIncompletos ? d.incompleto && d.fecha !== hoy : true))
     .sort((a, b) => (a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : a.nombre.localeCompare(b.nombre)));
 
@@ -670,57 +667,6 @@ export async function resumenPorDia(f: FiltrosFichadas, page = 1) {
     page,
     pageSize: FILAS_POR_PAGINA,
     truncado,
-  };
-}
-
-/**
- * Números del Resumen para un rango. Una sola consulta agregada (groupBy) en vez
- * de traer las fichadas: el JSON que sale de acá es chico aunque el mes tenga
- * decenas de miles de marcas.
- */
-export async function resumenAsistencia(f: FiltrosFichadas): Promise<ResumenAsistencia> {
-  const where: Prisma.AsistenciaFichadaWhereInput = { fecha: { gte: f.desde, lte: f.hasta } };
-  if (f.relojId) where.reloj_id = f.relojId;
-
-  const [grupos, personasRows, relojes, ultima] = await Promise.all([
-    prisma.asistenciaFichada.groupBy({
-      by: ['user_id', 'fecha', 'tipo'],
-      where,
-      _count: { _all: true },
-    }),
-    prisma.asistenciaPersona.findMany({
-      include: { empleado: { select: { nombre: true, estado: true } } },
-      orderBy: { user_id: 'asc' },
-    }),
-    listarRelojes(),
-    prisma.asistenciaFichada.findFirst({ where, orderBy: { fecha_hora: 'desc' }, select: { fecha_hora: true } }),
-  ]);
-
-  const base = armarResumen(
-    grupos.map((g) => ({ userId: g.user_id, fecha: g.fecha, tipo: g.tipo, marcas: g._count._all })),
-    // Solo las activas: una persona archivada no cuenta en los totales del Resumen.
-    personasRows
-      .filter((p) => personaActiva({ empleadoId: p.empleado_id, activo: p.activo, empleadoEstado: p.empleado?.estado ?? null }))
-      .map((p) => ({
-        userId: p.user_id,
-        nombre: p.empleado?.nombre || p.nombre_reloj || p.user_id,
-        empleadoId: p.empleado_id,
-      })),
-    { desde: f.desde, hasta: f.hasta },
-  );
-
-  // El último sync que salió BIEN: `ultimo_sync` se actualiza también cuando falla.
-  const syncs = relojes.filter((r) => r.activo).map((r) => r.ultimo_ok).filter((s): s is Date => !!s);
-
-  return {
-    ...base,
-    relojes: {
-      total: relojes.length,
-      activos: relojes.filter((r) => r.activo).length,
-      conError: relojes.filter((r) => r.activo && r.ultimo_error).length,
-      ultimoSync: syncs.length ? new Date(Math.max(...syncs.map((d) => d.getTime()))).toISOString() : null,
-    },
-    ultimaFichada: ultima?.fecha_hora.toISOString() ?? null,
   };
 }
 

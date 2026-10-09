@@ -19,17 +19,19 @@ export interface EmpleadoConFoto {
   foto_archivo: string | null;
 }
 
-export function EmpleadoCell({ empleado, sub, className }: { empleado: EmpleadoConFoto; sub?: ReactNode; className?: string }) {
+/** `grande`: letra de 16 px y foto de 40 px, para las pantallas pensadas para leer sin esfuerzo. */
+export function EmpleadoCell({ empleado, sub, className, grande = false }: { empleado: EmpleadoConFoto; sub?: ReactNode; className?: string; grande?: boolean }) {
   const url = fotoUrl(empleado);
   return (
-    <div className={cn('flex min-w-0 items-center gap-2.5', className)}>
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+    <div className={cn('flex min-w-0 items-center', grande ? 'gap-3' : 'gap-2.5', className)}>
+      <div className={cn('flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted font-semibold text-muted-foreground', grande ? 'h-10 w-10 text-sm' : 'h-9 w-9 text-xs')}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : iniciales(empleado.nombre)}
       </div>
       <div className="min-w-0">
-        <div className="truncate text-sm font-semibold text-foreground">{empleado.nombre}</div>
-        {sub !== undefined && <div className="truncate text-xs text-muted-foreground">{sub}</div>}
+        <div className={cn('truncate font-semibold text-foreground', grande ? 'text-base' : 'text-sm')}>{empleado.nombre}</div>
+        {/* En grande el detalle se parte en dos líneas antes que cortarse: en el celular trae datos (horas). */}
+        {sub !== undefined && <div className={cn('text-muted-foreground', grande ? 'text-sm' : 'truncate text-xs')}>{sub}</div>}
       </div>
     </div>
   );

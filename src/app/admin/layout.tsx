@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { getSesion } from '@/lib/admin-auth';
-import { getModulosForUser, modulosEfectivos } from '@/lib/modulos';
+import { getModulosParaMenu, modulosEfectivos } from '@/lib/modulos';
 import { isEmpleadoRole } from '@/lib/roles';
 import AdminLogoutButton from '@/components/AdminLogoutButton';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -21,7 +21,7 @@ export default async function AdminLayout({
 
   // Superadmin ve todos los módulos ([] = sin restricción); empleado, solo su portal.
   const modulos = modulosEfectivos(usuarioRecord?.rol, usuarioRecord?.modulos);
-  const allowedNavLinks = getModulosForUser(modulos);
+  const allowedNavLinks = getModulosParaMenu(modulos);
   const fallbackHref = allowedNavLinks[0]?.href ?? '/admin';
 
   const nombreCompleto = usuarioRecord
@@ -51,7 +51,7 @@ export default async function AdminLayout({
               className="h-9 w-9 object-contain invert dark:invert-0"
             />
             {/* En teléfonos angostos queda solo el logo: el título no entra junto a los botones. */}
-            <h1 className="hidden font-[family-name:var(--font-playfair)] text-2xl font-semibold tracking-wide text-foreground min-[420px]:block">
+            <h1 className="hidden font-display text-2xl font-bold tracking-wide text-foreground min-[420px]:block">
               AURELIUS
             </h1>
           </div>

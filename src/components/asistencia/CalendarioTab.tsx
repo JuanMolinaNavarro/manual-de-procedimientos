@@ -2,9 +2,8 @@
 
 /**
  * Calendario mensual: una fila por persona, una celda por día con el estado
- * derivado (a horario / tarde / tarde grave / ausente / …). Grilla a mano
- * (como `ActividadPorDia` del Resumen): no hay librería de calendario en el
- * repo y las fechas son strings yyyy-mm-dd.
+ * derivado (a horario / tarde / tarde grave / ausente / …). Grilla a mano: no
+ * hay librería de calendario en el repo y las fechas son strings yyyy-mm-dd.
  */
 
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
@@ -24,9 +23,6 @@ import { asistFetch, mensajeError, type CalendarioMes, type CeldaDia, type Confi
 import { useAsistencia, useAsistenciaData } from './AsistenciaContext';
 import { Campo, Chip, LinkPerfil } from './piezas';
 import { ESTILO_CELDA, LEYENDA_ESTADOS } from './estilo-celda';
-
-const ESTILO = ESTILO_CELDA;
-const LEYENDA = LEYENDA_ESTADOS;
 
 export default function CalendarioTab() {
   const { f, set } = useAsistencia();
@@ -195,7 +191,7 @@ const Fila = memo(function Fila({ fila, dias, personaId, onAbrir }: {
 });
 
 function Celda({ celda, onAbrir }: { celda: CeldaDia; onAbrir: (el: HTMLButtonElement) => void }) {
-  const e = ESTILO[celda.estado];
+  const e = ESTILO_CELDA[celda.estado];
   const inerte = celda.estado === 'futuro' || ((celda.estado === 'sin_horario' || celda.estado === 'feriado') && celda.marcas === 0);
   // Día futuro con jornada: un contorno tenue muestra el plan (qué sábados le tocan).
   const futuroLaborable = celda.estado === 'futuro' && celda.jornada != null;
@@ -296,9 +292,9 @@ function DetalleCelda({ celda, fila }: { celda: CeldaDia; fila: FilaCalendarioMe
 function Leyenda() {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-1 text-xs text-muted-foreground">
-      {LEYENDA.map((e) => (
+      {LEYENDA_ESTADOS.map((e) => (
         <span key={e} className="inline-flex items-center gap-1.5">
-          <span className={cn('inline-flex h-4 w-4 items-center justify-center rounded-[3px] text-[9px] font-bold', ESTILO[e].celda)}>{ESTILO[e].marca}</span>
+          <span className={cn('inline-flex h-4 w-4 items-center justify-center rounded-[3px] text-[9px] font-bold', ESTILO_CELDA[e].celda)}>{ESTILO_CELDA[e].marca}</span>
           {ESTADOS_DIA[e].label}
         </span>
       ))}

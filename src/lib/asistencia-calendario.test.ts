@@ -329,6 +329,7 @@ describe('resumenLiquidacion', () => {
           '2026-09-01': [marca('2026-09-01', '08:05'), marca('2026-09-01', '17:05', 1)], // 9 h
           '2026-09-02': [marca('2026-09-02', '08:45')], // grave, sin salida
           '2026-09-03': [marca('2026-09-03', '08:15'), marca('2026-09-03', '12:15', 1)], // tarde 15, 4 h
+          '2026-09-04': [marca('2026-09-04', '08:20'), marca('2026-09-04', '17:05', 1)], // tarde 20, recupera 5
           '2026-09-05': [marca('2026-09-05', '10:00'), marca('2026-09-05', '12:00', 1)], // sábado
         },
       }],
@@ -338,16 +339,17 @@ describe('resumenLiquidacion', () => {
     expect(r.laborables).toBe(10); // 1-4, 7-11, 14 (hoy 15 pendiente no cuenta)
     expect(r.minutosEsperadosMes).toBe(22 * 9 * 60);
     expect(r.minutosEsperadosHastaHoy).toBe(11 * 9 * 60); // incluye hoy
-    expect(r.ausentes).toHaveLength(7);
+    expect(r.ausentes).toHaveLength(6);
     expect(r.tardes).toEqual([
-      { fecha: '2026-09-02', minutos: 45, grave: true },
-      { fecha: '2026-09-03', minutos: 15, grave: false },
+      { fecha: '2026-09-02', minutos: 45, grave: true, recuperado: 0 },
+      { fecha: '2026-09-03', minutos: 15, grave: false, recuperado: 0 },
+      { fecha: '2026-09-04', minutos: 20, grave: false, recuperado: 5 },
     ]);
-    expect(r.minutosTarde).toBe(60);
+    expect(r.minutosTarde).toBe(80);
     expect(r.sinSalida).toEqual(['2026-09-02']);
     expect(r.trabajoNoLaborable).toEqual(['2026-09-05']);
-    expect(r.minutosTrabajados).toBe(9 * 60 + 4 * 60 + 2 * 60);
-    expect(r.diasComputados).toBe(3);
+    expect(r.minutosTrabajados).toBe(9 * 60 + 4 * 60 + 8 * 60 + 45 + 2 * 60);
+    expect(r.diasComputados).toBe(4);
     expect(cal.filas[0].celdas[1].minutosTrabajados).toBeNull();
     expect(fmtHorasMin(510)).toBe('8 h 30 min');
     expect(fmtHorasMin(120)).toBe('2 h');

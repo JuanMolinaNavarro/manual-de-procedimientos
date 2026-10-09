@@ -13,10 +13,9 @@ import {
 } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { EmpleadoOculto, OrgEmpleado, Organigrama } from '@/lib/organigrama';
+import { sinTildes } from '@/lib/utils';
 import { fotoUrl, iniciales } from './foto';
 import PendientesAsistencia from './PendientesAsistencia';
-
-const sinTildes = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 interface ToolbarProps {
   organigramas: Organigrama[];

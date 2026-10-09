@@ -405,6 +405,10 @@ model OrgEmpleado {
   asistencia_personas AsistenciaPersona[]
   asistencia_horarios AsistenciaHorario[]
 
+  // Vacaciones: ficha (saldos, convenio, historial de veranos) y una solicitud por ejercicio.
+  vacaciones_perfil      VacacionesPerfil?
+  vacaciones_solicitudes VacacionesSolicitud[]
+
   created_by String?
   updated_by String?
   created_at DateTime @default(now())
@@ -476,6 +480,8 @@ model OrgArea {
   pos_y          Float?
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
+
+  vacaciones VacacionesArea?
 
   // El nombre del área es único POR organigrama (dos empresas pueden tener "RRHH").
   @@unique([organigrama_id, nombre])
@@ -1123,4 +1129,107 @@ model AsistenciaConfig {
   updated_at      DateTime @updatedAt
 
   @@map("asistencia_config")
+}
+
+// ─── Vacaciones ─────────────────────────────────────────────────────────────
+// LCT arts. 150-157 y 164, con el art. 154 según la Ley 27.802. La lógica vive en
+// src/lib/vacaciones-calc.ts (pura, cliente y servidor); acá solo se guarda.
+
+// Parámetros de la temporada (singleton id = 1): `params` se mezcla sobre CONFIG_DEFAULT.
+model VacacionesConfig {
+  id         Int      @id @default(1)
+  params     Json     @default("{}")
+  updated_by String?
+  updated_at DateTime @updatedAt
+
+  @@map("vacaciones_config")
+}
+
+// Ficha de vacaciones de una persona. Ingreso, categoría y básico NO están acá: se leen de
+// Nómina › Maestro (NominaEmpleado); el convenio sale del texto de la ficha salvo que se fije.
+model VacacionesPerfil {
+  id               Int      @id @default(autoincrement())
+  empleado_id      Int      @unique
+  incluir          Boolean  @default(true)
+  convenio         String? // código (LCT, CCT223…) que pisa el automático; null = auto
+  franco_rotativo  Boolean  @default(false)
+  dia_descanso     Int      @default(0) // 0 domingo … 6 sábado
+  dias_trabajados  Int? // art. 151/153; null = estimado desde el ingreso
+  extra_convenio   Int      @default(0)
+  extra_beneficio  Int      @default(0)
+  arrastre_dias    Int      @default(0)
+  arrastre_acuerdo Boolean  @default(false) // art. 164: sin acuerdo no suma
+  arrastre_origen  Int? // ejercicio del que viene
+  remuneracion_ref Float?
+  conyuge_id       Int?
+  hijos_primaria   Boolean  @default(false)
+  historial        Json     @default("{}") // { "2025": { verano: true, pos: 3 } }
+  updated_by       String?
+  updated_at       DateTime @updatedAt
+
+  empleado OrgEmpleado @relation(fields: [empleado_id], references: [id], onDelete: Cascade)
+
+  @@map("vacaciones_perfiles")
+}
+
+// Selección de vacaciones de una persona para un ejercicio. Tramos, conformidad del
+// fraccionamiento, notificación escrita e interrupciones son Json (los arma el motor).
+// Restrict: es documentación legal (aviso, acuerdos), como los recibos.
+model VacacionesSolicitud {
+  id                     Int      @id @default(autoincrement())
+  empleado_id            Int
+  ejercicio              Int
+  estado                 String   @default("borrador") // borrador | enviada | aprobada | rechazada
+  tramos                 Json     @default("[]")
+  enviada                String? // yyyy-mm-dd
+  motivo                 String   @default("")
+  acuerdo_fracc          Json?
+  notificacion           Json?
+  interrupciones         Json     @default("[]")
+  autoriza_fuera_termino Boolean  @default(false)
+  updated_by             String?
+  updated_at             DateTime @updatedAt
+
+  empleado OrgEmpleado @relation(fields: [empleado_id], references: [id], onDelete: Restrict)
+
+  @@unique([empleado_id, ejercicio])
+  @@index([ejercicio])
+  @@map("vacaciones_solicitudes")
+}
+
+// Cobertura de un área del organigrama: cupo simultáneo, segundo (el jefe sale de OrgArea),
+// semanas con cupo propio y reglas por rol.
+model VacacionesArea {
+  id         Int      @id @default(autoincrement())
+  area_id    Int      @unique
+  cupo       Int? // null = sin límite
+  segundo_id Int?
+  semanas    Json     @default("{}") // { "2026-12-28": 0 } lunes → cupo de esa semana
+  reglas     Json     @default("[]")
+  nota       String   @default("")
+  updated_by String?
+  updated_at DateTime @updatedAt
+
+  area OrgArea @relation(fields: [area_id], references: [id], onDelete: Cascade)
+
+  @@map("vacaciones_areas")
+}
+
+// Registro de todo lo que pasa en el módulo (no se edita).
+model VacacionesAuditoria {
+  id          Int      @id @default(autoincrement())
+  created_at  DateTime @default(now())
+  fecha       String // día local
+  ejercicio   Int
+  actor       String
+  usuario     String?
+  accion      String
+  empleado_id Int?
+  persona     String   @default("")
+  detalle     String   @default("")
+  ip          String?
+
+  @@index([ejercicio])
+  @@index([empleado_id])
+  @@map("vacaciones_auditoria")
 }

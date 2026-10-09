@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X, Home, Gift, Users, Film, Library, Trophy, Inbox, Wifi, Antenna, Network, Fingerprint, CalendarCheck, Database, FolderKanban, Warehouse, LayoutDashboard, ClipboardList, CalendarPlus, Calculator, Archive, FileSignature, SlidersHorizontal, Receipt, type LucideIcon } from 'lucide-react';
+import { Menu, X, Home, Gift, Users, Film, Library, Trophy, Inbox, Wifi, Antenna, Network, Fingerprint, CalendarCheck, Database, FolderKanban, Warehouse, LayoutDashboard, ClipboardList, CalendarPlus, Calculator, Archive, FileSignature, SlidersHorizontal, Receipt, TreePalm, Plane, type LucideIcon } from 'lucide-react';
 import type { AdminModulo } from '@/lib/modulos';
 
 const ICONS: Record<string, LucideIcon> = {
@@ -20,6 +20,8 @@ const ICONS: Record<string, LucideIcon> = {
   'mi-asistencia': CalendarCheck,
   'gestion-recibos': FileSignature,
   'mis-recibos': Receipt,
+  vacaciones: TreePalm,
+  'mis-vacaciones': Plane,
   padron: Database,
   proyectos: FolderKanban,
   deposito: Warehouse,

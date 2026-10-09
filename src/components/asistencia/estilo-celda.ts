@@ -1,7 +1,7 @@
 /**
- * Color + marcador de texto por estado de un día, compartido por el calendario
- * mensual (pestaña Calendario) y el anual (Mi asistencia). El color solo no
- * alcanza para leerlo: por eso cada estado con carga lleva también una letra.
+ * Color + marcador de texto por estado de un día de la pestaña Calendario. El
+ * color solo no alcanza para leerlo: por eso cada estado con carga lleva también
+ * una letra.
  */
 
 import type { EstadoDia } from '@/lib/asistencia-calendario';

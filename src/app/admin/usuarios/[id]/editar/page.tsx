@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import EmpleadoPicker from '@/components/asistencia/EmpleadoPicker';
 import { ADMIN_MODULOS } from '@/lib/modulos';
 import { isSuperadmin } from '@/lib/roles';
 
@@ -34,7 +35,11 @@ interface Usuario {
 interface EmpleadoOpcion {
   id: number;
   nombre: string;
+  rol: string;
   area: string;
+  foto_archivo: string | null;
+  organigrama_id: number | null;
+  oculto_en: string | null;
 }
 
 export default function EditarUsuarioPage() {
@@ -57,6 +62,9 @@ export default function EditarUsuarioPage() {
   // Vínculo con la ficha del organigrama ('' = sin vincular).
   const [empleadoSel, setEmpleadoSel] = useState('');
   const [empleados, setEmpleados] = useState<EmpleadoOpcion[]>([]);
+  const [organigramas, setOrganigramas] = useState<{ id: number; nombre: string }[]>([]);
+  // Empresa (organigrama) elegida para filtrar las fichas ('' = todas).
+  const [orgSel, setOrgSel] = useState('');
   const [vinculados, setVinculados] = useState<Set<number>>(new Set());
   const [soySuperadmin, setSoySuperadmin] = useState(false);
 
@@ -97,13 +105,20 @@ export default function EditarUsuarioPage() {
         }
 
         // Fichas del organigrama y cuáles ya están vinculadas a otro usuario.
-        const [empRes, usersRes] = await Promise.all([
+        const [empRes, orgRes, usersRes] = await Promise.all([
           fetch('/api/admin/organigrama/empleados'),
+          fetch('/api/admin/organigrama/organigramas'),
           fetch('/api/admin/usuarios'),
         ]);
         if (empRes.ok) {
           const emps = (await empRes.json()) as EmpleadoOpcion[];
-          setEmpleados(emps.map((e) => ({ id: e.id, nombre: e.nombre, area: e.area })));
+          setEmpleados(emps.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')));
+          // Arranca en la empresa de la ficha ya vinculada.
+          const actual = emps.find((e) => e.id === data.empleado_id);
+          if (actual?.organigrama_id != null) setOrgSel(String(actual.organigrama_id));
+        }
+        if (orgRes.ok) {
+          setOrganigramas((await orgRes.json()) as { id: number; nombre: string }[]);
         }
         if (usersRes.ok) {
           const users = (await usersRes.json()) as { id: number; empleado_id: number | null }[];
@@ -278,22 +293,32 @@ export default function EditarUsuarioPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="empleado">Ficha del organigrama</Label>
-              <select
-                id="empleado"
-                value={empleadoSel}
-                onChange={(event) => setEmpleadoSel(event.target.value)}
-                className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="">Sin vincular</option>
-                {empleados
-                  .filter((e) => !vinculados.has(e.id) || e.id === formData.empleado_id)
-                  .map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.nombre} — {e.area}
-                    </option>
+              <Label htmlFor="empresa">Ficha del organigrama</Label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <select
+                  id="empresa"
+                  value={orgSel}
+                  onChange={(event) => {
+                    setOrgSel(event.target.value);
+                    setEmpleadoSel('');
+                  }}
+                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="">Todas las empresas</option>
+                  {organigramas.map((o) => (
+                    <option key={o.id} value={o.id}>{o.nombre}</option>
                   ))}
-              </select>
+                </select>
+                <EmpleadoPicker
+                  empleados={empleados.filter(
+                    (e) =>
+                      (!orgSel || e.organigrama_id === Number(orgSel)) &&
+                      (e.id === formData.empleado_id || (!vinculados.has(e.id) && !e.oculto_en))
+                  )}
+                  valor={empleadoSel ? Number(empleadoSel) : null}
+                  onCambio={(id) => setEmpleadoSel(id != null ? String(id) : '')}
+                />
+              </div>
               <p className="text-sm text-muted-foreground">
                 Define el área del usuario (por ejemplo, qué proyectos puede ver).
               </p>

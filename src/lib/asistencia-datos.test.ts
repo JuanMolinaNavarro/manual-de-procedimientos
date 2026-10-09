@@ -4,15 +4,11 @@ import {
   fmtFechaDia,
   fmtRelativo,
   sumarDias,
-  diasEntre,
   rangoPreset,
   presetDeRango,
   hoyLocal,
   inicioDeMes,
-  armarResumen,
   personaActiva,
-  type GrupoFichadas,
-  type PersonaResumen,
 } from './asistencia-datos';
 
 describe('fechas', () => {
@@ -32,12 +28,6 @@ describe('fechas', () => {
     expect(sumarDias('2026-03-01', -1)).toBe('2026-02-28');
     expect(sumarDias('2024-03-01', -1)).toBe('2024-02-29'); // bisiesto
     expect(sumarDias('2026-01-01', -1)).toBe('2025-12-31');
-  });
-
-  it('cuenta los días del rango inclusive', () => {
-    expect(diasEntre('2026-09-07', '2026-09-07')).toBe(1);
-    expect(diasEntre('2026-09-01', '2026-09-30')).toBe(30);
-    expect(diasEntre('2025-12-31', '2026-01-01')).toBe(2);
   });
 
   it('inicioDeMes y hoyLocal usan el huso del reloj', () => {
@@ -80,7 +70,6 @@ describe('rangoPreset', () => {
   it('últimos 30 incluye hoy', () => {
     const r = rangoPreset('ultimos30', hoy);
     expect(r).toEqual({ desde: '2026-08-09', hasta: hoy });
-    expect(diasEntre(r.desde, r.hasta)).toBe(30);
   });
 });
 
@@ -142,107 +131,6 @@ describe('fmtRelativo', () => {
   it('no rompe con null ni con el futuro', () => {
     expect(fmtRelativo(null, ahora)).toBe('—');
     expect(fmtRelativo(hace(-5000), ahora)).toBe('recién');
-  });
-});
-
-describe('armarResumen', () => {
-  const RANGO = { desde: '2026-09-01', hasta: '2026-09-07' };
-  const HOY = '2026-09-07';
-
-  const personas: PersonaResumen[] = [
-    { userId: '111', nombre: 'Ana', empleadoId: 1 },
-    { userId: '222', nombre: 'Bruno', empleadoId: 2 },
-    { userId: '333', nombre: 'Carla', empleadoId: null }, // sin vincular
-    { userId: '444', nombre: 'Dario', empleadoId: 4 }, // no fichó nunca
-  ];
-
-  const grupos: GrupoFichadas[] = [
-    // Ana el 01: entrada y salida → día completo.
-    { userId: '111', fecha: '2026-09-01', tipo: 0, marcas: 1 },
-    { userId: '111', fecha: '2026-09-01', tipo: 1, marcas: 1 },
-    // Ana el 02: dos entradas y ninguna salida → incompleto.
-    { userId: '111', fecha: '2026-09-02', tipo: 0, marcas: 2 },
-    // Bruno el 02: una sola marca → incompleto.
-    { userId: '222', fecha: '2026-09-02', tipo: 0, marcas: 1 },
-    // Carla hoy: completo.
-    { userId: '333', fecha: HOY, tipo: 0, marcas: 1 },
-    { userId: '333', fecha: HOY, tipo: 1, marcas: 1 },
-    // Bruno hoy: entró y todavía no se fue. La jornada está abierta, así que no
-    // es un día incompleto ni cuenta como día cerrado.
-    { userId: '222', fecha: HOY, tipo: 0, marcas: 1 },
-    // Fuera del rango: no tiene que contar en nada.
-    { userId: '111', fecha: '2026-08-31', tipo: 0, marcas: 5 },
-  ];
-
-  const r = armarResumen(grupos, personas, RANGO, HOY);
-
-  it('ignora lo que cae fuera del rango', () => {
-    expect(r.totales.fichadas).toBe(8);
-    expect(r.rango).toEqual({ ...RANGO, dias: 7 });
-  });
-
-  it('cuenta días-persona y cuáles quedaron sin salida', () => {
-    // Los 3 días-persona cerrados: Ana el 01 y el 02, Bruno el 02. Los de hoy
-    // (Carla y Bruno) no entran: la jornada todavía está abierta.
-    expect(r.totales.diasPersona).toBe(3);
-    expect(r.totales.diasIncompletos).toBe(2);
-  });
-
-  it('no cuenta el día de hoy como día sin salida', () => {
-    // Bruno fichó entrada hoy y nada más, pero sigue con 1 solo día incompleto
-    // (el 02): hoy no se juzga.
-    expect(r.incompletos.find((i) => i.userId === '222')?.dias).toBe(1);
-    // Con el mismo set de grupos, si "hoy" fuera el 08 el día de Bruno ya está
-    // cerrado y sí cuenta como incompleto.
-    const manana = armarResumen(grupos, personas, { desde: '2026-09-01', hasta: '2026-09-08' }, '2026-09-08');
-    expect(manana.totales.diasIncompletos).toBe(3);
-    expect(manana.incompletos.find((i) => i.userId === '222')?.dias).toBe(2);
-  });
-
-  it('un día con marcas pero sin ninguna de tipo salida es incompleto', () => {
-    expect(r.incompletos).toEqual([
-      { userId: '111', nombre: 'Ana', empleadoId: 1, dias: 1 },
-      { userId: '222', nombre: 'Bruno', empleadoId: 2, dias: 1 },
-    ]);
-    expect(r.incompletosTotal).toBe(2);
-  });
-
-  it('separa a quien no fichó de quien no está vinculado', () => {
-    expect(r.totales.personasSinVincular).toBe(1); // Carla
-    expect(r.totales.personasConMarcas).toBe(3);
-    expect(r.totales.personasTotales).toBe(4);
-  });
-
-  it('cuenta los presentes de hoy cuando hoy cae en el rango', () => {
-    expect(r.hoy).toEqual({ fecha: HOY, enRango: true, presentes: 2 });
-  });
-
-  it('no inventa presentes cuando hoy queda fuera del rango', () => {
-    const otro = armarResumen(grupos, personas, { desde: '2026-08-01', hasta: '2026-08-31' }, HOY);
-    expect(otro.hoy.enRango).toBe(false);
-    expect(otro.hoy.presentes).toBe(0);
-    expect(otro.totales.fichadas).toBe(5); // solo la fila del 31/08
-    expect(otro.totales.diasPersona).toBe(1); // hoy no está en el rango: nada que excluir
-  });
-
-  it('la serie por día cubre el rango completo, con ceros incluidos', () => {
-    expect(r.porDia).toHaveLength(7);
-    expect(r.porDia[0]).toEqual({ fecha: '2026-09-01', marcas: 2, personas: 1 });
-    expect(r.porDia[1]).toEqual({ fecha: '2026-09-02', marcas: 3, personas: 2 });
-    // Hoy sigue entero en la serie y en "presentes": lo que se excluye es solo
-    // el conteo de días sin salida.
-    // Un día hábil sin ninguna marca tiene que existir en la serie: es la señal
-    // de que el reloj se cayó.
-    expect(r.porDia[2]).toEqual({ fecha: '2026-09-03', marcas: 0, personas: 0 });
-    expect(r.porDia[6]).toEqual({ fecha: HOY, marcas: 3, personas: 2 });
-  });
-
-  it('sobrevive a un período sin ninguna fichada', () => {
-    const vacio = armarResumen([], personas, RANGO, HOY);
-    expect(vacio.totales.fichadas).toBe(0);
-    expect(vacio.totales.diasPersona).toBe(0);
-    expect(vacio.porDia).toHaveLength(7);
-    expect(vacio.hoy.presentes).toBe(0);
   });
 });
 

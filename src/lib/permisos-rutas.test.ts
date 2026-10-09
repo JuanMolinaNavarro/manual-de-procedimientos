@@ -66,6 +66,13 @@ describe('puedeUsarApi', () => {
     // El estado y la config de nómina los comparten todas las pestañas y la gestión de recibos.
     expect(puedeUsarApi('/api/admin/nomina/estado', 'GET', 'admin', ['gestion-recibos'])).toBe(true);
   });
+  it('vacaciones: la gestión es del módulo; Mis vacaciones, de cualquier admin (la ruta se limita a lo propio)', () => {
+    expect(puedeUsarApi('/api/admin/vacaciones', 'GET', 'admin', ['vacaciones'])).toBe(true);
+    expect(puedeUsarApi('/api/admin/vacaciones/seleccion/7', 'POST', 'admin', ['vacaciones'])).toBe(true);
+    expect(puedeUsarApi('/api/admin/vacaciones', 'GET', 'admin', ['asistencia', 'mis-vacaciones'])).toBe(false);
+    expect(puedeUsarApi('/api/admin/mis-vacaciones', 'POST', 'admin', ['peliculas'])).toBe(true);
+    expect(puedeUsarApi('/api/admin/mis-vacaciones', 'GET', 'ventas', [])).toBe(false);
+  });
   it('rutas personales y la foto: cualquier admin (cada ruta se limita a lo propio)', () => {
     expect(puedeUsarApi('/api/admin/mis-recibos', 'GET', 'admin', ['peliculas'])).toBe(true);
     expect(puedeUsarApi('/api/admin/organigrama/empleados/7/foto', 'GET', 'admin', ['asistencia'])).toBe(true);

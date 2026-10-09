@@ -64,7 +64,7 @@ export default function SiteLoginPage() {
             alt="AURELIUS"
             className="mx-auto h-24 w-24 object-contain invert dark:invert-0"
           />
-          <CardTitle className="text-center font-[family-name:var(--font-playfair)] text-2xl font-semibold tracking-widest">
+          <CardTitle className="text-center font-display text-2xl font-bold tracking-widest">
             AURELIUS
           </CardTitle>
         </CardHeader>

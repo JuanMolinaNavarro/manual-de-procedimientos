@@ -1,12 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { EMPLEADO_MODULOS, VENTAS_MODULOS, canAccessPath, getModulosForUser, modulosEfectivos } from './modulos';
+import { EMPLEADO_MODULOS, VENTAS_MODULOS, canAccessPath, getModulosForUser, getModulosParaMenu, modulosEfectivos } from './modulos';
 import { isAdminRole, puedeGestionarPin, puedeGestionarUsuarios, rolValido, rutaPermitidaEmpleado } from './roles';
 
 describe('modulosEfectivos', () => {
-  it('empleado: siempre sus dos módulos, aunque tenga [] (que sería "todos")', () => {
+  it('empleado: siempre sus módulos personales, aunque tenga [] (que sería "todos")', () => {
     expect(modulosEfectivos('empleado', [])).toEqual([...EMPLEADO_MODULOS]);
-    expect(modulosEfectivos('empleado', ['usuarios', 'organigrama'])).toEqual(['mi-asistencia', 'mis-recibos']);
-    expect(getModulosForUser(modulosEfectivos('empleado', [])).map((m) => m.href)).toEqual(['/admin/mi-asistencia', '/admin/mis-recibos']);
+    expect(modulosEfectivos('empleado', ['usuarios', 'organigrama'])).toEqual(['mi-asistencia', 'mis-recibos', 'mis-vacaciones']);
+    expect(getModulosForUser(modulosEfectivos('empleado', [])).map((m) => m.href))
+      .toEqual(['/admin/mi-asistencia', '/admin/mis-recibos', '/admin/mis-vacaciones']);
+  });
+  it('Vacaciones y Mis vacaciones son módulos separados', () => {
+    expect(canAccessPath('/admin/mis-vacaciones', ['vacaciones'])).toBe(false);
+    expect(canAccessPath('/admin/vacaciones', ['mis-vacaciones'])).toBe(false);
+    expect(canAccessPath('/admin/vacaciones/seleccion/7', ['vacaciones'])).toBe(true);
   });
   it('ventas: siempre Leads y Padrón, aunque tenga [] u otros módulos guardados', () => {
     expect(modulosEfectivos('ventas', [])).toEqual([...VENTAS_MODULOS]);
@@ -38,6 +44,17 @@ describe('modulosEfectivos', () => {
   });
 });
 
+describe('getModulosParaMenu', () => {
+  it('oculta Nómina de los menús sin tocar el permiso', () => {
+    const menu = getModulosParaMenu([]).map((m) => m.slug);
+    expect(menu.some((s) => s.startsWith('nomina-'))).toBe(false);
+    expect(menu).toContain('vacaciones');
+    expect(menu).toContain('gestion-recibos');
+    expect(getModulosForUser([]).map((m) => m.slug)).toContain('nomina-tablero');
+    expect(getModulosParaMenu(['nomina-tablero', 'organigrama']).map((m) => m.slug)).toEqual(['organigrama']);
+  });
+});
+
 describe('rol empleado', () => {
   it('no es admin', () => expect(isAdminRole('empleado')).toBe(false));
 
@@ -48,6 +65,9 @@ describe('rol empleado', () => {
     '/api/admin/mi-asistencia',
     '/api/admin/mis-recibos',
     '/api/admin/mis-recibos/0b7f3c2e-1111-4222-8333-444455556666/pdf',
+    '/admin/mis-vacaciones',
+    '/admin/mis-vacaciones/documento',
+    '/api/admin/mis-vacaciones',
     '/api/admin/organigrama/empleados/12/foto',
     '/api/me',
   ])('permite %s', (p) => expect(rutaPermitidaEmpleado(p)).toBe(true));
@@ -61,6 +81,9 @@ describe('rol empleado', () => {
     '/admin/usuarios',
     '/admin/asistencia',
     '/admin/mis-recibos-falso',
+    '/admin/vacaciones',
+    '/api/admin/vacaciones',
+    '/api/admin/vacaciones/seleccion/12',
     '/api/admin/nomina/recibos',
     '/api/admin/nomina/finnegans/liquidaciones',
     '/api/admin/usuarios',

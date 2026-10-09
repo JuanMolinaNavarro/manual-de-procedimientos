@@ -1,5 +1,5 @@
 import { getSesion } from '@/lib/admin-auth';
-import { getModulosForUser, modulosEfectivos } from '@/lib/modulos';
+import { getModulosParaMenu, modulosEfectivos } from '@/lib/modulos';
 import { isAdminRole, isEmpleadoRole } from '@/lib/roles';
 import AdminHomeModulos from '@/components/AdminHomeModulos';
 import CumplesBanner from '@/components/CumplesBanner';
@@ -11,7 +11,7 @@ export default async function AdminHomePage() {
   // Solo los admins ven el banner de cumpleaños: lista gente de todo el organigrama.
   const esEmpleado = isEmpleadoRole(usuarioRecord?.rol);
   const esAdmin = isAdminRole(usuarioRecord?.rol);
-  const allowedModules = getModulosForUser(modulos);
+  const allowedModules = getModulosParaMenu(modulos);
 
   const nombreCompleto = usuarioRecord
     ? [usuarioRecord.nombre, usuarioRecord.apellido].filter(Boolean).join(' ').trim() || usuarioRecord.usuario

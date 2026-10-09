@@ -324,7 +324,7 @@ export default function PersonasTab() {
             <AlertDialogTitle>¿Marcar inactiva a {desactivar?.nombre}?</AlertDialogTitle>
             <AlertDialogDescription>
               Está vinculada al organigrama: se marca inactiva <strong>su ficha</strong>, no solo el legajo del reloj. Sale
-              del calendario y del Resumen. No se borra nada y se puede volver a activar.
+              de las vistas Día y Mes y del calendario. No se borra nada y se puede volver a activar.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

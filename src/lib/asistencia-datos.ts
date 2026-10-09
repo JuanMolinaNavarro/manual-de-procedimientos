@@ -102,11 +102,6 @@ export function sumarDias(yyyymmdd: string, dias: number): string {
   return aIso(aMs(yyyymmdd) + dias * DIA_MS);
 }
 
-/** Cantidad de días del rango, inclusive en ambos extremos. */
-export function diasEntre(desde: string, hasta: string): number {
-  return Math.floor((aMs(hasta) - aMs(desde)) / DIA_MS) + 1;
-}
-
 export type PresetRango = 'hoy' | 'semana' | 'mes' | 'mesAnterior' | 'ultimos30';
 
 export const PRESETS_RANGO: { id: PresetRango; label: string }[] = [
@@ -179,157 +174,6 @@ export function personaActiva(p: { empleadoId: number | null; activo: boolean; e
   return p.activo;
 }
 
-// ─── Resumen del período ────────────────────────────────────────────────────
-
-/** Una fila del groupBy (user_id, fecha, tipo) con su conteo. */
-export interface GrupoFichadas {
-  userId: string;
-  fecha: string;
-  tipo: number;
-  marcas: number;
-}
-
-export interface PersonaResumen {
-  userId: string;
-  nombre: string;
-  empleadoId: number | null;
-}
-
-export interface ResumenAsistencia {
-  rango: { desde: string; hasta: string; dias: number };
-  totales: {
-    fichadas: number;
-    personasConMarcas: number;
-    personasTotales: number;
-    personasSinVincular: number;
-    /** Pares (persona, día) con al menos una marca, sin contar el día de hoy. */
-    diasPersona: number;
-    /** De esos, los que no tienen ninguna marca de salida. */
-    diasIncompletos: number;
-  };
-  hoy: { fecha: string; enRango: boolean; presentes: number };
-  porDia: { fecha: string; marcas: number; personas: number }[];
-  incompletos: { userId: string; nombre: string; empleadoId: number | null; dias: number }[];
-  incompletosTotal: number;
-  relojes: { total: number; activos: number; conError: number; ultimoSync: string | null };
-  ultimaFichada: string | null;
-}
-
-/** Lo que se calcula solo con los grupos; el resto lo agrega el servidor. */
-export type ResumenBase = Omit<ResumenAsistencia, 'relojes' | 'ultimaFichada'>;
-
-const TOP_INCOMPLETOS = 10;
-/** Tope de barras del gráfico por día, para no mandar un JSON absurdo. */
-const MAX_DIAS_SERIE = 366;
-
-/**
- * Agrega los grupos (persona, día, tipo) en los números del Resumen.
- *
- * Deliberadamente **no** calcula horas trabajadas ni tardanzas: acá no entra la
- * jornada esperada, y `salida − entrada` es falso apenas alguien ficha un
- * descanso o se olvida de marcar la salida — que es justo el caso que el módulo
- * tiene que detectar. Las tardanzas y ausencias viven en el Calendario
- * (`asistencia-calendario.ts`), que las deriva solo para quien tiene una versión
- * de horario vigente. Un número inventado en la pantalla que se usa para
- * liquidar es peor que ningún número.
- */
-export function armarResumen(
-  grupos: GrupoFichadas[],
-  personas: PersonaResumen[],
-  rango: { desde: string; hasta: string },
-  hoy = hoyLocal(),
-): ResumenBase {
-  // (persona, día) → marcas y si hubo alguna salida.
-  const dias = new Map<string, { userId: string; fecha: string; marcas: number; tieneSalida: boolean }>();
-  let fichadas = 0;
-
-  for (const g of grupos) {
-    if (g.fecha < rango.desde || g.fecha > rango.hasta) continue;
-    fichadas += g.marcas;
-    const key = `${g.userId}|${g.fecha}`;
-    let d = dias.get(key);
-    if (!d) {
-      d = { userId: g.userId, fecha: g.fecha, marcas: 0, tieneSalida: false };
-      dias.set(key, d);
-    }
-    d.marcas += g.marcas;
-    if (g.tipo === 1) d.tieneSalida = true;
-  }
-
-  const porFecha = new Map<string, { marcas: number; personas: Set<string> }>();
-  const incompletosPorUsuario = new Map<string, number>();
-  const conMarcas = new Set<string>();
-  let diasCerrados = 0;
-  let diasIncompletos = 0;
-
-  for (const d of dias.values()) {
-    conMarcas.add(d.userId);
-    let acc = porFecha.get(d.fecha);
-    if (!acc) {
-      acc = { marcas: 0, personas: new Set() };
-      porFecha.set(d.fecha, acc);
-    }
-    acc.marcas += d.marcas;
-    acc.personas.add(d.userId);
-    // El día de hoy no se juzga: la jornada está en curso y quien todavía no se
-    // fue no tiene una salida faltante sino pendiente. Contarla llenaría el KPI
-    // de falsos positivos cada mañana. Queda fuera del numerador y también del
-    // denominador (`diasPersona`), para que el ratio compare días cerrados.
-    if (d.fecha === hoy) continue;
-    diasCerrados++;
-    if (!d.tieneSalida) {
-      diasIncompletos++;
-      incompletosPorUsuario.set(d.userId, (incompletosPorUsuario.get(d.userId) ?? 0) + 1);
-    }
-  }
-
-  // La serie cubre el rango completo: un día hábil en cero es justamente lo que
-  // hay que ver (el reloj se cayó), y si solo mandáramos los días con datos
-  // desaparecería del gráfico.
-  const totalDias = diasEntre(rango.desde, rango.hasta);
-  const porDia: ResumenBase['porDia'] = [];
-  if (totalDias > 0 && totalDias <= MAX_DIAS_SERIE) {
-    for (let i = 0; i < totalDias; i++) {
-      const fecha = sumarDias(rango.desde, i);
-      const acc = porFecha.get(fecha);
-      porDia.push({ fecha, marcas: acc?.marcas ?? 0, personas: acc?.personas.size ?? 0 });
-    }
-  } else {
-    for (const [fecha, acc] of [...porFecha.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-      porDia.push({ fecha, marcas: acc.marcas, personas: acc.personas.size });
-    }
-  }
-
-  const nombrePorUser = new Map(personas.map((p) => [p.userId, p]));
-  const incompletos = [...incompletosPorUsuario.entries()]
-    .map(([userId, cant]) => ({
-      userId,
-      nombre: nombrePorUser.get(userId)?.nombre ?? userId,
-      empleadoId: nombrePorUser.get(userId)?.empleadoId ?? null,
-      dias: cant,
-    }))
-    .sort((a, b) => b.dias - a.dias || a.nombre.localeCompare(b.nombre));
-
-  const hoyEnRango = hoy >= rango.desde && hoy <= rango.hasta;
-  const presentes = porFecha.get(hoy)?.personas.size ?? 0;
-
-  return {
-    rango: { desde: rango.desde, hasta: rango.hasta, dias: totalDias },
-    totales: {
-      fichadas,
-      personasConMarcas: conMarcas.size,
-      personasTotales: personas.length,
-      personasSinVincular: personas.filter((p) => p.empleadoId == null).length,
-      diasPersona: diasCerrados,
-      diasIncompletos,
-    },
-    hoy: { fecha: hoy, enRango: hoyEnRango, presentes },
-    porDia,
-    incompletos: incompletos.slice(0, TOP_INCOMPLETOS),
-    incompletosTotal: incompletos.length,
-  };
-}
-
 // ─── Formato de fechas ──────────────────────────────────────────────────────
 // Todo el módulo muestra la hora del reloj, que es hora de Argentina. Se fija la
 // zona a mano en vez de dejar la del navegador: si alguien abre el panel desde
@@ -362,6 +206,12 @@ export function fmtFechaDia(yyyymmdd: string): string {
   if (!FECHA_RE.test(yyyymmdd)) return yyyymmdd;
   const [a, m, d] = yyyymmdd.split('-');
   return `${d}/${m}/${a}`;
+}
+
+/** `2026-10-07` → `miércoles 7 de octubre`. Al mediodía UTC, así el huso no corre el día. */
+export function fmtDiaLargo(yyyymmdd: string): string {
+  if (!FECHA_RE.test(yyyymmdd)) return yyyymmdd;
+  return new Date(`${yyyymmdd}T12:00:00Z`).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).replace(',', '');
 }
 
 /** "hace 12 min" / "hace 3 h" / "hace 2 días". Fechas futuras → "recién". */

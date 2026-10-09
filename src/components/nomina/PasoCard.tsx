@@ -8,7 +8,7 @@
 import type { ReactNode } from 'react';
 import { AlertTriangle, Check, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
+import { cn, sinTildes } from '@/lib/utils';
 
 export type EstadoPaso = 'hecho' | 'pendiente' | 'atencion' | 'bloqueado';
 
@@ -84,6 +84,5 @@ export function BarraFiltros<T extends string>({ buscar, onBuscar, filtros, acti
 
 /** Normaliza para buscar sin tildes ni mayúsculas. */
 export function coincide(texto: string, buscar: string): boolean {
-  const n = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  return n(texto).includes(n(buscar.trim()));
+  return sinTildes(texto).includes(sinTildes(buscar.trim()));
 }

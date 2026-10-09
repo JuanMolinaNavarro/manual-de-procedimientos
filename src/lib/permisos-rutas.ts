@@ -42,6 +42,7 @@ export const REGLAS_API: readonly Regla[] = [
   { prefijo: '/api/admin/senales-ip', modulos: ['senales-ip'] },
   { prefijo: '/api/admin/usuarios', modulos: ['usuarios'] },
   { prefijo: '/api/admin/organigrama', modulos: ['organigrama'] },
+  { prefijo: '/api/admin/vacaciones', modulos: ['vacaciones'] },
   // Nómina: cualquier pestaña de nómina o la gestión de recibos (comparten estado, config y
   // el recibo calculado). Lo que es solo de RR.HH. de recibos va más abajo.
   { prefijo: '/api/admin/nomina', modulos: NOMINA_Y_RECIBOS },
@@ -52,6 +53,7 @@ export const REGLAS_API: readonly Regla[] = [
   // Portal personal: cada ruta resuelve la ficha SOLO de la sesión (sin módulo).
   { prefijo: '/api/admin/mi-asistencia', modulos: 'admin' },
   { prefijo: '/api/admin/mis-recibos', modulos: 'admin' },
+  { prefijo: '/api/admin/mis-vacaciones', modulos: 'admin' },
   // Fuera de /api/admin: solo las escrituras exigen admin (la lectura de activas es pública).
   { prefijo: '/api/bonificaciones', modulos: ['bonificaciones'] },
   { prefijo: '/api/plans', modulos: ['planes'] },

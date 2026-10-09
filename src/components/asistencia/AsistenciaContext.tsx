@@ -3,10 +3,9 @@
 /**
  * Estado compartido del módulo Asistencia.
  *
- * Los filtros viven en la URL, no en `useState`: Radix desmonta la pestaña
- * inactiva, así que con estado local cambiar de pestaña perdía todo. Además así
- * un rango filtrado se puede compartir por link y el Resumen puede mandar a
- * Fichadas con el filtro ya puesto.
+ * Los filtros viven en la URL, no en `useState`: cambiar de vista desmonta la
+ * anterior, así que con estado local se perdía todo. Además así un día, un mes o
+ * un rango filtrado se puede compartir por link.
  *
  * `personas` y `relojes` se piden una sola vez acá y no en cada pestaña.
  */
@@ -25,11 +24,12 @@ export interface EmpleadoOpt {
   foto_archivo: string | null;
 }
 
-export const TABS = ['resumen', 'calendario', 'fichadas', 'personas', 'relojes'] as const;
+/** `dia` y `mes` son lo que revisa RR.HH.; el resto son herramientas (calendario, marcas crudas, legajos, relojes). */
+export const TABS = ['dia', 'mes', 'calendario', 'fichadas', 'personas', 'relojes'] as const;
 export type TabAsistencia = (typeof TABS)[number];
-export type VistaFichadas = 'detalle' | 'dia';
+type VistaFichadas = 'detalle' | 'dia';
 
-export interface FiltrosUI {
+interface FiltrosUI {
   tab: TabAsistencia;
   desde: string; // yyyy-mm-dd
   hasta: string; // yyyy-mm-dd, inclusive
@@ -40,12 +40,16 @@ export interface FiltrosUI {
   soloSospechosas: boolean;
   soloIncompletos: boolean;
   page: number;
-  /** Calendario: mes yyyy-mm y si se listan también las personas sin horario. */
+  /** Mes y Calendario: mes yyyy-mm, y si el calendario lista también a las personas sin horario. */
   mes: string;
   sinHorario: boolean;
+  /** Día: fecha yyyy-mm-dd (default hoy). */
+  fecha: string;
+  /** Día y Mes: organigrama (sede) elegido; null = todos. */
+  lugar: number | null;
 }
 
-const TAB_DEFAULT: TabAsistencia = 'resumen';
+const TAB_DEFAULT: TabAsistencia = 'dia';
 
 function defaults(): { desde: string; hasta: string } {
   const hoy = hoyLocal();
@@ -57,6 +61,7 @@ function leerFiltros(sp: URLSearchParams): FiltrosUI {
   const fecha = (v: string | null, fallback: string) => (v && FECHA_RE.test(v) ? v : fallback);
   const tab = sp.get('tab');
   const reloj = Number(sp.get('reloj'));
+  const lugar = Number(sp.get('lugar'));
   return {
     tab: (TABS as readonly string[]).includes(tab ?? '') ? (tab as TabAsistencia) : TAB_DEFAULT,
     desde: fecha(sp.get('desde'), def.desde),
@@ -70,6 +75,8 @@ function leerFiltros(sp: URLSearchParams): FiltrosUI {
     page: Math.max(1, Number(sp.get('page')) || 1),
     mes: MES_RE.test(sp.get('mes') ?? '') ? (sp.get('mes') as string) : def.desde.slice(0, 7),
     sinHorario: sp.get('sinhorario') === '1',
+    fecha: fecha(sp.get('fecha'), hoyLocal()),
+    lugar: Number.isInteger(lugar) && lugar > 0 ? lugar : null,
   };
 }
 
@@ -89,11 +96,13 @@ function serializar(f: FiltrosUI): string {
   if (f.page > 1) p.set('page', String(f.page));
   if (f.mes !== def.desde.slice(0, 7)) p.set('mes', f.mes);
   if (f.sinHorario) p.set('sinhorario', '1');
+  if (f.fecha !== hoyLocal()) p.set('fecha', f.fecha);
+  if (f.lugar != null) p.set('lugar', String(f.lugar));
   return p.toString();
 }
 
 /** Filtros que acotan el resultado (el rango de fechas no cuenta: siempre hay uno). */
-export function contarFiltrosActivos(f: FiltrosUI): number {
+function contarFiltrosActivos(f: FiltrosUI): number {
   return [f.relojId != null, !!f.q, !!f.userId, f.soloSospechosas, f.soloIncompletos].filter(Boolean).length;
 }
 
@@ -166,9 +175,7 @@ interface AsistenciaCtx {
   relojesError: string | null;
   /** Versiones de horario de todos los empleados (la más reciente primero por empleado). */
   horarios: HorarioVersion[] | null;
-  horariosError: string | null;
   horariosPorEmpleado: Map<number, HorarioVersion[]>;
-  version: number;
   /** Frescura de la caché: `montaje:versión`. */
   stamp: string;
   refrescar: () => void;
@@ -239,13 +246,11 @@ export function AsistenciaProvider({ empleados, children }: { empleados: Emplead
       relojes,
       relojesError: relojesRes.error,
       horarios,
-      horariosError: horariosRes.error,
       horariosPorEmpleado,
-      version,
       stamp,
       refrescar,
     }),
-    [f, set, limpiarFiltros, empleados, empleadoPorId, personas, personasRes.error, personaPorUserId, relojes, relojesRes.error, horarios, horariosRes.error, horariosPorEmpleado, version, stamp, refrescar],
+    [f, set, limpiarFiltros, empleados, empleadoPorId, personas, personasRes.error, personaPorUserId, relojes, relojesRes.error, horarios, horariosPorEmpleado, stamp, refrescar],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

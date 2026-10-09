@@ -16,7 +16,11 @@ export const ADMIN_MODULOS = [
   // (ver y firmar los suyos). Rutas distintas para que un permiso no cubra al otro.
   { slug: 'gestion-recibos', label: 'Gestión de recibos', href: '/admin/gestion-recibos' },
   { slug: 'mis-recibos',   label: 'Mis recibos',    href: '/admin/mis-recibos' },
-  { slug: 'padron',        label: 'Padrón',         href: '/admin/padron' },
+  // Vacaciones (LCT arts. 150-157 y 164, art. 154 según la Ley 27.802): la gestión de RR.HH.
+  // y la vista personal, en módulos separados como asistencia y recibos.
+  { slug: 'vacaciones',     label: 'Vacaciones',     href: '/admin/vacaciones' },
+  { slug: 'mis-vacaciones', label: 'Mis vacaciones', href: '/admin/mis-vacaciones' },
+  { slug: 'padron',       label: 'Padrón',         href: '/admin/padron' },
   { slug: 'proyectos',     label: 'Proyectos',      href: '/admin/proyectos' },
   { slug: 'deposito',      label: 'Depósito',       href: '/admin/deposito' },
   // Nómina (liquidación de sueldos): cada pestaña del módulo es un módulo propio
@@ -48,7 +52,7 @@ export type AdminModuloSlug = AdminModulo['slug'];
 export const ADMIN_MODULO_SLUGS = ADMIN_MODULOS.map((m) => m.slug);
 
 /** Módulos fijos del rol `empleado` (su portal personal). */
-export const EMPLEADO_MODULOS = ['mi-asistencia', 'mis-recibos'] as const satisfies readonly AdminModuloSlug[];
+export const EMPLEADO_MODULOS = ['mi-asistencia', 'mis-recibos', 'mis-vacaciones'] as const satisfies readonly AdminModuloSlug[];
 
 /** Módulos fijos del rol `ventas`. */
 export const VENTAS_MODULOS = ['leads', 'padron'] as const satisfies readonly AdminModuloSlug[];
@@ -84,6 +88,15 @@ const SLUGS_RENOMBRADOS: Record<string, AdminModuloSlug> = {
 export function getModulosForUser(modulos: string[]): readonly AdminModulo[] {
   if (modulos.length === 0) return ADMIN_MODULOS;
   return ADMIN_MODULOS.filter((m) => modulos.includes(m.slug));
+}
+
+/**
+ * Los módulos que van en los menús (inicio y lateral): los permitidos menos los de Nómina, que no se
+ * muestran (decisión del usuario 2026-10-06: el motor propio es simulación y confundía al lado de
+ * Gestión de recibos). El permiso sigue vigente: se entra por `/admin/nomina`.
+ */
+export function getModulosParaMenu(modulos: string[]): readonly AdminModulo[] {
+  return getModulosForUser(modulos).filter((m) => !(NOMINA_SLUGS as readonly string[]).includes(m.slug));
 }
 
 /** Returns true if the given pathname falls under any known admin module. */

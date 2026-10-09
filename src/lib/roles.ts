@@ -4,7 +4,7 @@
  * - `admin`: panel admin, restringido por `modulos` / `modulos_edit`.
  * - `superadmin`: acceso total — todos los módulos, edición de organigrama
  *   implícita y visibilidad de todos los proyectos.
- * - `empleado`: portal personal. Solo ve Mi asistencia y sus Recibos, siempre de
+ * - `empleado`: portal personal. Solo ve Mi asistencia, sus Recibos y sus Vacaciones, siempre de
  *   la ficha vinculada a su usuario. NO es admin: las APIs de `/api/admin/**` le
  *   responden 403 salvo las personales de `rutaPermitidaEmpleado`.
  * - `ventas`: solo Leads y Padrón (`VENTAS_MODULOS`, fijos: lo guardado en `modulos` no
@@ -41,8 +41,10 @@ export function isVentasRole(rol: string | null | undefined): boolean {
 const EMPLEADO_PREFIJOS = [
   '/admin/mi-asistencia',
   '/admin/mis-recibos',
+  '/admin/mis-vacaciones',
   '/api/admin/mi-asistencia',
   '/api/admin/mis-recibos',
+  '/api/admin/mis-vacaciones',
 ] as const;
 
 /** La foto de una ficha: la ruta verifica que sea la propia. */
