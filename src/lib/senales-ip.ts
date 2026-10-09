@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { hoyLocal } from './fechas';
 import { prisma } from './prisma';
 
@@ -265,6 +266,15 @@ export async function getContratoVendedorById(id: number): Promise<ContratoVende
   return { ...row, equipos_por_senal: row.equipos_por_senal as EquipoPorSenal[] | null };
 }
 
+/**
+ * `equipos_por_senal` es Json: un `null` de JS no lo vacía (Prisma lo toma como "no tocar"),
+ * hay que mandar `Prisma.DbNull`. undefined = no cambiar; null = sin equipos.
+ */
+function equiposJson(v: EquipoPorSenal[] | null | undefined) {
+  if (v === undefined) return undefined;
+  return v === null ? Prisma.DbNull : (v as unknown as Prisma.InputJsonArray);
+}
+
 export async function createContratoVendedor(data: CreateContratoVendedorData): Promise<ContratoVendedor> {
   const row = await prisma.contratoVendedor.create({
     data: {
@@ -287,8 +297,7 @@ export async function createContratoVendedor(data: CreateContratoVendedorData): 
       condiciones_pago: data.condiciones_pago ?? null,
       tnb_aplicada: data.tnb_aplicada ?? null,
       forma_recepcion_entrega: data.forma_recepcion_entrega ?? null,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      equipos_por_senal: (data.equipos_por_senal ?? undefined) as any,
+      equipos_por_senal: equiposJson(data.equipos_por_senal),
       condiciones_entrega_equipamiento: data.condiciones_entrega_equipamiento ?? null,
       created_by: data.created_by ?? null,
       updated_by: data.updated_by ?? null,
@@ -325,8 +334,7 @@ export async function updateContratoVendedor(
       condiciones_pago: data.condiciones_pago,
       tnb_aplicada: data.tnb_aplicada,
       forma_recepcion_entrega: data.forma_recepcion_entrega,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      equipos_por_senal: data.equipos_por_senal === undefined ? undefined : ((data.equipos_por_senal ?? undefined) as any),
+      equipos_por_senal: equiposJson(data.equipos_por_senal),
       condiciones_entrega_equipamiento: data.condiciones_entrega_equipamiento,
       activa: data.activa,
       updated_by: data.updated_by,
