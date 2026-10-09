@@ -11,6 +11,7 @@
  * con vitest; la parte de red usa `node:net` y ejecuta un comando por vez.
  */
 
+import { ApiError } from './api-error';
 import { Socket } from 'node:net';
 import { MAX_REGISTROS_POR_TRAMA, OFFSET_RELOJ_MIN, PUERTO_TCB, type ModoDescarga } from './asistencia-datos';
 
@@ -234,10 +235,10 @@ export function parsearInfo1(data: Buffer): Info1 {
 
 // ─── Parte de red ────────────────────────────────────────────────────────────
 
-export class AnvizError extends Error {
+/** Falla de comunicación con el reloj (timeout, sin ruta, RET de error): 502 con el mensaje. */
+export class AnvizError extends ApiError {
   constructor(message: string, readonly ret?: number) {
-    super(message);
-    this.name = 'AnvizError';
+    super(message, 502);
   }
 }
 

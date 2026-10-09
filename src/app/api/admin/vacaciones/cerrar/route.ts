@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cerrarTemporadaActual, entero } from '@/lib/vacaciones';
-import { conSesion, leerJson } from '@/lib/vacaciones-api';
+import { readJson } from '@/lib/api-admin';
+import { conSesion } from '@/lib/vacaciones-api';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: Request) {
   return conSesion(request, 'POST /api/admin/vacaciones/cerrar', true, async (s) => {
-    const ejercicio = entero((await leerJson(request)).ejercicio, 'Ejercicio', 2000, 2100);
+    const ejercicio = entero((await readJson(request)).ejercicio, 'Ejercicio', 2000, 2100);
     return NextResponse.json({ resumen: await cerrarTemporadaActual(ejercicio, s.actor) });
   });
 }

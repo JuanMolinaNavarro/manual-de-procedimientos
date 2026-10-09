@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { VacacionesError, postSeleccion, vista } from '@/lib/vacaciones';
-import { conSesion, leerJson } from '@/lib/vacaciones-api';
+import { readJson } from '@/lib/api-admin';
+import { conSesion } from '@/lib/vacaciones-api';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,6 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   return conSesion(request, 'POST /api/admin/mis-vacaciones', false, async ({ usuario, actor }) => {
     if (usuario.empleado_id == null) throw new VacacionesError('Tu usuario no está vinculado a una ficha', 409);
-    return NextResponse.json(await postSeleccion(usuario.empleado_id, await leerJson(request), actor, 'portal'));
+    return NextResponse.json(await postSeleccion(usuario.empleado_id, await readJson(request), actor, 'portal'));
   });
 }

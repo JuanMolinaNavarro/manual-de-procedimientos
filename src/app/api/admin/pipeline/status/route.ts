@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isPipelineRunning } from '@/lib/pipeline';
-import { handleAdmin } from '@/lib/api-admin';
+import { handle } from '@/lib/api-admin';
 
 export async function GET() {
-  return handleAdmin('GET /api/admin/pipeline/status', async () => {
+  return handle('GET /api/admin/pipeline/status', async () => {
     const [catalogCount, onDemandCount, lastEntry] = await Promise.all([
       prisma.mwproxyCatalog.count(),
       prisma.onDemand.count(),

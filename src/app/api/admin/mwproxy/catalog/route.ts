@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { handleAdmin } from '@/lib/api-admin';
+import { handle } from '@/lib/api-admin';
 
 export async function GET() {
-  return handleAdmin('GET /api/admin/mwproxy/catalog', async () => {
+  return handle('GET /api/admin/mwproxy/catalog', async () => {
     const entries = await prisma.mwproxyCatalog.findMany({
       orderBy: [{ imdb_votes: 'desc' }, { name: 'asc' }],
     });

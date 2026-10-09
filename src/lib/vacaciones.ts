@@ -7,6 +7,7 @@
  * vacaciones lo fije). El sueldo solo viaja a quien también puede ver Nómina.
  */
 
+import { ApiError } from './api-error';
 import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 import { hoyLocal } from './fechas';
@@ -20,11 +21,7 @@ import {
   type PerfilVac, type ReglaCobertura, type Resultado, type Solicitud, type VistaSeleccion,
 } from './vacaciones-calc';
 
-export class VacacionesError extends Error {
-  constructor(message: string, public status = 400) {
-    super(message);
-  }
-}
+export class VacacionesError extends ApiError {}
 
 /** Quién hace la acción (queda en la auditoría y en los acuerdos). */
 export interface Actor { nombre: string; usuario: string | null; ip: string | null }

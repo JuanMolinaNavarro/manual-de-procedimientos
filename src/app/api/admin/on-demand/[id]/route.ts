@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { setOnDemandActive } from '@/lib/on-demand';
-import { handleAdmin } from '@/lib/api-admin';
+import { handle } from '@/lib/api-admin';
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  return handleAdmin('PATCH /api/admin/on-demand/[id]', async () => {
+  return handle('PATCH /api/admin/on-demand/[id]', async () => {
     const { id } = await params;
     const n = Number(id);
     if (!Number.isInteger(n) || n <= 0) {

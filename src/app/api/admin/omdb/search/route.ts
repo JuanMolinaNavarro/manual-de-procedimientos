@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchMovies } from '@/lib/omdb';
-import { handleAdmin } from '@/lib/api-admin';
+import { handle } from '@/lib/api-admin';
 
 export async function GET(request: NextRequest) {
-  return handleAdmin('GET /api/admin/omdb/search', async () => {
+  return handle('GET /api/admin/omdb/search', async () => {
     const q = request.nextUrl.searchParams.get('q')?.trim();
     if (!q) {
       return NextResponse.json({ error: 'Parámetro q requerido' }, { status: 400 });

@@ -7,6 +7,7 @@
  * Solo servidor. El cliente importa de acá únicamente tipos (`import type`).
  */
 
+import { ApiError } from './api-error';
 import { hoyLocal } from './fechas';
 import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
@@ -61,14 +62,7 @@ import {
 import { emailValido, normalizarEmail } from './recibos-aviso';
 import { formatoCuit } from './recibos-finnegans-calc';
 
-export class NominaError extends Error {
-  status: number;
-  constructor(message: string, status = 400) {
-    super(message);
-    this.name = 'NominaError';
-    this.status = status;
-  }
-}
+export class NominaError extends ApiError {}
 
 // ─── Tipos que viajan a la UI ────────────────────────────────────────────────
 

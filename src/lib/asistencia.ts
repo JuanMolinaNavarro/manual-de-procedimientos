@@ -4,6 +4,7 @@
  * CrossChex (.mdb) como respaldo/histórico y ofrece las consultas para la UI.
  */
 
+import { ApiError } from './api-error';
 import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 import { conReloj, type RegistroReloj } from './anviz-tcb';
@@ -25,13 +26,7 @@ import {
 } from './asistencia-datos';
 import { resumirFichadas, type FichadaDia } from './asistencia-calendario';
 
-/** Error con status HTTP para el wrapper de la API. */
-export class AsistenciaError extends Error {
-  constructor(message: string, readonly status = 400) {
-    super(message);
-    this.name = 'AsistenciaError';
-  }
-}
+export class AsistenciaError extends ApiError {}
 
 // ─── Relojes ─────────────────────────────────────────────────────────────────
 

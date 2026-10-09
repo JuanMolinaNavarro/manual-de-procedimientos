@@ -1,15 +1,16 @@
 /**
  * Helpers de las rutas de vacaciones (`/api/admin/vacaciones/**` y `/api/admin/mis-vacaciones`):
- * sesión, actor para la auditoría y traducción de `VacacionesError` a la convención del panel.
+ * sesión y actor para la auditoría. Los errores se traducen con `respuestaError` de `api-admin.ts`.
  */
 
 import { NextResponse } from 'next/server';
 import { getSesion } from './admin-auth';
+import { respuestaError } from './api-admin';
 import { ipCliente } from './login-limite';
 import { NOMINA_SLUGS, modulosEfectivos } from './modulos';
 import { isAdminRole } from './roles';
 import type { UsuarioSesion } from './sesion';
-import { VacacionesError, type Actor } from './vacaciones';
+import type { Actor } from './vacaciones';
 
 interface SesionVac {
   usuario: UsuarioSesion;
@@ -34,17 +35,6 @@ export async function conSesion(
     const nombre = [u.nombre, u.apellido].filter(Boolean).join(' ').trim() || u.usuario;
     return await fn({ usuario: u, actor: { nombre, usuario: u.usuario, ip: ipCliente(request.headers) }, verSueldos });
   } catch (error) {
-    if (error instanceof VacacionesError) return NextResponse.json({ error: error.message }, { status: error.status });
-    console.error(`Error en ${where}:`, error);
-    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
-  }
-}
-
-export async function leerJson(request: Request): Promise<Record<string, unknown>> {
-  try {
-    const b = await request.json();
-    return b && typeof b === 'object' && !Array.isArray(b) ? (b as Record<string, unknown>) : {};
-  } catch {
-    return {};
+    return respuestaError(error, where);
   }
 }

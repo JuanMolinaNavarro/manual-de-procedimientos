@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { getAllOrganigramas } from '@/lib/organigrama';
 import { prisma } from '@/lib/prisma';
 import { cargarEstado, guardarConfig } from '@/lib/vacaciones';
-import { conSesion, leerJson } from '@/lib/vacaciones-api';
+import { readJson } from '@/lib/api-admin';
+import { conSesion } from '@/lib/vacaciones-api';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,6 @@ export async function GET(request: Request) {
 /** Parámetros de la temporada (cambio parcial). */
 export async function PATCH(request: Request) {
   return conSesion(request, 'PATCH /api/admin/vacaciones', true, async (s) => {
-    return NextResponse.json({ config: await guardarConfig(await leerJson(request), s.actor) });
+    return NextResponse.json({ config: await guardarConfig(await readJson(request), s.actor) });
   });
 }

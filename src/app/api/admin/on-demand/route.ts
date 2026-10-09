@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllOnDemand, upsertOnDemand } from '@/lib/on-demand';
-import { handleAdmin } from '@/lib/api-admin';
+import { handle } from '@/lib/api-admin';
 
 export async function GET() {
-  return handleAdmin('GET /api/admin/on-demand', async () => NextResponse.json(await getAllOnDemand()));
+  return handle('GET /api/admin/on-demand', async () => NextResponse.json(await getAllOnDemand()));
 }
 
 export async function POST(request: NextRequest) {
-  return handleAdmin('POST /api/admin/on-demand', async () => {
+  return handle('POST /api/admin/on-demand', async () => {
     const body = await request.json().catch(() => ({}));
     const { imdbID, title, year, poster, background, logo } = body;
 
