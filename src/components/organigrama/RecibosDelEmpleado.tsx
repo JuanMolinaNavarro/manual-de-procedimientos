@@ -1,48 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { fechaHora, money } from '@/lib/nomina-calc';
 import { fmtMes } from '@/lib/fechas';
 import type { ReciboDeEmpleado } from '@/lib/nomina';
+import type { DatosDeEmpleado } from './useDeEmpleado';
 
-export interface EstadoRecibosEmpleado {
-  /** null mientras carga. */
-  recibos: ReciboDeEmpleado[] | null;
-  error: string;
-}
-
-/**
- * Recibos de sueldo de una persona: los PDF oficiales de Finnegans con su estado de
- * firma. Vive en el modal y no en la pestaña porque el resultado decide si la
- * pestaña se muestra.
- */
-export function useRecibosDeEmpleado(empleadoId: number | null, activo: boolean): EstadoRecibosEmpleado {
-  const [cache, setCache] = useState<{ id: number; datos: ReciboDeEmpleado[] } | null>(null);
-  const [fallo, setFallo] = useState<{ id: number; msg: string } | null>(null);
-
-  useEffect(() => {
-    if (!activo || !empleadoId) return;
-    let vigente = true;
-    fetch(`/api/admin/organigrama/empleados/${empleadoId}/recibos`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error('No se pudieron cargar los recibos');
-        return (await res.json()) as ReciboDeEmpleado[];
-      })
-      .then((datos) => { if (vigente) setCache({ id: empleadoId, datos }); })
-      .catch((e) => { if (vigente) setFallo({ id: empleadoId, msg: e instanceof Error ? e.message : 'Error al cargar' }); });
-    return () => { vigente = false; };
-  }, [empleadoId, activo]);
-
-  if (!empleadoId) return { recibos: [], error: '' };
-  return {
-    recibos: cache?.id === empleadoId ? cache.datos : null,
-    error: fallo?.id === empleadoId ? fallo.msg : '',
-  };
-}
-
-export default function RecibosDelEmpleado({ recibos, error }: EstadoRecibosEmpleado & { empleadoId: number }) {
+export default function RecibosDelEmpleado({ datos: recibos, error }: DatosDeEmpleado<ReciboDeEmpleado> & { empleadoId: number }) {
   if (error) return <p className="text-sm text-destructive">{error}</p>;
   if (recibos === null) return <p className="text-sm text-muted-foreground">Cargando recibos…</p>;
   if (recibos.length === 0) return <p className="text-sm text-muted-foreground">Sin recibos publicados todavía.</p>;

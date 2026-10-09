@@ -32,15 +32,21 @@ import type {
   Experiencia,
   HardSkill,
   SoftSkill,
+  OrgDocumento,
+  OrgLicencia,
 } from '@/lib/organigrama';
+import type { ProyectoDeEmpleado } from '@/lib/proyectos';
+import type { ReciboDeEmpleado } from '@/lib/nomina';
+import type { HorarioVersion } from '@/lib/asistencia-calendario';
 
 import { fotoUrl, iniciales } from './EmpleadoNode';
 import { resizeImageTo } from './image';
-import ProyectosDelEmpleado, { useProyectosDeEmpleado } from './ProyectosDelEmpleado';
-import DocumentosDelEmpleado, { useDocumentosDeEmpleado } from './DocumentosDelEmpleado';
-import RecibosDelEmpleado, { useRecibosDeEmpleado } from './RecibosDelEmpleado';
-import LicenciasDelEmpleado, { useLicenciasDeEmpleado } from './LicenciasDelEmpleado';
-import { HorarioDelEmpleado, useHorarioDeEmpleado } from './HorarioDelEmpleado';
+import ProyectosDelEmpleado from './ProyectosDelEmpleado';
+import DocumentosDelEmpleado from './DocumentosDelEmpleado';
+import RecibosDelEmpleado from './RecibosDelEmpleado';
+import LicenciasDelEmpleado from './LicenciasDelEmpleado';
+import { HorarioDelEmpleado } from './HorarioDelEmpleado';
+import { useDeEmpleado } from './useDeEmpleado';
 
 interface FichaModalProps {
   empleado: OrgEmpleado | null;
@@ -145,16 +151,28 @@ export default function FichaModal({
   // Proyectos del módulo Proyectos y finanzas en los que participa la persona.
   // Se pide acá (y no en la pestaña) porque el resultado define si la pestaña
   // se muestra: en modo lectura las vacías se ocultan.
-  const estadoProyectos = useProyectosDeEmpleado(empleado?.id ?? null, open && !creating);
+  const idFicha = empleado?.id ?? null;
+  const rutaFicha = `/api/admin/organigrama/empleados/${idFicha}`;
+  const estadoProyectos = useDeEmpleado<ProyectoDeEmpleado>(
+    `${rutaFicha}/proyectos`, idFicha, open && !creating, 'No se pudieron cargar los proyectos',
+  );
   // Documentación de procedimientos del rol (su pestaña se muestra siempre).
-  const estadoDocs = useDocumentosDeEmpleado(empleado?.id ?? null, open && !creating);
-  // Recibos de sueldo cerrados (módulo Nómina): la pestaña se muestra solo si hay.
-  const estadoRecibos = useRecibosDeEmpleado(empleado?.id ?? null, open && !creating);
+  const estadoDocs = useDeEmpleado<OrgDocumento>(
+    `${rutaFicha}/documentos`, idFicha, open && !creating, 'No se pudo cargar la documentación',
+  );
+  // Recibos de sueldo (PDF de Finnegans): la pestaña se muestra solo si hay.
+  const estadoRecibos = useDeEmpleado<ReciboDeEmpleado>(
+    `${rutaFicha}/recibos`, idFicha, open && !creating, 'No se pudieron cargar los recibos',
+  );
   // Licencias de software: solo para quien puede editar el organigrama (la API
   // devuelve 403 al resto), así que sin `canEdit` ni se pide.
-  const estadoLicencias = useLicenciasDeEmpleado(empleado?.id ?? null, open && !creating && canEdit);
+  const estadoLicencias = useDeEmpleado<OrgLicencia>(
+    `${rutaFicha}/licencias`, idFicha, open && !creating && canEdit, 'No se pudieron cargar las licencias',
+  );
   // Horario de asistencia (módulo Asistencia): solo lectura acá; decide si Resumen se muestra.
-  const estadoHorario = useHorarioDeEmpleado(empleado?.id ?? null, open && !creating);
+  const estadoHorario = useDeEmpleado<HorarioVersion>(
+    `/api/admin/asistencia/horarios?empleadoId=${idFicha}`, idFicha, open && !creating, 'No se pudo cargar el horario', 'horarios',
+  );
 
   useEffect(() => {
     setForm(creating ? blankEmpleado(defaultArea) : empleado);
@@ -196,7 +214,7 @@ export default function FichaModal({
   const hasItems = (a?: unknown[] | null) => (a ?? []).length > 0;
 
   const TABS: { value: string; label: string; full: boolean }[] = [
-    { value: 'resumen', label: 'Resumen', full: hasText(emp.summary) || (estadoHorario.versiones ?? []).length > 0 },
+    { value: 'resumen', label: 'Resumen', full: hasText(emp.summary) || (estadoHorario.datos ?? []).length > 0 },
     {
       value: 'resp',
       label: 'Responsabilidades',
@@ -212,7 +230,7 @@ export default function FichaModal({
     {
       value: 'proy',
       label: 'Proyectos',
-      full: hasList(emp.projects) || (estadoProyectos.proyectos ?? []).length > 0,
+      full: hasList(emp.projects) || (estadoProyectos.datos ?? []).length > 0,
     },
     // Siempre visible (a diferencia del resto): la documentación del rol debe
     // poder encontrarse aunque todavía no haya archivos cargados.
@@ -220,7 +238,7 @@ export default function FichaModal({
     // Solo quien puede editar el organigrama ve las licencias (cuentas y claves);
     // para ellos es siempre visible, como Documentación.
     { value: 'lic', label: 'Licencias', full: canEdit },
-    { value: 'recibos', label: 'Recibos', full: (estadoRecibos.recibos ?? []).length > 0 },
+    { value: 'recibos', label: 'Recibos', full: (estadoRecibos.datos ?? []).length > 0 },
     {
       value: 'mas',
       label: 'Más Info',

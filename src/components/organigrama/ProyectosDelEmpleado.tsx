@@ -1,67 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { estadoEtapa, estadoProyecto } from '@/lib/proyectos-datos';
 import type { ProyectoDeEmpleado } from '@/lib/proyectos';
-
-export interface EstadoProyectosEmpleado {
-  /** null mientras carga. */
-  proyectos: ProyectoDeEmpleado[] | null;
-  error: string;
-}
-
-/**
- * Trae los proyectos en los que participa una persona. Vive en el modal (y no
- * en la pestaña) porque el resultado decide si la pestaña se muestra: en modo
- * lectura las pestañas vacías se ocultan.
- */
-export function useProyectosDeEmpleado(
-  empleadoId: number | null,
-  activo: boolean,
-): EstadoProyectosEmpleado {
-  // Resultado y error se guardan junto al id que los produjo: así, al cambiar de
-  // persona, el estado se deriva a "cargando" sin tener que resetearlo desde el
-  // efecto (evita el setState sincrónico y datos de la ficha anterior).
-  const [cache, setCache] = useState<{ id: number; datos: ProyectoDeEmpleado[] } | null>(null);
-  const [fallo, setFallo] = useState<{ id: number; msg: string } | null>(null);
-
-  useEffect(() => {
-    // id 0 o null = empleado sin guardar (modo alta): no hay nada que buscar.
-    if (!activo || !empleadoId) return;
-    let vigente = true;
-
-    fetch(`/api/admin/organigrama/empleados/${empleadoId}/proyectos`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error('No se pudieron cargar los proyectos');
-        return (await res.json()) as ProyectoDeEmpleado[];
-      })
-      .then((datos) => {
-        if (vigente) setCache({ id: empleadoId, datos });
-      })
-      .catch((e) => {
-        if (vigente) {
-          setFallo({ id: empleadoId, msg: e instanceof Error ? e.message : 'Error al cargar' });
-        }
-      });
-
-    return () => {
-      vigente = false;
-    };
-  }, [empleadoId, activo]);
-
-  if (!empleadoId) return { proyectos: [], error: '' };
-  return {
-    proyectos: cache?.id === empleadoId ? cache.datos : null,
-    error: fallo?.id === empleadoId ? fallo.msg : '',
-  };
-}
+import type { DatosDeEmpleado } from './useDeEmpleado';
 
 /** Proyectos que tiene a cargo la persona, o donde es responsable de una etapa. */
-export default function ProyectosDelEmpleado({ proyectos, error }: EstadoProyectosEmpleado) {
+export default function ProyectosDelEmpleado({ datos: proyectos, error }: DatosDeEmpleado<ProyectoDeEmpleado>) {
   if (error) return <p className="text-sm text-destructive">{error}</p>;
   if (proyectos === null) return <p className="text-sm text-muted-foreground">Cargando proyectos…</p>;
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, Eye, EyeOff, KeyRound, Pencil, Plus, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,60 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { OrgLicencia } from '@/lib/organigrama';
-
-export interface EstadoLicenciasEmpleado {
-  /** null mientras carga. */
-  licencias: OrgLicencia[] | null;
-  error: string;
-  /** Vuelve a pedir la lista (tras crear/editar/borrar). */
-  recargar: () => void;
-}
-
-/**
- * Trae las licencias de software de una persona. Se llama desde el modal con
- * `activo = open && !creating && canEdit`: quien no puede editar el organigrama
- * no ve la pestaña y tampoco pega al endpoint (que devuelve 403).
- */
-export function useLicenciasDeEmpleado(
-  empleadoId: number | null,
-  activo: boolean,
-): EstadoLicenciasEmpleado {
-  const [cache, setCache] = useState<{ id: number; datos: OrgLicencia[] } | null>(null);
-  const [fallo, setFallo] = useState<{ id: number; msg: string } | null>(null);
-  const [version, setVersion] = useState(0);
-
-  useEffect(() => {
-    if (!activo || !empleadoId) return;
-    let vigente = true;
-
-    fetch(`/api/admin/organigrama/empleados/${empleadoId}/licencias`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error('No se pudieron cargar las licencias');
-        return (await res.json()) as OrgLicencia[];
-      })
-      .then((datos) => {
-        if (vigente) setCache({ id: empleadoId, datos });
-      })
-      .catch((e) => {
-        if (vigente) {
-          setFallo({ id: empleadoId, msg: e instanceof Error ? e.message : 'Error al cargar' });
-        }
-      });
-
-    return () => {
-      vigente = false;
-    };
-  }, [empleadoId, activo, version]);
-
-  const recargar = useCallback(() => setVersion((v) => v + 1), []);
-
-  if (!empleadoId) return { licencias: [], error: '', recargar };
-  return {
-    licencias: cache?.id === empleadoId ? cache.datos : null,
-    error: fallo?.id === empleadoId ? fallo.msg : '',
-    recargar,
-  };
-}
+import type { DatosDeEmpleado } from './useDeEmpleado';
 
 /** El `?n=` es cache-buster: cambia cuando se reemplaza el ícono (como `fotoUrl`). */
 export function licenciaIconoUrl(l: Pick<OrgLicencia, 'id' | 'icono_archivo'>): string | null {
@@ -381,11 +328,11 @@ function PasswordLectura({ password }: { password: string }) {
  */
 export default function LicenciasDelEmpleado({
   empleadoId,
-  licencias,
+  datos: licencias,
   error,
   recargar,
   edit,
-}: EstadoLicenciasEmpleado & { empleadoId: number; edit: boolean }) {
+}: DatosDeEmpleado<OrgLicencia> & { empleadoId: number; edit: boolean }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [nueva, setNueva] = useState<Borrador>(BORRADOR_VACIO);

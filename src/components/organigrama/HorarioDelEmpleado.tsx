@@ -7,58 +7,19 @@
  * editor de Asistencia, como en el perfil).
  */
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { CalendarClock, ExternalLink } from 'lucide-react';
 import { hoyLocal } from '@/lib/asistencia-datos';
 import { fechaCorta } from '@/lib/fechas';
 import { CICLO_LABELS, ultimaVersion, versionVigente, type HorarioVersion } from '@/lib/asistencia-calendario';
 import { GrillaDiasHorario } from '@/components/asistencia/PerfilPiezas';
+import type { DatosDeEmpleado } from './useDeEmpleado';
 
-export interface EstadoHorarioEmpleado {
-  /** null mientras carga. */
-  versiones: HorarioVersion[] | null;
-  error: string;
-}
-
-/**
- * Versiones de horario de una persona. Vive en el modal (y no en la pestaña)
- * porque el resultado decide si la pestaña Resumen se muestra en modo lectura.
- */
-export function useHorarioDeEmpleado(empleadoId: number | null, activo: boolean): EstadoHorarioEmpleado {
-  const [cache, setCache] = useState<{ id: number; datos: HorarioVersion[] } | null>(null);
-  const [fallo, setFallo] = useState<{ id: number; msg: string } | null>(null);
-
-  useEffect(() => {
-    if (!activo || !empleadoId) return;
-    let vigente = true;
-    fetch(`/api/admin/asistencia/horarios?empleadoId=${empleadoId}`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error('No se pudo cargar el horario');
-        return ((await res.json()) as { horarios: HorarioVersion[] }).horarios;
-      })
-      .then((datos) => {
-        if (vigente) setCache({ id: empleadoId, datos });
-      })
-      .catch((e) => {
-        if (vigente) setFallo({ id: empleadoId, msg: e instanceof Error ? e.message : 'Error al cargar' });
-      });
-    return () => {
-      vigente = false;
-    };
-  }, [empleadoId, activo]);
-
-  if (!empleadoId) return { versiones: [], error: '' };
-  return {
-    versiones: cache?.id === empleadoId ? cache.datos : null,
-    error: fallo?.id === empleadoId ? fallo.msg : '',
-  };
-}
-
-export function HorarioDelEmpleado({ estado, creating }: { estado: EstadoHorarioEmpleado; creating: boolean }) {
+export function HorarioDelEmpleado({ estado, creating }: { estado: DatosDeEmpleado<HorarioVersion>; creating: boolean }) {
   const [hoy] = useState(() => hoyLocal());
   if (creating) return null;
-  const { versiones, error } = estado;
+  const { datos: versiones, error } = estado;
   const linkEditar = (
     <Link href="/admin/asistencia?tab=personas" className="inline-flex items-center gap-1 text-xs text-[var(--neu-fg-soft)] hover:text-foreground">
       <ExternalLink className="h-3 w-3" /> Se edita en Asistencia › Personas

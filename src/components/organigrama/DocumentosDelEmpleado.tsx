@@ -1,63 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Check, Download, Eye, FileText, Folder, Pencil, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { OrgDocumento } from '@/lib/organigrama';
-
-export interface EstadoDocumentosEmpleado {
-  /** null mientras carga. */
-  documentos: OrgDocumento[] | null;
-  error: string;
-  /** Vuelve a pedir la lista (tras subir/borrar/editar). */
-  recargar: () => void;
-}
-
-/** Trae la documentación de procedimientos de una persona. */
-export function useDocumentosDeEmpleado(
-  empleadoId: number | null,
-  activo: boolean,
-): EstadoDocumentosEmpleado {
-  const [cache, setCache] = useState<{ id: number; datos: OrgDocumento[] } | null>(null);
-  const [fallo, setFallo] = useState<{ id: number; msg: string } | null>(null);
-  // Bump para refetchear tras una mutación sin perder el patrón id-junto-al-dato.
-  const [version, setVersion] = useState(0);
-
-  useEffect(() => {
-    // id 0 o null = empleado sin guardar (modo alta): no hay nada que buscar.
-    if (!activo || !empleadoId) return;
-    let vigente = true;
-
-    fetch(`/api/admin/organigrama/empleados/${empleadoId}/documentos`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error('No se pudo cargar la documentación');
-        return (await res.json()) as OrgDocumento[];
-      })
-      .then((datos) => {
-        if (vigente) setCache({ id: empleadoId, datos });
-      })
-      .catch((e) => {
-        if (vigente) {
-          setFallo({ id: empleadoId, msg: e instanceof Error ? e.message : 'Error al cargar' });
-        }
-      });
-
-    return () => {
-      vigente = false;
-    };
-  }, [empleadoId, activo, version]);
-
-  const recargar = useCallback(() => setVersion((v) => v + 1), []);
-
-  if (!empleadoId) return { documentos: [], error: '', recargar };
-  return {
-    documentos: cache?.id === empleadoId ? cache.datos : null,
-    error: fallo?.id === empleadoId ? fallo.msg : '',
-    recargar,
-  };
-}
+import type { DatosDeEmpleado } from './useDeEmpleado';
 
 function esPdf(doc: OrgDocumento): boolean {
   return doc.tipo_mime === 'application/pdf' || doc.nombre_archivo.toLowerCase().endsWith('.pdf');
@@ -78,11 +27,11 @@ function formatoTamano(bytes: number | null): string {
  */
 export default function DocumentosDelEmpleado({
   empleadoId,
-  documentos,
+  datos: documentos,
   error,
   recargar,
   edit,
-}: EstadoDocumentosEmpleado & { empleadoId: number; edit: boolean }) {
+}: DatosDeEmpleado<OrgDocumento> & { empleadoId: number; edit: boolean }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [subiendo, setSubiendo] = useState(false);
   const [categoria, setCategoria] = useState('');
