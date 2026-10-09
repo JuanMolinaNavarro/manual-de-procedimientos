@@ -678,10 +678,7 @@ export async function updateLinea(id: number, data: UpdateOrgLineaData): Promise
 }
 
 export async function deleteLinea(id: number): Promise<boolean> {
-  const existing = await prisma.orgLinea.findUnique({ where: { id } });
-  if (!existing) return false;
-  await prisma.orgLinea.delete({ where: { id } });
-  return true;
+  return (await prisma.orgLinea.deleteMany({ where: { id } })).count > 0;
 }
 
 // ─── Agregado (bootstrap del lienzo) ──────────────────────────────────────────

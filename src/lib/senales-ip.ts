@@ -246,10 +246,7 @@ export async function softDeleteContratoComprador(id: number): Promise<boolean> 
 }
 
 export async function deleteContratoComprador(id: number): Promise<boolean> {
-  const existing = await getContratoCompradorById(id);
-  if (!existing) return false;
-  await prisma.contratoComprador.delete({ where: { id } });
-  return true;
+  return (await prisma.contratoComprador.deleteMany({ where: { id } })).count > 0;
 }
 
 // ─── ContratoVendedor CRUD ────────────────────────────────────────────────────
@@ -347,10 +344,7 @@ export async function softDeleteContratoVendedor(id: number): Promise<boolean> {
 }
 
 export async function deleteContratoVendedor(id: number): Promise<boolean> {
-  const existing = await getContratoVendedorById(id);
-  if (!existing) return false;
-  await prisma.contratoVendedor.delete({ where: { id } });
-  return true;
+  return (await prisma.contratoVendedor.deleteMany({ where: { id } })).count > 0;
 }
 
 // ─── SaltoImporte ─────────────────────────────────────────────────────────────
@@ -418,10 +412,7 @@ export async function updateSaltoImporte(
 }
 
 export async function deleteSaltoImporte(id: number): Promise<boolean> {
-  const existing = await prisma.saltoImporte.findUnique({ where: { id } });
-  if (!existing) return false;
-  await prisma.saltoImporte.delete({ where: { id } });
-  return true;
+  return (await prisma.saltoImporte.deleteMany({ where: { id } })).count > 0;
 }
 
 // ─── ArchivoContrato ──────────────────────────────────────────────────────────
@@ -467,10 +458,7 @@ export async function createArchivoContrato(data: {
 }
 
 export async function deleteArchivoById(id: number): Promise<boolean> {
-  const existing = await getArchivoById(id);
-  if (!existing) return false;
-  await prisma.archivoContrato.delete({ where: { id } });
-  return true;
+  return (await prisma.archivoContrato.deleteMany({ where: { id } })).count > 0;
 }
 
 // ─── Logo ─────────────────────────────────────────────────────────────────────

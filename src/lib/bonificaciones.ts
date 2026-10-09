@@ -126,8 +126,5 @@ export async function softDeleteBonificacion(id: number): Promise<boolean> {
 }
 
 export async function deleteBonificacion(id: number): Promise<boolean> {
-  const existing = await getBonificacionById(id);
-  if (!existing) return false;
-  await prisma.bonificacion.delete({ where: { id } });
-  return true;
+  return (await prisma.bonificacion.deleteMany({ where: { id } })).count > 0;
 }
