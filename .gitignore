@@ -44,9 +44,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-#AI
-CLAUDE.md
-
 # AI / tooling artifacts
 .playwright-mcp/
 .claude/worktrees/
