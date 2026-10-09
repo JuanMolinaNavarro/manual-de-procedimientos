@@ -15,13 +15,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Empty } from '@/components/comunes/ui';
-import { coincide } from '@/components/nomina/PasoCard';
 import {
   DIAS_SEMANA, aperturaDe, convenioAuto, debeVerano, diasCierres, diasDe, ocupa, perfilDe, solDe, turnoAbierto, usadosDe, veranoEstado,
   type EmpleadoVac, type EstadoVac, type PerfilVac,
 } from '@/lib/vacaciones-calc';
 import { canonicalJson } from '@/lib/nomina-calc';
-import { cn } from '@/lib/utils';
+import { cn, coincide } from '@/lib/utils';
 import { BOTON, Buscador, CAMPO, Chip, EstadoChip, Persona, diaMes, temporadaTxt, useOcupado } from './piezas';
 import type { PropsTab } from './VacacionesPage';
 
@@ -48,7 +47,7 @@ export default function PersonasTab({ E, visibles, guardar, verSueldos, verSolic
       || (filtro === 'sinElegir' && p.incluir && !ocupa(s))
       || (filtro === 'sinIngreso' && diasDe(E, e.id).anios === null);
   };
-  const filas = visibles.filter((e) => cumple(e) && coincide(e.nombre, buscar)).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const filas = visibles.filter((e) => cumple(e) && coincide(buscar, e.nombre)).sort((a, b) => a.nombre.localeCompare(b.nombre));
   const elegida = filas.find((e) => e.id === sel) ?? filas[0];
 
   function abrir(id: number) {

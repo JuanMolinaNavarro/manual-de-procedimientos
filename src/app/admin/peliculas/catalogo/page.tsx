@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Paginacion } from "@/components/comunes/ui";
 import { usePaginaLocal } from "@/hooks/usePaginaLocal";
+import { coincide } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -124,8 +125,7 @@ export default function CatalogoPage() {
 
   useEffect(() => { loadCatalog(); }, []);
 
-  const q = search.trim().toLowerCase();
-  const filtered = q ? catalog.filter((e) => e.name.toLowerCase().includes(q)) : catalog;
+  const filtered = catalog.filter((e) => coincide(search, e.name));
 
   // ── Sort + paginate ───────────────────────────────────────────
   const handleSort = (key: SortKey) => {
@@ -150,7 +150,7 @@ export default function CatalogoPage() {
   });
 
   // Buscar o cambiar el orden vuelve a la página 1.
-  const pag = usePaginaLocal(sorted, `${q}|${sortKey}|${sortDir}`, PAGE_SIZE);
+  const pag = usePaginaLocal(sorted, `${search.trim()}|${sortKey}|${sortDir}`, PAGE_SIZE);
 
   const handleImport = (entry: CatalogEntry) => {
     sessionStorage.setItem("mwproxy.autosearch", entry.name);

@@ -12,7 +12,6 @@ import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Empty } from '@/components/comunes/ui';
-import { coincide } from '@/components/nomina/PasoCard';
 import {
   aperturaDe,
   avisoEstado,
@@ -28,7 +27,7 @@ import {
   type Solicitud,
 } from '@/lib/vacaciones-calc';
 import { diffDias } from '@/lib/fechas';
-import { cn } from '@/lib/utils';
+import { cn, coincide } from '@/lib/utils';
 import { BotonesAviso, DevolverForm, MenuCambiar } from './AccionesSolicitud';
 import { avisosDeConfiguracion, controles, limiteAviso } from './controles';
 import {
@@ -88,7 +87,7 @@ export default function SolicitudesTab({ E, visibles, accion, verSolicitud, irA 
   for (const e of participan) porGrupo[grupoBandeja(E, e.id)].push(e);
   const grupo = elegido ?? GRUPOS.find((g) => g.k !== 'aprobadas' && porGrupo[g.k].length)?.k ?? 'aprobadas';
   const filas = porGrupo[grupo]
-    .filter((e) => coincide(e.nombre, buscar))
+    .filter((e) => coincide(buscar, e.nombre))
     .sort((a, b) => ORDEN[grupo](E, a).localeCompare(ORDEN[grupo](E, b)) || a.nombre.localeCompare(b.nombre));
 
   return (

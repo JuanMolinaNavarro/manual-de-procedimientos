@@ -7,7 +7,7 @@ import { ChevronLeft, ChevronRight, MapPin, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn, sinTildes } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { PRESETS_RANGO, rangoPreset, presetDeRango } from '@/lib/asistencia-datos';
 import { porcentajeHoras, type ResumenMesPersona } from '@/lib/asistencia-tablero-calc';
 import { useAsistencia } from './AsistenciaContext';
@@ -181,8 +181,3 @@ export function Buscador({ valor, onCambio }: { valor: string; onCambio: (v: str
   );
 }
 
-/** Búsqueda sin tildes por nombre o área. */
-export function coincide(p: { nombre: string; area: string | null }, q: string): boolean {
-  const needle = sinTildes(q.trim());
-  return !needle || sinTildes(p.nombre).includes(needle) || sinTildes(p.area ?? '').includes(needle);
-}

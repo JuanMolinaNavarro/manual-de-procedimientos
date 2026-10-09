@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Search, X, ListChecks, CalendarClock } from 'lucide-react';
+import { Search, ListChecks, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Banner, ColHelp, Empty, EmpleadoCell, Paginacion } from '@/components/comunes/ui';
 import { usePaginaLocal } from '@/hooks/usePaginaLocal';
-import { cn } from '@/lib/utils';
+import { cn, coincide } from '@/lib/utils';
 import { FILAS_POR_PAGINA, fmtFechaHora, fmtRelativo, hoyLocal } from '@/lib/asistencia-datos';
 import { versionVigente } from '@/lib/asistencia-calendario';
 import type { Persona } from './api';
@@ -61,16 +61,12 @@ export default function PersonasTab() {
   // Las inactivas se esconden por defecto: son la cola larga de gente que ya no está.
   const visibles = useMemo(() => (personas ?? []).filter((p) => verInactivas || p.activa), [personas, verInactivas]);
 
-  const filtradas = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    return visibles.filter((p) => {
-      if (filtro === 'sinVincular' && p.empleadoId != null) return false;
-      if (filtro === 'vinculadas' && p.empleadoId == null) return false;
-      if (filtro === 'sinHorario' && (p.empleadoId == null || vigenteDe(p.empleadoId)?.incluir)) return false;
-      if (!needle) return true;
-      return p.nombre.toLowerCase().includes(needle) || p.userId.toLowerCase().includes(needle);
-    });
-  }, [visibles, q, filtro, vigenteDe]);
+  const filtradas = useMemo(() => visibles.filter((p) => {
+    if (filtro === 'sinVincular' && p.empleadoId != null) return false;
+    if (filtro === 'vinculadas' && p.empleadoId == null) return false;
+    if (filtro === 'sinHorario' && (p.empleadoId == null || vigenteDe(p.empleadoId)?.incluir)) return false;
+    return coincide(q, p.nombre, p.userId);
+  }), [visibles, q, filtro, vigenteDe]);
 
   // La lista viene entera del server (son cientos de personas): se pagina acá.
   // La clave son los filtros aplicados; al cambiarlos se vuelve a la página 1.
@@ -143,21 +139,12 @@ export default function PersonasTab() {
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
+            type="search"
             value={q}
             placeholder="Buscar por nombre o legajo"
             onChange={(e) => setQ(e.target.value)}
-            className="h-9 w-64 pl-8 pr-8"
+            className="h-9 w-64 pl-8"
           />
-          {q && (
-            <button
-              type="button"
-              aria-label="Limpiar búsqueda"
-              onClick={() => setQ('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
         </div>
 
         <div className="flex items-center gap-1.5">

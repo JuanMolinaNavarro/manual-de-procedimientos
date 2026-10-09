@@ -27,7 +27,8 @@ import type { AdhesionRow, AdhesionView } from '@/lib/nomina';
 import { apiFetch, mensajeError } from '@/components/comunes/api';
 import AdhesionDialog from './AdhesionDialog';
 import { useNomina } from './NominaContext';
-import { BarraFiltros, coincide } from './PasoCard';
+import { BarraFiltros } from './PasoCard';
+import { coincide } from '@/lib/utils';
 import { Banner, EmpleadoCell } from '@/components/comunes/ui';
 
 type Filtro = 'todas' | 'sin' | 'pendiente' | 'completa' | 'renovar';
@@ -103,7 +104,7 @@ export default function AdhesionesTabla({ adhesiones, onCambio }: { adhesiones: 
     { valor: 'renovar' as const, label: 'Renovar', cuenta: cuenta('renovar') },
   ].filter((f) => f.valor !== 'renovar' || f.cuenta > 0);
   const activo: Filtro = filtros.some((f) => f.valor === filtro) ? filtro : 'todas';
-  const visibles = adhesiones.filter((x) => cumple(x, activo) && coincide(x.empleado.nombre, buscar));
+  const visibles = adhesiones.filter((x) => cumple(x, activo) && coincide(buscar, x.empleado.nombre));
 
   return (
     <div className="space-y-3">

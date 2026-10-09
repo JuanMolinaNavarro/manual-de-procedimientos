@@ -3,7 +3,7 @@
 import { diaLocal, fechaCorta } from '@/lib/fechas';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { RefreshCw, Search, X, Download } from 'lucide-react';
+import { RefreshCw, Search, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -141,21 +141,12 @@ export default function FichadasTab() {
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
+                type="search"
                 value={qLocal}
                 placeholder="Nombre o legajo"
                 onChange={(e) => setQLocal(e.target.value)}
-                className="h-9 w-56 pl-8 pr-8"
+                className="h-9 w-56 pl-8"
               />
-              {qLocal && (
-                <button
-                  type="button"
-                  aria-label="Limpiar búsqueda"
-                  onClick={() => setQLocal('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
             </div>
           </Campo>
 

@@ -10,7 +10,7 @@ import { useId, useMemo, useRef, useState } from 'react';
 import { Check, ChevronsUpDown, Search } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
+import { cn, coincide } from '@/lib/utils';
 import type { EmpleadoOpt } from './AsistenciaContext';
 
 export default function EmpleadoPicker({
@@ -34,10 +34,7 @@ export default function EmpleadoPicker({
   const elegido = valor != null ? empleados.find((e) => e.id === valor) : undefined;
 
   const opciones = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    const filtrados = needle
-      ? empleados.filter((e) => `${e.nombre} ${e.rol} ${e.area}`.toLowerCase().includes(needle))
-      : empleados;
+    const filtrados = empleados.filter((e) => coincide(q, e.nombre, e.rol, e.area));
     // Agrupadas por área: con 100+ fichas, la lista plana no se lee.
     const porArea = new Map<string, EmpleadoOpt[]>();
     for (const e of filtrados) {

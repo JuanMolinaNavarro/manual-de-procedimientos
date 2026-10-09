@@ -27,7 +27,8 @@ import type { PanelRecibos, ReciboPanelView } from '@/lib/recibos-finnegans';
 import { apiFetch, mensajeError } from '@/components/comunes/api';
 import ConstanciaCard from './ConstanciaCard';
 import { useNomina } from './NominaContext';
-import { BarraFiltros, coincide } from './PasoCard';
+import { BarraFiltros } from './PasoCard';
+import { coincide } from '@/lib/utils';
 import { Empty } from '@/components/comunes/ui';
 
 export function BadgeEntrega({ r }: { r: Pick<ReciboPanelView, 'entrega' | 'dias' | 'constancia'> }) {
@@ -101,7 +102,7 @@ export default function RecibosPeriodo({ panel, onCambio }: { panel: PanelRecibo
   // Un chip que se quedó en 0 desaparece: su filtro deja de aplicar (si no, "Nadie coincide").
   const visiblesFiltros = filtros.filter((f) => f.valor === 'todos' || f.cuenta > 0);
   const activo: FiltroEntrega = visiblesFiltros.some((f) => f.valor === filtro) ? filtro : 'todos';
-  const visibles = panel.recibos.filter((x) => (activo === 'todos' || x.entrega === activo) && coincide(x.nombre, buscar));
+  const visibles = panel.recibos.filter((x) => (activo === 'todos' || x.entrega === activo) && coincide(buscar, x.nombre));
 
   return (
     <div className="space-y-3">

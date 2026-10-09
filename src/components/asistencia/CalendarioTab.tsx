@@ -8,7 +8,7 @@
 
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { ChevronLeft, ChevronRight, Search, Settings2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Banner, Empty, EmpleadoCell } from '@/components/comunes/ui';
-import { cn } from '@/lib/utils';
+import { cn, coincide } from '@/lib/utils';
 import { fmtHoraCorta, tipoMarcaLabel } from '@/lib/asistencia-datos';
 import { fechaCorta, fmtMes, mesAnterior, mesSiguiente } from '@/lib/fechas';
 import { DIAS_SEMANA_CORTO, ESTADOS_DIA, validarConfigInput } from '@/lib/asistencia-calendario';
@@ -34,10 +34,10 @@ export default function CalendarioTab() {
   // Filtrar cientos de filas × 31 días en cada tecla trababa el tipeo: el filtro va diferido.
   const qDiferida = useDeferredValue(q);
 
-  const filas = useMemo(() => {
-    const needle = qDiferida.trim().toLowerCase();
-    return (data?.filas ?? []).filter((r) => !needle || r.nombre.toLowerCase().includes(needle) || (r.area ?? '').toLowerCase().includes(needle));
-  }, [data, qDiferida]);
+  const filas = useMemo(
+    () => (data?.filas ?? []).filter((r) => coincide(qDiferida, r.nombre, r.area)),
+    [data, qDiferida],
+  );
 
   return (
     <div className="space-y-4">
@@ -57,12 +57,7 @@ export default function CalendarioTab() {
 
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} placeholder="Buscar por nombre o área" onChange={(e) => setQ(e.target.value)} className="h-9 w-56 pl-8 pr-8" />
-          {q && (
-            <button type="button" aria-label="Limpiar búsqueda" onClick={() => setQ('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
+          <Input type="search" value={q} placeholder="Buscar por nombre o área" onChange={(e) => setQ(e.target.value)} className="h-9 w-56 pl-8" />
         </div>
 
         <Chip activo={f.sinHorario} onClick={() => set({ sinHorario: !f.sinHorario })}>

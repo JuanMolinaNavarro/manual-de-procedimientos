@@ -10,12 +10,12 @@ import { useMemo, useState } from 'react';
 import { ArrowDown } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Banner, EmpleadoCell } from '@/components/comunes/ui';
-import { cn } from '@/lib/utils';
+import { cn, coincide } from '@/lib/utils';
 import { fmtMes, mesAnterior, mesSiguiente } from '@/lib/fechas';
 import { fmtMinutos, plural, type ResumenMesPersona } from '@/lib/asistencia-tablero-calc';
 import type { PersonaMes, TableroMes } from './api';
 import { useAsistencia, useAsistenciaData } from './AsistenciaContext';
-import { BarraHoras, Buscador, Etiqueta, LinkPerfil, NavPeriodo, SelectorLugar, coincide, type Tono } from './piezas';
+import { BarraHoras, Buscador, Etiqueta, LinkPerfil, NavPeriodo, SelectorLugar, type Tono } from './piezas';
 
 const ORDENES = {
   tarde: { label: 'Llegadas tarde', cmp: (a: ResumenMesPersona, b: ResumenMesPersona) => b.tardes - a.tardes || b.minutosTarde - a.minutosTarde },
@@ -35,7 +35,7 @@ export default function MesTab() {
 
   const personas = useMemo(
     () => (data?.personas ?? [])
-      .filter((p) => (f.lugar == null || p.lugarId === f.lugar) && coincide(p, q))
+      .filter((p) => (f.lugar == null || p.lugarId === f.lugar) && coincide(q, p.nombre, p.area))
       .sort((a, b) => ORDENES[orden].cmp(a.resumen, b.resumen) || a.nombre.localeCompare(b.nombre, 'es')),
     [data, f.lugar, q, orden],
   );

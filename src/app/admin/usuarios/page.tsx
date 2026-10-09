@@ -22,6 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { isSuperadmin } from '@/lib/roles';
+import { coincide } from '@/lib/utils';
 import { Paginacion } from '@/components/comunes/ui';
 import { usePaginaLocal } from '@/hooks/usePaginaLocal';
 
@@ -119,14 +120,10 @@ export default function UsuariosAdminPage() {
     return empleados.filter((e) => !vinculados.has(e.id));
   }, [empleados, usuarios]);
 
-  const filtrados = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    if (!term) return usuarios;
-    return usuarios.filter((u) =>
-      [u.usuario, u.nombre ?? '', u.apellido ?? '']
-        .some((v) => v.toLowerCase().includes(term))
-    );
-  }, [usuarios, q]);
+  const filtrados = useMemo(
+    () => usuarios.filter((u) => coincide(q, u.usuario, u.nombre, u.apellido)),
+    [usuarios, q],
+  );
 
   // Buscar, o que se dé de alta/baja a alguien, vuelve a la página 1.
   const pag = usePaginaLocal(filtrados, `${q.trim()}|${usuarios.length}`, PAGE_SIZE);

@@ -11,14 +11,14 @@ import { AlertTriangle, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Banner, EmpleadoCell } from '@/components/comunes/ui';
-import { cn } from '@/lib/utils';
+import { cn, coincide } from '@/lib/utils';
 import { fmtDiaLargo, fmtHoraCorta, hoyLocal } from '@/lib/asistencia-datos';
 import { sumarDias } from '@/lib/fechas';
 import { minutoLocalDe } from '@/lib/asistencia-calendario';
 import { fmtMinutos, grupoDelDia, pendienteDeRevisar, type GrupoDia } from '@/lib/asistencia-tablero-calc';
 import type { PersonaDia, TableroDia } from './api';
 import { useAsistencia, useAsistenciaData } from './AsistenciaContext';
-import { Buscador, Etiqueta, LinkPerfil, NavPeriodo, SelectorLugar, coincide } from './piezas';
+import { Buscador, Etiqueta, LinkPerfil, NavPeriodo, SelectorLugar } from './piezas';
 
 /** Orden y color de cada lista en la barra del resumen. */
 const BARRA: { grupos: GrupoDia[]; color: string }[] = [
@@ -38,7 +38,7 @@ export default function DiaTab() {
   const { data, error, loading } = useAsistenciaData<TableroDia>(`/api/admin/asistencia/dia?fecha=${f.fecha}`);
 
   const personas = useMemo(
-    () => (data?.personas ?? []).filter((p) => (f.lugar == null || p.lugarId === f.lugar) && coincide(p, q)),
+    () => (data?.personas ?? []).filter((p) => (f.lugar == null || p.lugarId === f.lugar) && coincide(q, p.nombre, p.area)),
     [data, f.lugar, q],
   );
   const grupos = useMemo(() => {
