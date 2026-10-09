@@ -5,7 +5,7 @@
  * Evidencia de cada firma: quién (empId + CUIL, PIN verificado), qué (SHA-256
  * del PDF del recibo de Finnegans + su id), cuándo (fecha ISO), cómo (conformidad,
  * observaciones) y encadenado con la constancia anterior (chainHash) para
- * detectar alteraciones. El hash del PIN vive en `nomina-pin.ts` (scrypt).
+ * detectar alteraciones. El hash del PIN vive en `nomina-pin.ts` (PBKDF2).
  * `reciboHash` queda para el recibo simulado del motor propio (ya no se firma).
  */
 

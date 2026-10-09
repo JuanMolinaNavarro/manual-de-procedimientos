@@ -1,6 +1,6 @@
 /**
  * Pagina para crear y listar usuarios del sitio.
- * Las contraseñas se guardan cifradas (scrypt) y nunca se devuelven: solo se asignan.
+ * Las contraseñas se guardan hasheadas (PBKDF2) y nunca se devuelven: solo se asignan.
  */
 
 'use client';

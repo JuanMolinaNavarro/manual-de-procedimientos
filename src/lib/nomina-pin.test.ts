@@ -1,3 +1,4 @@
+import { scryptSync } from 'crypto';
 import { beforeAll, describe, it, expect } from 'vitest';
 import {
   PIN_BLOQUEO_MS,
@@ -16,9 +17,16 @@ describe('hashPin / verificarPin', () => {
     h = await hashPin('4821', CUIL);
   });
 
-  it('formato scrypt autodescriptivo y sin el PIN', () => {
-    expect(h).toMatch(/^scrypt\$32768\$8\$1\$[0-9a-f]{32}\$[0-9a-f]{64}$/);
+  it('formato PBKDF2 autodescriptivo y sin el PIN', () => {
+    expect(h).toMatch(/^pbkdf2\$600000\$[0-9a-f]{32}\$[0-9a-f]{64}$/);
     expect(h).not.toContain('4821');
+  });
+  it('un PIN guardado en scrypt (antes de 2026-10) sigue verificando', async () => {
+    const sal = Buffer.alloc(16, 7);
+    const hash = scryptSync('pin:4821:20111111112', sal, 32, { N: 1024, r: 8, p: 1 });
+    const viejo = `scrypt$1024$8$1$${sal.toString('hex')}$${hash.toString('hex')}`;
+    expect(await verificarPin('4821', CUIL, viejo)).toBe(true);
+    expect(await verificarPin('4822', CUIL, viejo)).toBe(false);
   });
   it('verifica el PIN correcto (con o sin guiones en el CUIL, con espacios)', async () => {
     expect(await verificarPin('4821', CUIL, h)).toBe(true);

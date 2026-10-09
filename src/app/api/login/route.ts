@@ -1,7 +1,7 @@
 /**
  * API Route: /api/login
  *
- * POST - Valida usuario/contraseña (scrypt; migra las viejas en texto plano al entrar) y
+ * POST - Valida usuario/contraseña (PBKDF2; migra al entrar las viejas en texto plano o scrypt) y
  *        abre una sesión en la base. La cookie lleva solo un token opaco (ver `sesion.ts`).
  * DELETE - Revoca la sesión y borra la cookie.
  */
@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { COOKIE_SESION, SESION_HORAS, crearSesion, revocarSesion } from '@/lib/sesion';
-import { hashPassword, verificarPassword } from '@/lib/password';
+import { hashSecreto, verificarPassword } from '@/lib/password';
 import { bloqueoVigente, esperaIp, falloUsuario, ipCliente, registrarFalloIp } from '@/lib/login-limite';
 import { rolValido } from '@/lib/roles';
 
@@ -26,7 +26,7 @@ async function ensureSeedUser() {
   if (!envUser || !envPass) return;
   if ((await prisma.usuario.count()) > 0) return;
   await prisma.usuario.create({
-    data: { usuario: envUser, password: await hashPassword(envPass), rol: 'superadmin' },
+    data: { usuario: envUser, password: await hashSecreto(envPass), rol: 'superadmin' },
   });
 }
 
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       data: {
         login_fallos: 0,
         login_bloqueado_hasta: null,
-        ...(rehash ? { password: await hashPassword(password) } : {}),
+        ...(rehash ? { password: await hashSecreto(password) } : {}),
       },
     });
 

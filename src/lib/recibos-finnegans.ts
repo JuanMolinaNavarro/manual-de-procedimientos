@@ -546,7 +546,7 @@ export interface FirmaReciboInput {
  * Firma de un recibo propio desde el portal (usuario + PIN). La ficha sale de la sesión y el
  * recibo tiene que ser suyo (404 si no). Orden: recibo propio → adhesión COMPLETA (con acta),
  * mismo CUIL y mismo EMPLEADOR que el recibo → hash del PDF → bloqueo → entrada (lectura,
- * conformidad explícita, observaciones) → PIN (scrypt; los fallos se guardan) → constancia
+ * conformidad explícita, observaciones) → PIN (hash lento; los fallos se guardan) → constancia
  * encadenada en la cadena de ese empleador, bajo lock, re-chequeando dentro de la transacción
  * que no esté firmado. Disconforme → caso para RR.HH.
  */

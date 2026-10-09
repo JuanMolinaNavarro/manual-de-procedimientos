@@ -1,11 +1,19 @@
+import { pbkdf2Sync, scryptSync } from 'crypto';
 import { describe, it, expect } from 'vitest';
-import { esHash, hashPassword, validarPasswordNueva, verificarPassword } from './password';
+import { esHash, hashSecreto, validarPasswordNueva, verificarPassword } from './password';
+
+/** Hash en el formato scrypt de antes de 2026-10 (N chico para que el test sea rápido). */
+function scryptViejo(input: string): string {
+  const sal = Buffer.alloc(16, 7);
+  const h = scryptSync(input, sal, 32, { N: 1024, r: 8, p: 1 });
+  return `scrypt$1024$8$1$${sal.toString('hex')}$${h.toString('hex')}`;
+}
 import { LOGIN_MAX_FALLOS, bloqueoVigente, esperaIp, falloUsuario, ipCliente, registrarFalloIp, IP_MAX_FALLOS } from './login-limite';
 
 describe('password', () => {
   it('hashea con sal (dos hashes distintos) y verifica', async () => {
-    const a = await hashPassword('secreta123');
-    const b = await hashPassword('secreta123');
+    const a = await hashSecreto('secreta123');
+    const b = await hashSecreto('secreta123');
     expect(esHash(a)).toBe(true);
     expect(a).not.toBe(b);
     expect(a).not.toContain('secreta123');
@@ -16,9 +24,25 @@ describe('password', () => {
     expect(await verificarPassword('clave123', 'clave123')).toEqual({ ok: true, rehash: true });
     expect(await verificarPassword('otra', 'clave123')).toEqual({ ok: false, rehash: false });
   });
-  it('formato scrypt roto → no entra', async () => {
+  it('formato PBKDF2 autodescriptivo', async () => {
+    expect(await hashSecreto('secreta123')).toMatch(/^pbkdf2\$600000\$[0-9a-f]{32}\$[0-9a-f]{64}$/);
+  });
+  it('acepta un hash scrypt de antes de 2026-10 y pide pasarlo a PBKDF2', async () => {
+    const viejo = scryptViejo('secreta123');
+    expect(await verificarPassword('secreta123', viejo)).toEqual({ ok: true, rehash: true });
+    expect(await verificarPassword('secreta124', viejo)).toEqual({ ok: false, rehash: false });
+  });
+  it('PBKDF2 con otras iteraciones verifica y pide re-hashear', async () => {
+    const sal = Buffer.alloc(16, 1);
+    const h = pbkdf2Sync('secreta123', sal, 1000, 32, 'sha256');
+    expect(await verificarPassword('secreta123', `pbkdf2$1000$${sal.toString('hex')}$${h.toString('hex')}`))
+      .toEqual({ ok: true, rehash: true });
+  });
+  it('formato roto → no entra', async () => {
     expect((await verificarPassword('x', 'scrypt$roto')).ok).toBe(false);
     expect((await verificarPassword('x', 'scrypt$a$b$c$zz$zz')).ok).toBe(false);
+    expect((await verificarPassword('x', 'pbkdf2$0$00$00')).ok).toBe(false);
+    expect((await verificarPassword('x', 'pbkdf2$1000$zz$zz')).ok).toBe(false);
   });
   it('valida largo mínimo', () => {
     expect(validarPasswordNueva('corta')).toMatch(/al menos 8/);

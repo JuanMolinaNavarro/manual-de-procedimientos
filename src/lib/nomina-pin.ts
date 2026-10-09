@@ -1,63 +1,37 @@
 /**
  * PIN de firma electrónica de los recibos (solo servidor).
  *
- * - Hash lento: `scrypt` (node:crypto) con sal aleatoria y el CUIL mezclado en la
- *   entrada. Un PIN de 4–8 dígitos tiene como mucho ~10^8 combinaciones: con un hash
- *   rápido (sha256) se recorre entero en segundos si alguien se lleva la base; con
- *   scrypt cada intento cuesta decenas de ms y memoria.
- * - Formato guardado: `scrypt$N$r$p$<sal hex>$<hash hex>` (autodescriptivo: permite
- *   subir los parámetros más adelante sin romper los PIN existentes).
+ * - Hash lento: el de las contraseñas (`hashSecreto` de `password.ts`, PBKDF2) con el CUIL
+ *   mezclado en la entrada. Un PIN de 4–8 dígitos tiene como mucho ~10^8 combinaciones:
+ *   ningún hash lo protege si alguien se lleva la base; lo que lo protege es el bloqueo
+ *   por intentos y que la base no salga de la empresa.
+ * - Los PIN guardados antes de 2026-10 siguen en scrypt y verifican igual. **No se
+ *   re-hashean:** `pin_hash` entra en el código de adhesión impreso en el acta firmada
+ *   (`codigoAdhesion`); cambiarlo dejaría el papel sin coincidir con el registro.
  * - Bloqueo: 5 PIN incorrectos seguidos → 15 minutos. El estado vive en la base
  *   (`NominaAdhesion.pin_fallos` / `pin_bloqueado_hasta`): sobrevive a reinicios.
  *   `estadoBloqueo` es pura (testeada). En la base el intento se reserva ANTES de verificar
  *   (`comprobarPin` en nomina.ts), así pedidos en paralelo no suman más intentos que el límite.
- * - Async: scrypt con ~32 MB por cálculo bloqueaba el event loop si se hacía síncrono.
  */
 
-import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual, type ScryptOptions } from 'crypto';
+import { createHash } from 'crypto';
+import { hashSecreto, verificarSecreto } from './password';
 import { PIN_RE } from './nomina-datos';
-
-const N = 1 << 15;
-const R = 8;
-const P = 1;
-const LARGO = 32;
-// N=2^15, r=8 → ~32 MB por cálculo: hay que subir el maxmem por defecto (32 MB justos).
-const MAXMEM = 64 * 1024 * 1024;
 
 export const PIN_MAX_FALLOS = 5;
 export const PIN_BLOQUEO_MS = 15 * 60_000;
-
-function scrypt(input: string, sal: Buffer, largo: number, opts: ScryptOptions): Promise<Buffer> {
-  return new Promise((ok, mal) => scryptCb(input, sal, largo, opts, (e, k) => (e ? mal(e) : ok(k))));
-}
 
 function entrada(pin: string, cuil: string): string {
   return `pin:${pin.trim()}:${cuil.replace(/\D/g, '')}`;
 }
 
-export async function hashPin(pin: string, cuil: string): Promise<string> {
-  const sal = randomBytes(16);
-  const h = await scrypt(entrada(pin, cuil), sal, LARGO, { N, r: R, p: P, maxmem: MAXMEM });
-  return `scrypt$${N}$${R}$${P}$${sal.toString('hex')}$${h.toString('hex')}`;
+export function hashPin(pin: string, cuil: string): Promise<string> {
+  return hashSecreto(entrada(pin, cuil));
 }
 
 /** true si el PIN corresponde al hash guardado. Formato desconocido → false. */
 export async function verificarPin(pin: string, cuil: string, guardado: string): Promise<boolean> {
-  const partes = guardado.split('$');
-  if (partes.length !== 6 || partes[0] !== 'scrypt') return false;
-  const [, n, r, p, salHex, hashHex] = partes;
-  const nN = Number(n), nR = Number(r), nP = Number(p);
-  if (![nN, nR, nP].every((x) => Number.isInteger(x) && x > 0) || !/^[0-9a-f]+$/.test(salHex) || !/^[0-9a-f]+$/.test(hashHex)) {
-    return false;
-  }
-  const esperado = Buffer.from(hashHex, 'hex');
-  const calc = await scrypt(entrada(pin, cuil), Buffer.from(salHex, 'hex'), esperado.length, {
-    N: nN,
-    r: nR,
-    p: nP,
-    maxmem: Math.max(MAXMEM, 256 * nN * nR),
-  });
-  return calc.length === esperado.length && timingSafeEqual(calc, esperado);
+  return (await verificarSecreto(entrada(pin, cuil), guardado)).ok;
 }
 
 /** Valida formato (4–8 dígitos) y que las dos entradas coincidan. Devuelve el PIN o un mensaje. */

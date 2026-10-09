@@ -15,7 +15,7 @@ import { prisma } from '@/lib/prisma';
 import { ADMIN_MODULO_SLUGS } from '@/lib/modulos';
 import { isSuperadmin, ROLES } from '@/lib/roles';
 import { getUsuarioSesion, puedeGestionarUsuariosSesion } from '@/lib/admin-auth';
-import { hashPassword, validarPasswordNueva } from '@/lib/password';
+import { hashSecreto, validarPasswordNueva } from '@/lib/password';
 import { revocarSesionesDeUsuario } from '@/lib/sesion';
 import { SELECT_USUARIO } from '@/lib/usuarios-select';
 
@@ -94,7 +94,7 @@ export async function PUT(
 
     const data = {
       usuario: body.usuario?.trim() || undefined,
-      password: passwordNueva !== undefined ? await hashPassword(passwordNueva) : undefined,
+      password: passwordNueva !== undefined ? await hashSecreto(passwordNueva) : undefined,
       rol: body.rol?.trim(),
       nombre: body.nombre?.trim() || null,
       apellido: body.apellido?.trim() || null,

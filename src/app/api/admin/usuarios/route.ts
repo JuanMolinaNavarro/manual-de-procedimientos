@@ -12,7 +12,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { isSuperadmin, ROLES } from '@/lib/roles';
 import { getUsuarioSesion, puedeGestionarUsuariosSesion } from '@/lib/admin-auth';
-import { hashPassword, validarPasswordNueva } from '@/lib/password';
+import { hashSecreto, validarPasswordNueva } from '@/lib/password';
 import { SELECT_USUARIO } from '@/lib/usuarios-select';
 
 /** Gestión de usuarios: solo superadmin (rol de la base). Ver roles.ts › puedeGestionarUsuarios. */
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
 
     const baseData = {
       usuario,
-      password: await hashPassword(password),
+      password: await hashSecreto(password),
       rol,
       nombre: nombre || null,
       apellido: apellido || null,

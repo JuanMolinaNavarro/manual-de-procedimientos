@@ -1112,7 +1112,7 @@ export async function getActaDatos(empleadoId: number): Promise<ActaDatos> {
 }
 
 // La firma de los recibos (PDF de Finnegans) vive en recibos-finnegans.ts › firmarRecibo:
-// el trabajador firma desde el portal (su celular) con usuario + PIN (scrypt, nomina-pin.ts)
+// el trabajador firma desde el portal (su celular) con usuario + PIN (hash lento, nomina-pin.ts)
 // y bloqueo persistente. El recibo calculado por el motor propio NO se firma.
 
 /** Integridad de las cadenas de constancias, una por empleador. */
@@ -1215,7 +1215,7 @@ export async function getRecibosDeEmpleado(empleadoId: number): Promise<ReciboDe
 
 /**
  * Verifica un PIN contra la adhesión con bloqueo atómico. El intento se RESERVA en la base
- * antes de calcular el scrypt (`pin_fallos + 1` solo si no está bloqueada ni llegó al máximo),
+ * antes de calcular el hash del PIN (`pin_fallos + 1` solo si no está bloqueada ni llegó al máximo),
  * así N pedidos en paralelo no pueden probar más de `PIN_MAX_FALLOS` PINs: antes se leía el
  * contador, se verificaba y recién después se escribía. Bien → contador a 0; mal y era el
  * último intento → bloqueo de `PIN_BLOQUEO_MS`. Tira 401 (con intentos restantes) o 429.
