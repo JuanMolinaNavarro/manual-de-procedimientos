@@ -5,6 +5,8 @@
  * y el cliente para recalcular en vivo mientras se editan los supuestos.
  */
 
+import { diffDias, sumarDias } from './fechas';
+
 // ─── Tipos compartidos (cliente ↔ servidor) ──────────────────────────────────
 
 export interface CostoProyecto {
@@ -66,33 +68,6 @@ export interface ConfigProyectos {
   fx_ars: number;
   infl_usd: number;
   anio_base: number;
-}
-
-// ─── Fechas (ISO yyyy-mm-dd, sin zona horaria) ───────────────────────────────
-
-/** Se usa mediodía para que los saltos de DST nunca corran un día. */
-function parseISO(iso: string): Date {
-  return new Date(`${iso}T12:00:00`);
-}
-
-function aISO(d: Date): string {
-  const mes = String(d.getMonth() + 1).padStart(2, '0');
-  const dia = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${mes}-${dia}`;
-}
-
-export function hoyISO(): string {
-  return aISO(new Date());
-}
-
-export function sumarDias(iso: string, dias: number): string {
-  const d = parseISO(iso);
-  d.setDate(d.getDate() + dias);
-  return aISO(d);
-}
-
-export function difDias(desde: string, hasta: string): number {
-  return Math.round((parseISO(hasta).getTime() - parseISO(desde).getTime()) / 86_400_000);
 }
 
 // ─── Formato de números ──────────────────────────────────────────────────────
@@ -230,7 +205,7 @@ export function resumenFinanciero(p: Proyecto, cfg: ConfigProyectos): ResumenFin
     etapasHechas,
     etapasAtrasadas,
     fin,
-    duracionDias: difDias(p.fecha_inicio, fin),
+    duracionDias: diffDias(p.fecha_inicio, fin),
   };
 }
 
@@ -355,7 +330,7 @@ export function limitesCronograma(p: Proyecto) {
   });
   min = sumarDias(min, -4);
   max = sumarDias(max, 6);
-  return { min, max, dias: Math.max(1, difDias(min, max)) };
+  return { min, max, dias: Math.max(1, diffDias(min, max)) };
 }
 
 /**

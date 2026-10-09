@@ -3,7 +3,7 @@
  * Sin dependencias de servidor: se importa desde cliente y servidor.
  */
 
-import { OFFSET_AR_MIN, hoyLocal } from './fechas';
+import { OFFSET_AR_MIN, aIso, aMs, hoyLocal, sumarDias } from './fechas';
 
 /** Tipo de marca (byte "record type" del reloj; tabla Status de CrossChex). */
 export const TIPOS_MARCA: Record<number, string> = {
@@ -82,25 +82,7 @@ export function inicioDeMes(fecha: string): string {
 export const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // ─── Rangos de fecha ────────────────────────────────────────────────────────
-// Todo se calcula sobre yyyy-mm-dd en UTC. Las fechas del módulo son días
-// locales ya resueltos (`hoyLocal`), así que acá no hay que volver a corregir
-// el huso: hacerlo dos veces es justo lo que corría las fichadas un día.
-
-export const DIA_MS = 86_400_000;
-
-export function aMs(yyyymmdd: string): number {
-  const [a, m, d] = yyyymmdd.split('-').map(Number);
-  return Date.UTC(a, m - 1, d);
-}
-
-export function aIso(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10);
-}
-
-/** Suma (o resta) días a un yyyy-mm-dd. */
-export function sumarDias(yyyymmdd: string, dias: number): string {
-  return aIso(aMs(yyyymmdd) + dias * DIA_MS);
-}
+// Aritmética de días en `fechas.ts` (aMs, sumarDias, …).
 
 export type PresetRango = 'hoy' | 'semana' | 'mes' | 'mesAnterior' | 'ultimos30';
 
@@ -196,16 +178,6 @@ export function fmtHoraCorta(iso: string): string {
 export function fmtFechaHora(iso: string | null): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ_RELOJ });
-}
-
-/**
- * `2026-01-05` → `05/01/2026`. A mano y no con `new Date()`: un yyyy-mm-dd se
- * parsea como medianoche UTC y en Argentina (-03:00) se mostraría el día anterior.
- */
-export function fmtFechaDia(yyyymmdd: string): string {
-  if (!FECHA_RE.test(yyyymmdd)) return yyyymmdd;
-  const [a, m, d] = yyyymmdd.split('-');
-  return `${d}/${m}/${a}`;
 }
 
 /** `2026-10-07` → `miércoles 7 de octubre`. Al mediodía UTC, así el huso no corre el día. */

@@ -20,7 +20,8 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { fechaCorta, money, periodLabel } from '@/lib/nomina-calc';
+import { money } from '@/lib/nomina-calc';
+import { fechaCorta, fmtMes } from '@/lib/fechas';
 import type { EstadoEntrega } from '@/lib/recibos-finnegans-calc';
 import type { PanelRecibos, ReciboPanelView } from '@/lib/recibos-finnegans';
 import { mensajeError, nominaFetch } from './api';
@@ -83,7 +84,7 @@ export default function RecibosPeriodo({ panel, onCambio }: { panel: PanelRecibo
   if (!panel) return null;
   if (!panel.recibos.length) {
     return (
-      <Empty title={`No hay recibos publicados de ${periodLabel(periodo)}`}>
+      <Empty title={`No hay recibos publicados de ${fmtMes(periodo)}`}>
         Importalos de Finnegans en el paso 1.
       </Empty>
     );
@@ -181,7 +182,7 @@ export default function RecibosPeriodo({ panel, onCambio }: { panel: PanelRecibo
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Constancia de firma · {constancia?.nombre}</DialogTitle>
-            <DialogDescription>{constancia ? `${periodLabel(periodo)} · ${constancia.tipoLiquidacion}` : ''}</DialogDescription>
+            <DialogDescription>{constancia ? `${fmtMes(periodo)} · ${constancia.tipoLiquidacion}` : ''}</DialogDescription>
           </DialogHeader>
           {constancia?.constancia && <ConstanciaCard constancia={constancia.constancia} />}
         </DialogContent>

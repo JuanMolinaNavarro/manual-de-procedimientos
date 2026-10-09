@@ -1,26 +1,25 @@
 import { describe, it, expect } from 'vitest';
 import {
   esFechaImposible,
-  fmtFechaDia,
   fmtRelativo,
-  sumarDias,
   rangoPreset,
   presetDeRango,
   hoyLocal,
   inicioDeMes,
   personaActiva,
 } from './asistencia-datos';
+import { fechaCorta, sumarDias } from './fechas';
 
 describe('fechas', () => {
   it('formatea un día sin correrse de huso', () => {
     // Con new Date('2026-01-05') esto daría 04/01/2026 en Argentina.
-    expect(fmtFechaDia('2026-01-05')).toBe('05/01/2026');
-    expect(fmtFechaDia('2026-12-31')).toBe('31/12/2026');
+    expect(fechaCorta('2026-01-05')).toBe('05/01/2026');
+    expect(fechaCorta('2026-12-31')).toBe('31/12/2026');
   });
 
-  it('deja pasar lo que no es una fecha', () => {
-    expect(fmtFechaDia('')).toBe('');
-    expect(fmtFechaDia('cualquiera')).toBe('cualquiera');
+  it('deja pasar lo que no es una fecha (vacío → —)', () => {
+    expect(fechaCorta('')).toBe('—');
+    expect(fechaCorta('cualquiera')).toBe('cualquiera');
   });
 
   it('suma y resta días cruzando meses y años', () => {

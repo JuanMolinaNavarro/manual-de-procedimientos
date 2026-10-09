@@ -13,7 +13,7 @@ import { ArrowLeft, ChevronRight, PenLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Banner, Empty } from '@/components/comunes/ui';
-import { fmtMes } from '@/lib/asistencia-calendario';
+import { fmtMes } from '@/lib/fechas';
 import type { MiAdhesionView } from '@/lib/nomina';
 import { money } from '@/lib/nomina-calc';
 import type { MiReciboView } from '@/lib/recibos-finnegans';

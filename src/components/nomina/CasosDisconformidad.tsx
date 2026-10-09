@@ -12,7 +12,8 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { fechaHora, periodLabel } from '@/lib/nomina-calc';
+import { fechaHora } from '@/lib/nomina-calc';
+import { fmtMes } from '@/lib/fechas';
 import type { CasoView } from '@/lib/recibos-finnegans';
 import { cn } from '@/lib/utils';
 import { mensajeError, nominaFetch } from './api';
@@ -24,7 +25,7 @@ function Encabezado({ c }: { c: CasoView }) {
     <>
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <span className="font-semibold text-foreground">{c.nombre}</span>
-        <span className="text-sm text-muted-foreground">{c.empresa} · {periodLabel(c.periodo)} · {c.tipoLiquidacion}</span>
+        <span className="text-sm text-muted-foreground">{c.empresa} · {fmtMes(c.periodo)} · {c.tipoLiquidacion}</span>
         <span className="ml-auto text-xs text-muted-foreground">firmó {fechaHora(c.firmadoEn)}</span>
       </div>
       <blockquote className="border-l-4 border-amber-500 bg-amber-500/10 px-3 py-2 text-sm text-foreground">

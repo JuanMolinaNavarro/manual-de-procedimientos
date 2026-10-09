@@ -17,8 +17,25 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Banner, Empty } from '@/components/comunes/ui';
 import { cn } from '@/lib/utils';
 import { fmtHoraCorta, hoyLocal, tipoMarcaLabel } from '@/lib/asistencia-datos';
-import { DIAS_SEMANA_LARGO, describirHorario, fmtHorasMin, fmtMes, mesAnterior, mesSiguiente, versionVigente, type CeldaDia, type DiaCalendario } from '@/lib/asistencia-calendario';
-import { compensada, explicarDia, fmtMinutos, horasExtraDia, plural, resumenMesPersona, tardanza, type ResumenMesPersona } from '@/lib/asistencia-tablero-calc';
+import {
+  DIAS_SEMANA_LARGO,
+  describirHorario,
+  fmtHorasMin,
+  versionVigente,
+  type CeldaDia,
+  type DiaCalendario,
+} from '@/lib/asistencia-calendario';
+import { fmtMes, mesAnterior, mesSiguiente } from '@/lib/fechas';
+import {
+  compensada,
+  explicarDia,
+  fmtMinutos,
+  horasExtraDia,
+  plural,
+  resumenMesPersona,
+  tardanza,
+  type ResumenMesPersona,
+} from '@/lib/asistencia-tablero-calc';
 import { asistFetch, mensajeError, type MarcaReloj, type PerfilPersona } from './api';
 import EmpleadoPicker from './EmpleadoPicker';
 import { useAsistencia, useAsistenciaData } from './AsistenciaContext';

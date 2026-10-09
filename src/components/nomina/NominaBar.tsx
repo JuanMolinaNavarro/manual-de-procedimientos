@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { periodLabel } from '@/lib/nomina-calc';
+import { fmtMes } from '@/lib/fechas';
 import { useNomina } from './NominaContext';
 
 export default function NominaBar() {
@@ -37,7 +37,7 @@ export default function NominaBar() {
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Período</span>
           <Input type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} className="h-9 w-40" aria-label="Período" />
-          <span className="hidden text-sm text-muted-foreground sm:inline">{periodLabel(periodo)}</span>
+          <span className="hidden text-sm text-muted-foreground sm:inline">{fmtMes(periodo)}</span>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2 text-xs">
           {estado && (

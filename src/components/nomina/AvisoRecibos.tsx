@@ -16,7 +16,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { fechaHora, periodLabel } from '@/lib/nomina-calc';
+import { fechaHora } from '@/lib/nomina-calc';
+import { fmtMes } from '@/lib/fechas';
 import type { AvisoView, PreviaAviso, ResultadoAviso, SinAviso } from '@/lib/recibos-finnegans';
 import { mensajeError, nominaFetch } from './api';
 import { useNomina, useNominaData } from './NominaContext';
@@ -118,7 +119,7 @@ export default function PasoAviso({ onEnviado }: { onEnviado: () => void }) {
       <AlertDialog open={abierto} onOpenChange={setAbierto}>
         <AlertDialogContent className="sm:max-w-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle>Avisar que los recibos de {periodLabel(periodo)} están disponibles</AlertDialogTitle>
+            <AlertDialogTitle>Avisar que los recibos de {fmtMes(periodo)} están disponibles</AlertDialogTitle>
             <AlertDialogDescription>
               Le llega un mail a <b>{total}</b> persona(s) con recibos sin firmar
               {nuevos < total ? ` (${total - nuevos} ya avisada(s): les llega como recordatorio)` : ''}. No lleva el recibo ni

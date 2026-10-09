@@ -12,13 +12,12 @@ import { getPlantilla } from './proyectos-datos';
 import {
   avanceEtapas,
   correrEnCascada,
-  difDias,
   finCronograma,
-  sumarDias,
   type ConfigProyectos,
   type EtapaProyecto,
   type Proyecto,
 } from './proyectos-calc';
+import { diffDias, sumarDias } from './fechas';
 
 // ─── Config (singleton id = 1) ───────────────────────────────────────────────
 
@@ -231,7 +230,7 @@ export async function updateProyecto(
 
   // Mover la fecha de inicio corre el cronograma completo por el mismo delta.
   if (fecha_inicio && fecha_inicio !== actual.fecha_inicio) {
-    const delta = difDias(actual.fecha_inicio, fecha_inicio);
+    const delta = diffDias(actual.fecha_inicio, fecha_inicio);
     if (delta) {
       await prisma.$transaction(
         actual.etapas.map((t) =>
@@ -404,7 +403,7 @@ export async function updateEtapa(
 
   // Mover una etapa arrastra a las que dependen de ella.
   if (fecha_inicio && fecha_inicio !== etapa.fecha_inicio) {
-    await moverEtapa(id, difDias(etapa.fecha_inicio, fecha_inicio));
+    await moverEtapa(id, diffDias(etapa.fecha_inicio, fecha_inicio));
   }
 
   // Marcar "hecho" implica 100% de avance; volver a pendiente lo pone en 0.

@@ -9,7 +9,8 @@
 
 import './nomina.css';
 import { RUBROS_EMPLEADOR } from '@/lib/nomina-datos';
-import { money, numeroALetras, periodLabel, type Item, type Liquidacion, type ReciboMeta } from '@/lib/nomina-calc';
+import { money, numeroALetras, type Item, type Liquidacion, type ReciboMeta } from '@/lib/nomina-calc';
+import { fmtMes } from '@/lib/fechas';
 
 function KV({ k, v }: { k: string; v?: string | number | null }) {
   return <div><div className="k">{k}</div><div className="v">{v === '' || v == null ? '—' : v}</div></div>;
@@ -35,7 +36,7 @@ export default function ReciboAnexoIII({ liquidacion: l, meta, noFlags }: { liqu
   return (
     <div className="nomina-rc">
       <div className="rc-sec">
-        <div className="rc-head"><span>1 · Empleador y trabajador</span><span>{periodLabel(meta.periodo)}</span></div>
+        <div className="rc-head"><span>1 · Empleador y trabajador</span><span>{fmtMes(meta.periodo)}</span></div>
         <div className="rc-grid">
           <KV k="Empleador" v={em.razonSocial} /><KV k="CUIT" v={em.cuit} /><KV k="Domicilio" v={em.domicilio} />
           <KV k="Trabajador" v={t.nombre} /><KV k="CUIL" v={t.cuil} /><KV k="Categoría" v={t.categoria} />

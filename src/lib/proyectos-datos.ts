@@ -51,11 +51,6 @@ export function estadoEtapa(id: string) {
 export const MONEDAS = ['USD', 'ARS'] as const;
 export type Moneda = (typeof MONEDAS)[number];
 
-export const MESES_CORTOS = [
-  'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-  'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
-] as const;
-
 // ─── Plantillas de cronograma ────────────────────────────────────────────────
 // Solo el andamiaje inicial: nombres y duraciones se editan después. Las etapas
 // se crean encadenadas (cada una depende de la anterior).

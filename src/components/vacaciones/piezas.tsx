@@ -64,12 +64,6 @@ export const rangoLargo = (desde: string, hasta: string) => `${mayuscula(fechaLa
 /** «4 al 24 de enero» o «22 de febrero al 7 de marzo». */
 export const rangoCorto = (desde: string, hasta: string) =>
   desde.slice(0, 7) === hasta.slice(0, 7) ? `${partesFecha(desde)[2]} al ${diaMes(hasta)}` : `${diaMes(desde)} al ${diaMes(hasta)}`;
-/** `yyyy-mm` corrido `n` meses. */
-export function moverMes(ym: string, n: number): string {
-  const [y, m] = partesFecha(ym);
-  const d = new Date(Date.UTC(y, m - 1 + n, 1));
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-}
 /** Ejercicio 2026 → «2026/27». */
 export const temporadaTxt = (ejercicio: number) => `${ejercicio}/${String(ejercicio + 1).slice(2)}`;
 export const primerNombre = (nombre: string) => nombre.split(/\s+/)[0];

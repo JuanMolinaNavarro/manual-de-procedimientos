@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { METRICA_META } from '@/lib/nomina-datos';
-import { fechaHora, money, periodLabel } from '@/lib/nomina-calc';
+import { fechaHora, money } from '@/lib/nomina-calc';
+import { fmtMes } from '@/lib/fechas';
 import type { BonoCardData, TableroData } from '@/lib/nomina';
 import { mensajeError, nominaFetch } from './api';
 import { useNomina, useNominaData } from './NominaContext';
@@ -46,7 +47,7 @@ function BonoCard({ b, cerrado, onOtorgar }: { b: BonoCardData; cerrado: boolean
             <div className="text-sm font-medium text-violet-700 dark:text-violet-300">{b.otorgado ? b.otorgado.nombre : b.ganador.emp.nombre}</div>
             <p className="text-xs text-muted-foreground">{b.ganador.desc}</p>
             {b.ganador.racha.length > 0 && (
-              <div className="flex gap-1">{b.ganador.racha.map((r) => <div key={r.periodo} title={periodLabel(r.periodo)} className={cn('h-2.5 w-2.5 rounded-full', r.ok ? 'bg-emerald-500' : 'bg-muted-foreground/30')} />)}</div>
+              <div className="flex gap-1">{b.ganador.racha.map((r) => <div key={r.periodo} title={fmtMes(r.periodo)} className={cn('h-2.5 w-2.5 rounded-full', r.ok ? 'bg-emerald-500' : 'bg-muted-foreground/30')} />)}</div>
             )}
             {b.segundo && !b.otorgado && <p className="font-mono text-[11px] text-muted-foreground">2º · {b.segundo.emp.nombre}</p>}
           </>
@@ -71,7 +72,7 @@ export default function TableroPage() {
 
   const d = tab.data;
   const estado = <Estado loading={tab.loading} error={tab.error} sinOrg={listo && organigramaId == null} />;
-  if (!d || organigramaId == null) return <><PageTitle title={`Tablero · ${periodLabel(periodo)}`} />{estado}</>;
+  if (!d || organigramaId == null) return <><PageTitle title={`Tablero · ${fmtMes(periodo)}`} />{estado}</>;
 
   const s = d.stats, p = d.pasos;
   const comunes = d.bonos.filter((b) => b.bono.ambito === 'empresa');
@@ -88,7 +89,7 @@ export default function TableroPage() {
   return (
     <div className="space-y-6">
       <PageTitle
-        title={`Tablero · ${periodLabel(periodo)}`}
+        title={`Tablero · ${fmtMes(periodo)}`}
         sub="Estado general de la liquidación del período."
         right={d.cerrado ? <Badge className="bg-violet-600 text-white hover:bg-violet-600">Cerrado</Badge> : <Badge variant="secondary">En curso</Badge>}
       />
@@ -168,7 +169,7 @@ export default function TableroPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Otorgar «{otorgar?.bono.nombre}»</AlertDialogTitle>
             <AlertDialogDescription>
-              A {otorgar?.ganador?.emp.nombre} — {periodLabel(periodo)}.{' '}
+              A {otorgar?.ganador?.emp.nombre} — {fmtMes(periodo)}.{' '}
               {otorgar && otorgar.bono.monto > 0
                 ? `Se sumará un premio de ${money(otorgar.bono.monto)} en sus novedades del mes (impacta en la liquidación).`
                 : 'Reconocimiento honorífico (sin monto asociado).'} ¿Confirmás?

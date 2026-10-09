@@ -14,13 +14,12 @@ import {
   etapasVencidas,
   fmt1,
   fmtUSD,
-  hoyISO,
-  sumarDias,
   type AgrupadoCosto,
   type ConfigProyectos,
   type Proyecto,
   type ResumenFinanciero,
 } from '@/lib/proyectos-calc';
+import { hoyLocal, sumarDias } from '@/lib/fechas';
 import Kpi from './Kpi';
 import InfoHint from './InfoHint';
 import ResponsableSelect, { type EmpleadoOpcion } from './ResponsableSelect';
@@ -44,7 +43,7 @@ export default function TabResumen({
   acciones,
 }: Props) {
   const [notas, setNotas] = useState(proyecto.notas ?? '');
-  const hoy = hoyISO();
+  const hoy = hoyLocal();
 
   const porCategoria = costoPorCategoria(proyecto, config);
   const porEtapa = costoPorEtapa(proyecto, config);

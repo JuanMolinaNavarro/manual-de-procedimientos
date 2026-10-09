@@ -10,7 +10,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { CalendarClock, ExternalLink } from 'lucide-react';
-import { fmtFechaDia, hoyLocal } from '@/lib/asistencia-datos';
+import { hoyLocal } from '@/lib/asistencia-datos';
+import { fechaCorta } from '@/lib/fechas';
 import { CICLO_LABELS, ultimaVersion, versionVigente, type HorarioVersion } from '@/lib/asistencia-calendario';
 import { GrillaDiasHorario } from '@/components/asistencia/PerfilPiezas';
 
@@ -84,19 +85,19 @@ export function HorarioDelEmpleado({ estado, creating }: { estado: EstadoHorario
           {versiones.length === 0
             ? 'Sin horario cargado.'
             : ultima && ultima.vigenteDesde > hoy
-              ? `Sin horario vigente hoy; hay uno que empieza el ${fmtFechaDia(ultima.vigenteDesde)}.`
+              ? `Sin horario vigente hoy; hay uno que empieza el ${fechaCorta(ultima.vigenteDesde)}.`
               : 'Sin horario vigente hoy.'}
         </p>
       ) : !vigente.incluir ? (
-        <p className="text-sm text-[var(--neu-fg-soft)]">No incluido en el control de asistencia desde el {fmtFechaDia(vigente.vigenteDesde)}.</p>
+        <p className="text-sm text-[var(--neu-fg-soft)]">No incluido en el control de asistencia desde el {fechaCorta(vigente.vigenteDesde)}.</p>
       ) : (
         <>
           {/* Misma grilla que Asistencia: muestra bien los turnos rotativos por semana. */}
           <GrillaDiasHorario vigente={vigente} suave="text-[var(--neu-fg-soft)]" />
           <p className="text-xs text-[var(--neu-fg-soft)]">
-            {vigente.cicloSemanas > 1 && `${CICLO_LABELS[vigente.cicloSemanas]} (semana 1 desde el ${fmtFechaDia(vigente.cicloAncla)}) · `}
-            Vigente desde el {fmtFechaDia(vigente.vigenteDesde)}
-            {vigente.vigenteHasta ? ` hasta el ${fmtFechaDia(vigente.vigenteHasta)}` : ''}
+            {vigente.cicloSemanas > 1 && `${CICLO_LABELS[vigente.cicloSemanas]} (semana 1 desde el ${fechaCorta(vigente.cicloAncla)}) · `}
+            Vigente desde el {fechaCorta(vigente.vigenteDesde)}
+            {vigente.vigenteHasta ? ` hasta el ${fechaCorta(vigente.vigenteHasta)}` : ''}
             {versiones.length > 1 ? ` · ${versiones.length} versiones` : ''}
           </p>
         </>

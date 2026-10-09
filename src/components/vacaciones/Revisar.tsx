@@ -11,7 +11,7 @@ import Link from 'next/link';
 import { ArrowLeft, Check, CheckCircle2, RotateCcw, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { sumarDias } from '@/lib/asistencia-datos';
+import { sumarDias } from '@/lib/fechas';
 import {
   avisoEstado, cupoSemana, diasDe, fmtCorto, genteDeArea, ocupacionSemana, perfilDe, semanasDeRango, solDe, solapan, vueltaDe,
   type EmpleadoVac, type EstadoVac,

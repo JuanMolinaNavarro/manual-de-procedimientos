@@ -18,14 +18,8 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { ESTADOS_PROYECTO, PLANTILLAS_CRONOGRAMA, estadoProyecto } from '@/lib/proyectos-datos';
-import {
-  fmtMonto,
-  fmtUSD,
-  hoyISO,
-  resumenFinanciero,
-  type ConfigProyectos,
-  type Proyecto,
-} from '@/lib/proyectos-calc';
+import { fmtMonto, fmtUSD, resumenFinanciero, type ConfigProyectos, type Proyecto } from '@/lib/proyectos-calc';
+import { hoyLocal } from '@/lib/fechas';
 import ConfigDialog from './ConfigDialog';
 import ResponsableSelect, { type EmpleadoOpcion } from './ResponsableSelect';
 import type { ScopeProyectos } from '@/lib/admin-auth';
@@ -61,7 +55,7 @@ export default function ProyectosLista({
   const [descripcion, setDescripcion] = useState('');
   const [responsable, setResponsable] = useState<string | null>(null);
   const [responsableId, setResponsableId] = useState<number | null>(null);
-  const [inicio, setInicio] = useState(hoyISO());
+  const [inicio, setInicio] = useState(hoyLocal());
   const [plantilla, setPlantilla] = useState(PLANTILLAS_CRONOGRAMA[0].id);
   const [area, setArea] = useState('');
   const [error, setError] = useState('');
@@ -98,7 +92,7 @@ export default function ProyectosLista({
     setDescripcion('');
     setResponsable(null);
     setResponsableId(null);
-    setInicio(hoyISO());
+    setInicio(hoyLocal());
     setPlantilla(PLANTILLAS_CRONOGRAMA[0].id);
     setArea('');
     setError('');

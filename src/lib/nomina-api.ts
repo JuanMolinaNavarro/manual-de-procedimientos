@@ -5,7 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { parseId } from './api-admin';
-import { PERIODO_RE } from './nomina-datos';
+import { MES_RE } from './fechas';
 import { NominaError } from './nomina';
 
 export { handle, handleSesion, parseId, readJson } from './api-admin';
@@ -23,7 +23,7 @@ export function parseFiltrosRecibos(p: URLSearchParams): { empleador: string | n
 }
 
 export function parsePeriodo(v: unknown): string {
-  if (typeof v !== 'string' || !PERIODO_RE.test(v)) throw new NominaError('Período inválido (formato YYYY-MM)', 400);
+  if (typeof v !== 'string' || !MES_RE.test(v)) throw new NominaError('Período inválido (formato YYYY-MM)', 400);
   return v;
 }
 

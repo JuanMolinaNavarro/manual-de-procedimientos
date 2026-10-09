@@ -4,10 +4,10 @@
  */
 
 import { prisma } from '@/lib/prisma';
-import { hoyISOArgentina } from '@/lib/cumples';
+import { hoyLocal } from '@/lib/fechas';
 
 export default async function CumplesBanner() {
-  const hoy = hoyISOArgentina();
+  const hoy = hoyLocal();
   const cumpleaneros = await prisma.orgEmpleado.findMany({
     where: { estado: 'active', fecha_nacimiento: { endsWith: hoy.slice(4) } }, // '-mm-dd'
     select: { id: true, nombre: true, area: true },

@@ -1,6 +1,6 @@
 'use client';
 
-import { diaLocal } from '@/lib/fechas';
+import { diaLocal, fechaCorta } from '@/lib/fechas';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { RefreshCw, Search, X, Download } from 'lucide-react';
@@ -19,7 +19,6 @@ import {
   modoMarcaLabel,
   fmtHora,
   fmtHoraCorta,
-  fmtFechaDia,
   PRESETS_RANGO,
   rangoPreset,
 } from '@/lib/asistencia-datos';
@@ -259,7 +258,7 @@ function TablaDetalle({ items }: { items: FichadaDetalle[] }) {
           return (
             <TableRow key={r.id} className={cn(r.sospechosa && 'bg-amber-500/10')}>
               <TableCell className="whitespace-nowrap font-mono text-xs tabular-nums">
-                <div className="text-muted-foreground">{fmtFechaDia(diaLocal(d))}</div>
+                <div className="text-muted-foreground">{fechaCorta(diaLocal(d))}</div>
                 <div className="text-sm text-foreground">{fmtHora(r.fechaHora)}</div>
                 {r.sospechosa && (
                   <Badge variant="outline" className="mt-1 border-amber-500 text-amber-600 dark:text-amber-400">fecha dudosa</Badge>
@@ -294,7 +293,7 @@ function TablaDia({ items }: { items: FichadaDia[] }) {
       <TableBody>
         {items.map((d) => (
           <TableRow key={`${d.userId}-${d.fecha}`} className={cn(d.incompleto && 'bg-amber-500/5')}>
-            <TableCell className="whitespace-nowrap font-mono text-xs tabular-nums">{fmtFechaDia(d.fecha)}</TableCell>
+            <TableCell className="whitespace-nowrap font-mono text-xs tabular-nums">{fechaCorta(d.fecha)}</TableCell>
             <TableCell><PersonaCell userId={d.userId} nombre={d.nombre} /></TableCell>
             <TableCell className="font-mono text-sm tabular-nums">{d.entrada ? fmtHoraCorta(d.entrada) : '—'}</TableCell>
             <TableCell className={cn('font-mono text-sm tabular-nums', !d.salida && 'text-amber-600 dark:text-amber-400')}>
@@ -369,7 +368,7 @@ function SinResultados() {
   }
 
   return (
-    <Empty title={`Sin fichadas entre el ${fmtFechaDia(f.desde)} y el ${fmtFechaDia(f.hasta)}`}>
+    <Empty title={`Sin fichadas entre el ${fechaCorta(f.desde)} y el ${fechaCorta(f.hasta)}`}>
       <span>Elegí otro período.</span>
       <div className="mt-3 flex flex-wrap justify-center gap-1.5">
         {PRESETS_RANGO.map((p) => (
@@ -394,7 +393,4 @@ function TablaSkeleton({ columnas }: { columnas: number }) {
     </div>
   );
 }
-
-
-
 

@@ -17,8 +17,9 @@ import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Banner, Empty, EmpleadoCell } from '@/components/comunes/ui';
 import { cn } from '@/lib/utils';
-import { fmtFechaDia, fmtHoraCorta, tipoMarcaLabel } from '@/lib/asistencia-datos';
-import { DIAS_SEMANA_CORTO, ESTADOS_DIA, fmtMes, mesAnterior, mesSiguiente, validarConfigInput } from '@/lib/asistencia-calendario';
+import { fmtHoraCorta, tipoMarcaLabel } from '@/lib/asistencia-datos';
+import { fechaCorta, fmtMes, mesAnterior, mesSiguiente } from '@/lib/fechas';
+import { DIAS_SEMANA_CORTO, ESTADOS_DIA, validarConfigInput } from '@/lib/asistencia-calendario';
 import { asistFetch, mensajeError, type CalendarioMes, type CeldaDia, type ConfigAsistencia, type FichadaDetalle, type FilaCalendarioMes } from './api';
 import { useAsistencia, useAsistenciaData } from './AsistenciaContext';
 import { Campo, Chip, LinkPerfil } from './piezas';
@@ -118,7 +119,7 @@ function Grilla({ data, filas }: { data: CalendarioMes; filas: FilaCalendarioMes
           <div
             key={d.fecha}
             className={cn('flex flex-col items-center justify-end border-b border-border py-1 text-[11px] tabular-nums', d.finDeSemana ? 'bg-muted/40 text-muted-foreground' : 'text-foreground', d.feriado && 'bg-violet-500/15 text-violet-700 dark:text-violet-300', d.esHoy && 'bg-primary/10 font-bold')}
-            title={d.feriado ? `${fmtFechaDia(d.fecha)} · feriado detectado (fichó menos del 20 %)` : fmtFechaDia(d.fecha)}
+            title={d.feriado ? `${fechaCorta(d.fecha)} · feriado detectado (fichó menos del 20 %)` : fechaCorta(d.fecha)}
           >
             <span className="text-[10px] text-muted-foreground">{DIAS_SEMANA_CORTO[d.diaSemana]}</span>
             <span>{d.dia}</span>
@@ -195,7 +196,7 @@ function Celda({ celda, onAbrir }: { celda: CeldaDia; onAbrir: (el: HTMLButtonEl
   const inerte = celda.estado === 'futuro' || ((celda.estado === 'sin_horario' || celda.estado === 'feriado') && celda.marcas === 0);
   // Día futuro con jornada: un contorno tenue muestra el plan (qué sábados le tocan).
   const futuroLaborable = celda.estado === 'futuro' && celda.jornada != null;
-  const label = `${fmtFechaDia(celda.fecha)}: ${ESTADOS_DIA[celda.estado].label}${celda.jornada && celda.estado === 'futuro' ? ` (${celda.jornada.entrada}–${celda.jornada.salida})` : ''}${celda.minutosTarde && (celda.estado === 'tarde' || celda.estado === 'tarde_grave') ? `, ${celda.minutosTarde} min tarde` : ''}${celda.sinSalida ? ', sin salida' : ''}`;
+  const label = `${fechaCorta(celda.fecha)}: ${ESTADOS_DIA[celda.estado].label}${celda.jornada && celda.estado === 'futuro' ? ` (${celda.jornada.entrada}–${celda.jornada.salida})` : ''}${celda.minutosTarde && (celda.estado === 'tarde' || celda.estado === 'tarde_grave') ? `, ${celda.minutosTarde} min tarde` : ''}${celda.sinSalida ? ', sin salida' : ''}`;
   return (
     <button
       type="button"
@@ -249,7 +250,7 @@ function DetalleCelda({ celda, fila }: { celda: CeldaDia; fila: FilaCalendarioMe
   return (
     <div className="space-y-2 text-sm">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold">{fmtFechaDia(celda.fecha)}</span>
+        <span className="font-semibold">{fechaCorta(celda.fecha)}</span>
         <Badge variant="secondary">{est.label}</Badge>
       </div>
       <p className="text-xs text-muted-foreground">{est.desc}</p>

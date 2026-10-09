@@ -6,7 +6,7 @@
 
 import { AsistenciaError } from './asistencia';
 import { FECHA_RE, hoyLocal, inicioDeMes, type FiltrosFichadas } from './asistencia-datos';
-import { MES_RE } from './asistencia-calendario';
+import { MES_RE } from './fechas';
 
 export { handle, handleSesion, parseId, readJson } from './api-admin';
 

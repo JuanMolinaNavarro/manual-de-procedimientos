@@ -6,12 +6,12 @@
 import { Prisma, type AsistenciaHorario as HorarioRow } from '@prisma/client';
 import { prisma } from './prisma';
 import { AsistenciaError } from './asistencia';
-import { ESTADO_EMPLEADO_ACTIVO, hoyLocal, personaActiva, sumarDias } from './asistencia-datos';
+import { ESTADO_EMPLEADO_ACTIVO, hoyLocal, personaActiva } from './asistencia-datos';
+import { sumarDias, rangoMes } from './fechas';
 import {
   armarCalendario,
   detectarFeriados,
   diasDelRango,
-  rangoMes,
   resumenLiquidacion,
   type CeldaDia,
   type ConfigAsistencia,

@@ -16,9 +16,9 @@ import { useSearchParams } from 'next/navigation';
 import { Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { mensajeError, nominaFetch } from '@/components/nomina/api';
-import { sumarDias } from '@/lib/asistencia-datos';
+import { sumarDias, fechaCorta } from '@/lib/fechas';
 import { formatoCuit } from '@/lib/recibos-finnegans-calc';
-import { fmtD, noReprog, type Tramo } from '@/lib/vacaciones-calc';
+import { noReprog, type Tramo } from '@/lib/vacaciones-calc';
 import type { VistaRespuesta } from '@/lib/vacaciones';
 
 function TablaTramos({ tramos }: { tramos: Tramo[] }) {
@@ -30,10 +30,10 @@ function TablaTramos({ tramos }: { tramos: Tramo[] }) {
       <tbody>
         {tramos.map((t) => (
           <tr key={t.desde}>
-            <td className="border border-neutral-400 px-2 py-1">{fmtD(t.desde)}</td>
-            <td className="border border-neutral-400 px-2 py-1">{fmtD(t.hasta)}</td>
+            <td className="border border-neutral-400 px-2 py-1">{fechaCorta(t.desde)}</td>
+            <td className="border border-neutral-400 px-2 py-1">{fechaCorta(t.hasta)}</td>
             <td className="border border-neutral-400 px-2 py-1">{t.dias}{t.fueraTemp ? ' *' : ''}</td>
-            <td className="border border-neutral-400 px-2 py-1">{fmtD(sumarDias(t.hasta, 1))}</td>
+            <td className="border border-neutral-400 px-2 py-1">{fechaCorta(sumarDias(t.hasta, 1))}</td>
           </tr>
         ))}
       </tbody>
@@ -89,7 +89,7 @@ export default function DocumentoVacaciones({ modo }: { modo: 'portal' | 'rrhh' 
       <article className="rounded-md border border-neutral-300 bg-white p-8 text-[14px] leading-relaxed text-neutral-900 print:border-0 print:p-0">
         <h1 className="text-lg font-bold">{tipo === 'notificacion' ? 'Notificación de vacaciones anuales' : 'Acuerdo de fraccionamiento de vacaciones'}</h1>
         <p className="mb-5 font-mono text-xs text-neutral-500">
-          {empresa}{v.empleador ? ` · CUIT ${formatoCuit(v.empleador.cuit)}` : ''} · {fmtD(fecha)} · ejercicio {v.ejercicio}
+          {empresa}{v.empleador ? ` · CUIT ${formatoCuit(v.empleador.cuit)}` : ''} · {fechaCorta(fecha)} · ejercicio {v.ejercicio}
         </p>
 
         {tipo === 'notificacion' ? (
@@ -105,11 +105,11 @@ export default function DocumentoVacaciones({ modo }: { modo: 'portal' | 'rrhh' 
               la Ley de Contrato de Trabajo (texto según Ley 27.802){convenio}. La retribución correspondiente se abonará al comienzo del
               período (art. 155 LCT).
             </p>
-            {s.acuerdoFracc && <p className="mt-3">El fraccionamiento en tramos fue acordado por las partes el {fmtD(s.acuerdoFracc.fecha)}.</p>}
+            {s.acuerdoFracc && <p className="mt-3">El fraccionamiento en tramos fue acordado por las partes el {fechaCorta(s.acuerdoFracc.fecha)}.</p>}
             {reprogramados.length > 0 && (
               <>
                 <p className="mt-3">
-                  Los días no gozados por la interrupción de las vacaciones ({s.interrupciones.map((i) => `${fmtD(i.desde)} al ${fmtD(i.hasta)}`).join('; ')}) se
+                  Los días no gozados por la interrupción de las vacaciones ({s.interrupciones.map((i) => `${fechaCorta(i.desde)} al ${fechaCorta(i.hasta)}`).join('; ')}) se
                   reprograman, conforme al art. 154 LCT, en:
                 </p>
                 <TablaTramos tramos={reprogramados} />

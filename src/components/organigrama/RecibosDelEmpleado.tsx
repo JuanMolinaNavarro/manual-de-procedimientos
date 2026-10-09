@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { fechaHora, money, periodLabel } from '@/lib/nomina-calc';
+import { fechaHora, money } from '@/lib/nomina-calc';
+import { fmtMes } from '@/lib/fechas';
 import type { ReciboDeEmpleado } from '@/lib/nomina';
 
 export interface EstadoRecibosEmpleado {
@@ -57,7 +58,7 @@ export default function RecibosDelEmpleado({ recibos, error }: EstadoRecibosEmpl
               rel="noopener"
               className="inline-flex items-center gap-1.5 font-medium hover:underline"
             >
-              {periodLabel(r.periodo)}
+              {fmtMes(r.periodo)}
               <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
             </a>
             <p className="font-mono text-[11px] text-muted-foreground">

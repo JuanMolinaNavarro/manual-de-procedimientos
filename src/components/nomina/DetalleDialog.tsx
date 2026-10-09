@@ -9,7 +9,7 @@
 import { Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { periodLabel } from '@/lib/nomina-calc';
+import { fmtMes } from '@/lib/fechas';
 import type { ReciboVista } from '@/lib/nomina';
 import { useNominaData } from './NominaContext';
 import ReciboAnexoIII from './ReciboAnexoIII';
@@ -32,7 +32,7 @@ export default function DetalleDialog({ organigramaId, periodo, empleadoId, onCl
         <DialogHeader>
           <DialogTitle>{v?.liquidacion.nombre ?? 'Recibo'}</DialogTitle>
           <DialogDescription className="font-mono text-xs uppercase">
-            {v ? `${v.liquidacion.rol} · ${periodLabel(periodo)} · ${v.cerrado ? 'cerrado' : 'pre-liquidación'}` : ' '}
+            {v ? `${v.liquidacion.rol} · ${fmtMes(periodo)} · ${v.cerrado ? 'cerrado' : 'pre-liquidación'}` : ' '}
             {v && <span className="text-muted-foreground"> · simulación (el recibo legal es el de Finnegans)</span>}
           </DialogDescription>
         </DialogHeader>

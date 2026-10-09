@@ -19,7 +19,8 @@
  *   liquidar es peor que ningún número.
  */
 
-import { DIA_MS, FECHA_RE, OFFSET_RELOJ_MIN, aIso, aMs, sumarDias } from './asistencia-datos';
+import { FECHA_RE, OFFSET_RELOJ_MIN } from './asistencia-datos';
+import { DIA_MS, aMs, sumarDias } from './fechas';
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -201,34 +202,6 @@ export function semanaDelCiclo(fecha: string, ancla: string, cicloSemanas: numbe
   if (cicloSemanas <= 1) return 0;
   const semanas = Math.round((aMs(lunesDe(fecha)) - aMs(lunesDe(ancla))) / SEMANA_MS);
   return ((semanas % cicloSemanas) + cicloSemanas) % cicloSemanas;
-}
-
-export const MES_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
-
-/** Primer y último día de un `yyyy-mm`. */
-export function rangoMes(mes: string): { desde: string; hasta: string } {
-  const [a, m] = mes.split('-').map(Number);
-  // "Día 0" del mes siguiente: el motor de Date resuelve 28/29/30/31 y el año.
-  return { desde: `${mes}-01`, hasta: aIso(Date.UTC(a, m, 0)) };
-}
-
-export function mesAnterior(mes: string): string {
-  const [a, m] = mes.split('-').map(Number);
-  return aIso(Date.UTC(a, m - 2, 1)).slice(0, 7);
-}
-
-export function mesSiguiente(mes: string): string {
-  const [a, m] = mes.split('-').map(Number);
-  return aIso(Date.UTC(a, m, 1)).slice(0, 7);
-}
-
-const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-
-/** `2026-09` → `Septiembre 2026`. A mano, sin `Date`, por el huso. */
-export function fmtMes(mes: string): string {
-  if (!MES_RE.test(mes)) return mes;
-  const [a, m] = mes.split('-').map(Number);
-  return `${MESES[m - 1]} ${a}`;
 }
 
 /** Todos los días de un rango, inclusive. */

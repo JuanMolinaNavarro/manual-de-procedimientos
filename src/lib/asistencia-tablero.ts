@@ -6,7 +6,8 @@
 
 import { prisma } from './prisma';
 import { AsistenciaError } from './asistencia';
-import { hoyLocal, sumarDias } from './asistencia-datos';
+import { hoyLocal } from './asistencia-datos';
+import { sumarDias } from './fechas';
 import { resumenLiquidacion, type CeldaDia } from './asistencia-calendario';
 import { calendarioMes, calendarioRango, type FilaCalendarioMes } from './asistencia-horarios';
 import { resumenMesPersona, type ResumenMesPersona } from './asistencia-tablero-calc';

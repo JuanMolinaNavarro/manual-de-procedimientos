@@ -253,7 +253,6 @@ export const DEFAULT_BONOS: Omit<Bono, 'id'>[] = [
 
 // ─── Validaciones ────────────────────────────────────────────────────────────
 
-export const PERIODO_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 export const PIN_RE = /^\d{4,8}$/;
 
 

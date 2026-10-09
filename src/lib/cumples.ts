@@ -6,13 +6,7 @@
  * corrimientos UTC.
  */
 
-/** Fecha de hoy (ISO yyyy-mm-dd) en horario de Argentina. */
-export function hoyISOArgentina(): string {
-  // en-CA formatea como yyyy-mm-dd.
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Argentina/Buenos_Aires',
-  }).format(new Date());
-}
+import { hoyLocal } from './fechas';
 
 /**
  * ¿Hoy es el cumpleaños? Compara el `mm-dd` de ambas fechas ISO.
@@ -20,7 +14,7 @@ export function hoyISOArgentina(): string {
  */
 export function esCumpleHoy(
   fechaNacimiento: string | null | undefined,
-  hoyISO: string = hoyISOArgentina(),
+  hoyISO: string = hoyLocal(),
 ): boolean {
   if (!fechaNacimiento || fechaNacimiento.length < 10) return false;
   return fechaNacimiento.slice(5, 10) === hoyISO.slice(5, 10);

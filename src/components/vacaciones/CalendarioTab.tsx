@@ -9,14 +9,13 @@ import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Empty } from '@/components/comunes/ui';
-import { sumarDias } from '@/lib/asistencia-datos';
+import { sumarDias } from '@/lib/fechas';
 import {
   cierresTemporada, cupoSemana, fmtCorto, grupoDe, ocupacionSemana, perfilDe, semanasTemporada, solapan, solDe, type EmpleadoVac,
 } from '@/lib/vacaciones-calc';
 import { cn } from '@/lib/utils';
 import { BARRA, CAMPO, Leyenda, MESES, textoEstado } from './piezas';
 import type { PropsTab } from './VacacionesPage';
-
 
 export default function CalendarioTab({ E, visibles }: PropsTab) {
   const semanas = semanasTemporada(E);

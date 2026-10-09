@@ -10,8 +10,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { periodoActual } from '@/lib/nomina-calc';
-import { PERIODO_RE } from '@/lib/nomina-datos';
+import { mesLocal, MES_RE } from '@/lib/fechas';
+
 import type { EstadoPeriodo } from '@/lib/nomina';
 import { nominaFetch } from './api';
 import NominaBar from './NominaBar';
@@ -78,10 +78,10 @@ export function NominaProvider({ organigramas, links, puedeGestionarPin = false,
   const organigramaId = listo
     ? (orgGuardado != null && organigramas.some((o) => o.id === orgGuardado) ? orgGuardado : organigramas[0]?.id ?? null)
     : null;
-  const periodo = perStored && PERIODO_RE.test(perStored) ? perStored : periodoActual();
+  const periodo = perStored && MES_RE.test(perStored) ? perStored : mesLocal();
 
   const setOrganigramaId = useCallback((id: number) => escribir(LS_ORG, String(id)), []);
-  const setPeriodo = useCallback((p: string) => { if (PERIODO_RE.test(p)) escribir(LS_PER, p); }, []);
+  const setPeriodo = useCallback((p: string) => { if (MES_RE.test(p)) escribir(LS_PER, p); }, []);
   const refrescar = useCallback(() => setVersion((v) => v + 1), []);
 
   const keyEstado = organigramaId != null ? `${organigramaId}|${periodo}|${version}` : null;

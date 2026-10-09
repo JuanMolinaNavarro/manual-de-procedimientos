@@ -21,8 +21,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { mensajeError, nominaFetch } from '@/components/nomina/api';
 import {
-  conTurnoTarde, diffDias, fmtCorto, incluidos, solDe, type ConfigVacaciones, type Convenio, type CriterioOrden,
+  conTurnoTarde,
+  fmtCorto,
+  incluidos,
+  solDe,
+  type ConfigVacaciones,
+  type Convenio,
+  type CriterioOrden,
 } from '@/lib/vacaciones-calc';
+import { diffDias } from '@/lib/fechas';
 import { canonicalJson } from '@/lib/nomina-calc';
 import { cn } from '@/lib/utils';
 import { BOTON, CAMPO, Linea, rangoLargo, temporadaTxt } from './piezas';

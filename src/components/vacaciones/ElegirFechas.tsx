@@ -12,11 +12,21 @@ import { AlertCircle, CalendarDays, Check, ChevronLeft, ChevronRight, Minus, Plu
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { mensajeError, nominaFetch } from '@/components/nomina/api';
-import { sumarDias } from '@/lib/asistencia-datos';
+import { mesAnterior, mesSiguiente, sumarDias } from '@/lib/fechas';
 import { TEXTO_PORTAL, noReprog, vueltaDe, type Flag } from '@/lib/vacaciones-calc';
 import type { VistaRespuesta } from '@/lib/vacaciones';
 import { cn } from '@/lib/utils';
-import { MESES, diaMes, fechaLarga, moverMes, partesFecha, primerNombre, rangoCorto, sinArticulo, sinCita, usePrevia } from './piezas';
+import {
+  MESES,
+  diaMes,
+  fechaLarga,
+  partesFecha,
+  primerNombre,
+  rangoCorto,
+  sinArticulo,
+  sinCita,
+  usePrevia,
+} from './piezas';
 
 export type Accion = (body: Record<string, unknown>, ok?: string) => Promise<boolean>;
 /** Quién elige: la persona en su portal o RR.HH. en su nombre. */
@@ -336,10 +346,10 @@ export function ElegirFechas({ v, url, voz, accion, ocupado, reprog = false }: {
           <p className="text-muted-foreground">{t.ayuda}</p>
         </div>
         <div className="ml-auto flex gap-2">
-          <Button variant="outline" size="icon" className="size-11" aria-label="Mes anterior" disabled={mes <= primerMes} onClick={() => setMes(moverMes(mes, -1))}>
+          <Button variant="outline" size="icon" className="size-11" aria-label="Mes anterior" disabled={mes <= primerMes} onClick={() => setMes(mesAnterior(mes))}>
             <ChevronLeft className="size-5" />
           </Button>
-          <Button variant="outline" size="icon" className="size-11" aria-label="Mes siguiente" disabled={mes >= ultimoMes} onClick={() => setMes(moverMes(mes, 1))}>
+          <Button variant="outline" size="icon" className="size-11" aria-label="Mes siguiente" disabled={mes >= ultimoMes} onClick={() => setMes(mesSiguiente(mes))}>
             <ChevronRight className="size-5" />
           </Button>
         </div>
@@ -347,7 +357,7 @@ export function ElegirFechas({ v, url, voz, accion, ocupado, reprog = false }: {
 
       <div className="flex gap-8">
         <Mes ym={mes} celda={celda} />
-        <div className="hidden min-w-0 flex-1 lg:block"><Mes ym={moverMes(mes, 1)} celda={celda} /></div>
+        <div className="hidden min-w-0 flex-1 lg:block"><Mes ym={mesSiguiente(mes)} celda={celda} /></div>
       </div>
 
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-muted-foreground">

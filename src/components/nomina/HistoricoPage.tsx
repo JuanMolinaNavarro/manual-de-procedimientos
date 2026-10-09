@@ -12,7 +12,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { csvLiquidacion, fechaHora, money, periodLabel } from '@/lib/nomina-calc';
+import { csvLiquidacion, fechaHora, money } from '@/lib/nomina-calc';
+import { fmtMes } from '@/lib/fechas';
 import type { HistoricoRow, LiquidacionData } from '@/lib/nomina';
 import { descargar, mensajeError, nominaFetch } from './api';
 import { useNomina, useNominaData } from './NominaContext';
@@ -38,7 +39,7 @@ export default function HistoricoPage() {
   async function confirmarReabrir(r: HistoricoRow) {
     try {
       await nominaFetch('/api/admin/nomina/liquidacion/reabrir', { method: 'POST', body: JSON.stringify({ organigramaId, periodo: r.periodo }) });
-      toast.success(`Período ${periodLabel(r.periodo)} reabierto`);
+      toast.success(`Período ${fmtMes(r.periodo)} reabierto`);
       refrescar();
     } catch (e) { toast.error(mensajeError(e)); }
   }
@@ -67,7 +68,7 @@ export default function HistoricoPage() {
                 <TableBody>
                   {hist.data.map((r) => (
                     <TableRow key={r.periodo}>
-                      <TableCell><b>{periodLabel(r.periodo)}</b><div className="font-mono text-[11px] text-muted-foreground">cerrado el {fechaHora(r.fechaCierre)}</div></TableCell>
+                      <TableCell><b>{fmtMes(r.periodo)}</b><div className="font-mono text-[11px] text-muted-foreground">cerrado el {fechaHora(r.fechaCierre)}</div></TableCell>
                       <TableCell className="text-right tabular-nums">{r.empleados}</TableCell>
                       <TableCell className="text-right font-mono tabular-nums">{r.firmados}/{r.empleados}</TableCell>
                       <TableCell className="text-right font-mono font-semibold tabular-nums text-violet-600 dark:text-violet-400">{money(r.neto)}</TableCell>
@@ -90,7 +91,7 @@ export default function HistoricoPage() {
       <AlertDialog open={!!reabrir} onOpenChange={(o) => !o && setReabrir(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Reabrir {reabrir ? periodLabel(reabrir.periodo) : ''}</AlertDialogTitle>
+            <AlertDialogTitle>Reabrir {reabrir ? fmtMes(reabrir.periodo) : ''}</AlertDialogTitle>
             <AlertDialogDescription>
               ATENCIÓN: reabrir elimina el cierre congelado (los datos del maestro y novedades se conservan, pero el snapshot auditable se pierde).
               {reabrir?.firmados ? ` Hay ${reabrir.firmados} recibo(s) FIRMADOS en este período: las constancias se conservan, pero el hash ya no va a coincidir y se marcarán como no verificables.` : ''} ¿Reabrir de todos modos?

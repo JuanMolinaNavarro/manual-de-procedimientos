@@ -28,7 +28,7 @@ import { dirname, join } from 'path';
 import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 import { NominaError, comprobarPin, toConstancia, type ConstanciaView } from './nomina';
-import { PERIODO_RE } from './nomina-datos';
+import { MES_RE, mesLocal, rangoMes } from './fechas';
 import { FORMATO_CADENA, GENESIS, chainHash } from './nomina-hash';
 import { canonicalJson } from './nomina-calc';
 import { estadoBloqueo } from './nomina-pin';
@@ -93,8 +93,7 @@ export function topeMensual(): number {
 
 /** Inicio del mes calendario en hora argentina (-03:00, sin DST). */
 function inicioMesArgentina(ahora = new Date()): Date {
-  const ar = new Date(ahora.getTime() - 3 * 3600_000);
-  return new Date(Date.UTC(ar.getUTCFullYear(), ar.getUTCMonth(), 1, 3));
+  return new Date(`${mesLocal(ahora)}-01T00:00:00-03:00`);
 }
 
 export interface ConsumoMes {
@@ -143,12 +142,6 @@ async function llamadaPagaSinCola<T>(usuario: string | null, fn: (on: (i: InfoLl
 
 // ─── Índice de liquidaciones ────────────────────────────────────────────────
 
-function rangoDelPeriodo(periodo: string): { desde: string; hasta: string } {
-  const [y, m] = periodo.split('-').map(Number);
-  const ultimo = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  return { desde: `${periodo}-01`, hasta: `${periodo}-${String(ultimo).padStart(2, '0')}` };
-}
-
 export interface ResultadoBusqueda {
   periodo: string;
   liquidaciones: number;
@@ -174,8 +167,8 @@ function borrarSabana(archivo: string | null): void {
  * viejas: el próximo intento baja la sábana nueva.
  */
 export async function buscarLiquidaciones(periodo: string, usuario: string | null): Promise<ResultadoBusqueda> {
-  if (!PERIODO_RE.test(periodo)) throw new NominaError('Período inválido (yyyy-mm)', 400);
-  const { desde, hasta } = rangoDelPeriodo(periodo);
+  if (!MES_RE.test(periodo)) throw new NominaError('Período inválido (yyyy-mm)', 400);
+  const { desde, hasta } = rangoMes(periodo);
   const filas = await llamadaPaga(usuario, (on) => getResumenLiq(desde, hasta, on));
 
   const porTx = new Map<string, FilaResumenLiq[]>();
@@ -256,7 +249,7 @@ export interface LiquidacionFinnView {
 
 /** Liquidaciones del período de todas las empresas: cada una reparte recibos en varios organigramas. */
 export async function listarLiquidaciones(periodo: string): Promise<{ liquidaciones: LiquidacionFinnView[]; consumo: ConsumoMes }> {
-  if (!PERIODO_RE.test(periodo)) throw new NominaError('Período inválido (yyyy-mm)', 400);
+  if (!MES_RE.test(periodo)) throw new NominaError('Período inválido (yyyy-mm)', 400);
   const [rows, consumo] = await Promise.all([
     prisma.nominaFinnLiquidacion.findMany({
       where: { periodo },
@@ -689,7 +682,7 @@ export interface PreviaAviso {
  * entrega en papel o hay que completar / renovar su adhesión o crearle el usuario).
  */
 export async function previaAviso(periodo: string): Promise<PreviaAviso> {
-  if (!PERIODO_RE.test(periodo)) throw new NominaError('Período inválido (yyyy-mm)', 400);
+  if (!MES_RE.test(periodo)) throw new NominaError('Período inválido (yyyy-mm)', 400);
   const rows = await prisma.nominaReciboPdf.findMany({
     where: { periodo, estado: { in: ['disponible', 'accedido'] } },
     include: {
@@ -893,7 +886,7 @@ export interface PanelRecibos {
 
 /** Recibos del período con su entrega, firma y caso. Filtros opcionales: empleador y lugar. */
 export async function panelRecibos(periodo: string, filtros: FiltrosRecibos = {}): Promise<PanelRecibos> {
-  if (!PERIODO_RE.test(periodo)) throw new NominaError('Período inválido (yyyy-mm)', 400);
+  if (!MES_RE.test(periodo)) throw new NominaError('Período inválido (yyyy-mm)', 400);
   const [rows, casosAbiertos, empleadores, nombreOrg] = await Promise.all([
     prisma.nominaReciboPdf.findMany({
       where: whereRecibo(periodo, filtros),

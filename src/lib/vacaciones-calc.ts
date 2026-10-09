@@ -16,7 +16,8 @@
  * la solicitud nueva. El servidor revalida cada acción con estas mismas funciones antes de guardar.
  */
 
-import { DIA_MS, FECHA_RE, aMs, sumarDias } from './asistencia-datos';
+import { FECHA_RE } from './asistencia-datos';
+import { MESES_CORTOS, aMs, diffDias, fechaCorta, sumarDias } from './fechas';
 import { lunesDe } from './asistencia-calendario';
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
@@ -282,20 +283,13 @@ const pad2 = (n: number) => String(n).padStart(2, '0');
 const dow = (f: string) => new Date(aMs(f)).getUTCDay();
 const esBisiesto = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
 
-export const diffDias = (a: string, b: string) => Math.round((aMs(b) - aMs(a)) / DIA_MS);
-
 function addYears(f: string, n: number): string {
   const y = +f.slice(0, 4) + n;
   const md = f.slice(5);
   return `${y}-${md === '02-29' && !esBisiesto(y) ? '02-28' : md}`;
 }
 
-export function fmtD(f: string | null | undefined): string {
-  return f ? `${f.slice(8, 10)}/${f.slice(5, 7)}/${f.slice(0, 4)}` : '—';
-}
-
-const MESES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-export const fmtCorto = (f: string) => `${+f.slice(8, 10)} ${MESES_CORTO[+f.slice(5, 7) - 1]}`;
+export const fmtCorto = (f: string) => `${+f.slice(8, 10)} ${MESES_CORTOS[+f.slice(5, 7) - 1]}`;
 const fmtMmdd = (md: string) => md.split('-').reverse().join('/');
 
 export const esFeriado = (E: EstadoVac, f: string) => E.config.feriados.includes(f);
@@ -341,7 +335,6 @@ export function rangoTocaVerano(c: RangoVerano, desde: string, hasta: string): b
   for (let f = desde, g = 0; f <= hasta && g < 400; f = sumarDias(f, 1), g++) if (esVerano(c, f)) return true;
   return false;
 }
-
 
 /** FNV-1a: sorteo reproducible a partir de la semilla (queda registrada para auditar). */
 function hashStr(s: string): number {
@@ -550,7 +543,7 @@ function validarCobertura(E: EstadoVac, id: number, desde: string, hasta: string
             if (solapan(t.desde, t.hasta, desde, hasta)) {
               out.push({
                 tipo: 'error',
-                msg: `Regla «${r.nombre}»: ${nombreDe(E, o)} ya sale del ${fmtD(t.desde)} al ${fmtD(t.hasta)} y no pueden coincidir.`,
+                msg: `Regla «${r.nombre}»: ${nombreDe(E, o)} ya sale del ${fechaCorta(t.desde)} al ${fechaCorta(t.hasta)} y no pueden coincidir.`,
                 portal: 'Esas fechas se cruzan con las de otra persona de tu área que no puede faltar al mismo tiempo que vos.',
               });
             }
@@ -564,8 +557,8 @@ function validarCobertura(E: EstadoVac, id: number, desde: string, hasta: string
           if (presentes < minimo) {
             out.push({
               tipo: 'error',
-              msg: `Semana del ${fmtD(w)}: «${r.nombre}» quedaría con ${presentes} de ${minimo} personas mínimas.`,
-              portal: `Semana del ${fmtD(w)}: tu área se quedaría sin la gente mínima que tiene que estar.`,
+              msg: `Semana del ${fechaCorta(w)}: «${r.nombre}» quedaría con ${presentes} de ${minimo} personas mínimas.`,
+              portal: `Semana del ${fechaCorta(w)}: tu área se quedaría sin la gente mínima que tiene que estar.`,
             });
           }
         }
@@ -734,7 +727,7 @@ export function validarTramo(E: EstadoVac, id: number, desde: string, dias: numb
   }
   if (otros.some((t) => solapan(t.desde, t.hasta, desde, hasta))) out.push({ tipo: 'error', msg: 'Se superpone con otro tramo tuyo.' });
   for (const x of cierresTemporada(E)) {
-    if (solapan(x.desde, x.hasta, desde, hasta)) out.push({ tipo: 'error', msg: `Se superpone con el cierre colectivo «${x.nombre}» (${fmtD(x.desde)} al ${fmtD(x.hasta)}), que ya descuenta días.` });
+    if (solapan(x.desde, x.hasta, desde, hasta)) out.push({ tipo: 'error', msg: `Se superpone con el cierre colectivo «${x.nombre}» (${fechaCorta(x.desde)} al ${fechaCorta(x.hasta)}), que ya descuenta días.` });
   }
   const usados = usadosDe(E, id, ignorar);
   if (usados + dias > d.total) out.push({ tipo: 'error', msg: `Te pasás del total: ${usados + dias} días sobre ${d.total} disponibles.` });
@@ -749,8 +742,8 @@ export function validarTramo(E: EstadoVac, id: number, desde: string, dias: numb
       const cupo = cupoSemana(E, e.areaId, w);
       if (cupo == null) continue;
       const oc = ocupacionSemana(E, e.areaId, w, id);
-      if (cupo <= 0) out.push({ tipo: 'error', msg: `Semana del ${fmtD(w)}: ${e.area} la tiene cerrada para vacaciones.` });
-      else if (oc >= cupo) out.push({ tipo: 'error', msg: `Semana del ${fmtD(w)}: ${e.area} ya llegó a su cupo (${oc}/${cupo}).` });
+      if (cupo <= 0) out.push({ tipo: 'error', msg: `Semana del ${fechaCorta(w)}: ${e.area} la tiene cerrada para vacaciones.` });
+      else if (oc >= cupo) out.push({ tipo: 'error', msg: `Semana del ${fechaCorta(w)}: ${e.area} ya llegó a su cupo (${oc}/${cupo}).` });
     }
   }
   out.push(...validarCobertura(E, id, desde, hasta));
@@ -792,7 +785,7 @@ export function validarSolicitud(E: EstadoVac, id: number): Flag[] {
   }
   if (d.arrastrePedido > d.capArrastre) out.push({ tipo: 'warn', msg: `El saldo arrastrado se limitó a ${d.capArrastre} días (1/${FRACCION_ARRASTRE} del período anterior, art. 164).` });
   if (limiteVencido(E, id)) {
-    out.push({ tipo: 'error', msg: `Venció la fecha límite de carga (${fmtD(cfg.fechaLimiteCarga)}). RRHH tiene que autorizar la carga fuera de término.` });
+    out.push({ tipo: 'error', msg: `Venció la fecha límite de carga (${fechaCorta(cfg.fechaLimiteCarga)}). RRHH tiene que autorizar la carga fuera de término.` });
   }
   for (const t of sol.tramos) {
     for (const v of validarTramo(E, id, t.desde, t.dias, t.desde, { fueraAcuerdo: !!t.fueraTemp, reprog: !!t.reprog })) {
@@ -840,7 +833,7 @@ export type Resultado =
 
 const clonar = (s: Solicitud): Solicitud => structuredClone(s);
 const falla = (error: string, errorPortal?: string): Resultado => ({ ok: false, error, errorPortal });
-const rango = (t: { desde: string; hasta: string }) => `${fmtD(t.desde)} → ${fmtD(t.hasta)}`;
+const rango = (t: { desde: string; hasta: string }) => `${fechaCorta(t.desde)} → ${fechaCorta(t.hasta)}`;
 const editable = (s: Solicitud) => s.estado === 'borrador' || s.estado === 'rechazada';
 
 export function agregarTramo(E: EstadoVac, id: number, desde: string, dias: number, opts: OpcionesTramo, por: string): Resultado {
@@ -891,7 +884,7 @@ export function enviar(E: EstadoVac, id: number): Resultado {
   if (!editable(s0)) return falla(`La selección ya está ${s0.estado}.`);
   const err = validarSolicitud(E, id).find((f) => f.tipo === 'error');
   if (err) return falla(err.msg, err.portal);
-  if (!turnoAbierto(E, id)) return falla(`El turno de elección abre el ${fmtD(aperturaDe(E, id))}.`);
+  if (!turnoAbierto(E, id)) return falla(`El turno de elección abre el ${fechaCorta(aperturaDe(E, id))}.`);
   const s = clonar(s0);
   s.estado = 'enviada'; s.enviada = E.hoy; s.motivo = '';
   return { ok: true, sol: s, accion: 'Selección enviada', detalle: s.tramos.map(rango).join(', ') };
@@ -931,7 +924,7 @@ export function reabrir(E: EstadoVac, id: number, motivo: string, mutuoAcuerdo: 
 export function notificar(E: EstadoVac, id: number, por: string): Resultado {
   const s0 = solDe(E, id);
   if (s0.estado !== 'aprobada') return falla('Solo se notifican selecciones aprobadas.');
-  if (s0.notificacion) return falla(`Ya se notificó el ${fmtD(s0.notificacion.fecha)}.`);
+  if (s0.notificacion) return falla(`Ya se notificó el ${fechaCorta(s0.notificacion.fecha)}.`);
   const s = clonar(s0);
   s.notificacion = { fecha: E.hoy, aviso: avisoDe(E, id), por, acuse: null, acusePor: null };
   const av = avisoEstado(E, id);
@@ -941,10 +934,10 @@ export function notificar(E: EstadoVac, id: number, por: string): Resultado {
 export function acusarRecibo(E: EstadoVac, id: number, por: string): Resultado {
   const s0 = solDe(E, id);
   if (!s0.notificacion) return falla('No hay ninguna notificación para acusar.');
-  if (s0.notificacion.acuse) return falla(`El recibo ya se acusó el ${fmtD(s0.notificacion.acuse)}.`);
+  if (s0.notificacion.acuse) return falla(`El recibo ya se acusó el ${fechaCorta(s0.notificacion.acuse)}.`);
   const s = clonar(s0);
   s.notificacion = { ...s0.notificacion, acuse: E.hoy, acusePor: por };
-  return { ok: true, sol: s, accion: 'Acuse de recibo', detalle: `notificación del ${fmtD(s0.notificacion.fecha)}` };
+  return { ok: true, sol: s, accion: 'Acuse de recibo', detalle: `notificación del ${fechaCorta(s0.notificacion.fecha)}` };
 }
 
 /**
@@ -967,7 +960,7 @@ export function interrumpir(
     return falla('La enfermedad interrumpe solo si se informó en tiempo y permitió el control médico: confirmalo y cargá el certificado.');
   }
   if (!FECHA_RE.test(x.desde) || !FECHA_RE.test(x.hasta) || x.desde > x.hasta || x.desde < t.desde || x.hasta > t.hasta) {
-    return falla(`Los días no gozados tienen que estar dentro del tramo (${fmtD(t.desde)} al ${fmtD(t.hasta)}).`);
+    return falla(`Los días no gozados tienen que estar dentro del tramo (${fechaCorta(t.desde)} al ${fechaCorta(t.hasta)}).`);
   }
   if (s0.interrupciones.some((i) => solapan(i.desde, i.hasta, x.desde, x.hasta))) return falla('Esos días ya tienen una interrupción registrada.');
   const noGozados = diffDias(x.desde, x.hasta) + 1;
@@ -975,7 +968,7 @@ export function interrumpir(
   s.interrupciones.push({ tramoDesde: t.desde, desde: x.desde, hasta: x.hasta, motivo, certificado: x.certificado.trim(), noGozados, registrada: E.hoy, por });
   return {
     ok: true, sol: s, accion: 'Vacaciones interrumpidas',
-    detalle: `${MOTIVOS_INTERRUPCION[motivo]} · ${fmtD(x.desde)} al ${fmtD(x.hasta)} · ${noGozados} días a reprogramar${x.certificado.trim() ? ` · cert. ${x.certificado.trim()}` : ''}`,
+    detalle: `${MOTIVOS_INTERRUPCION[motivo]} · ${fechaCorta(x.desde)} al ${fechaCorta(x.hasta)} · ${noGozados} días a reprogramar${x.certificado.trim() ? ` · cert. ${x.certificado.trim()}` : ''}`,
   };
 }
 
@@ -992,7 +985,7 @@ export function autorizarFueraTermino(E: EstadoVac, id: number): Resultado {
   if (s0.autorizaFueraTermino) return falla('Ya estaba autorizada.');
   const s = clonar(s0);
   s.autorizaFueraTermino = true;
-  return { ok: true, sol: s, accion: 'Carga fuera de término autorizada', detalle: `fecha límite ${fmtD(E.config.fechaLimiteCarga)}` };
+  return { ok: true, sol: s, accion: 'Carga fuera de término autorizada', detalle: `fecha límite ${fechaCorta(E.config.fechaLimiteCarga)}` };
 }
 
 // ─── Permutas (si el convenio las admite) ───────────────────────────────────
@@ -1118,10 +1111,10 @@ export function problemasDePersonas(E: EstadoVac): Problema[] {
       if (d.anios === null) agregar('falta la fecha de ingreso (Nómina › Maestro).');
       if (sol?.estado === 'enviada' && noReprog(sol).length > 1 && !sol.acuerdoFracc) agregar('fraccionó sin conformidad.');
       const av = avisoEstado(E, e.id);
-      if (av?.primero && !av.notificada && av.tarde) agregar(`aprobada sin notificación escrita. Límite para notificar: ${fmtD(av.limite)}.`);
+      if (av?.primero && !av.notificada && av.tarde) agregar(`aprobada sin notificación escrita. Límite para notificar: ${fechaCorta(av.limite)}.`);
       const restan = d.total - (ocupa(sol) ? usadosDe(E, e.id) : diasCierres(E));
       if (restan > 0 && diffDias(E.hoy, fin) <= 60 && diffDias(E.hoy, fin) >= -31) {
-        agregar(`${restan} días sin asignar y la temporada cierra el ${fmtD(fin)}. Si no se le otorgan, puede tomarlas por sí con aviso fehaciente, para terminarlas antes del 31/5 (art. 157).`);
+        agregar(`${restan} días sin asignar y la temporada cierra el ${fechaCorta(fin)}. Si no se le otorgan, puede tomarlas por sí con aviso fehaciente, para terminarlas antes del 31/5 (art. 157).`);
       }
       if (ocupa(sol) && usadosDe(E, e.id) > d.total) {
         agregar(`tiene ${usadosDe(E, e.id)} días asignados sobre ${d.total}${cierresTemporada(E).length ? ' (el cierre colectivo se suma a sus tramos)' : ''}. Hay que acortar un tramo.`);

@@ -6,7 +6,7 @@
  * disposición; el recibo y la firma están en el portal.
  */
 
-import { fmtMes } from './asistencia-calendario';
+import { fmtMes } from './fechas';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 

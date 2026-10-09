@@ -19,11 +19,11 @@ import {
   FILAS_POR_PAGINA,
   PUERTO_TCB,
   hoyLocal,
-  sumarDias,
   personaActiva,
   type FiltrosFichadas,
   type ModoDescarga,
 } from './asistencia-datos';
+import { sumarDias } from './fechas';
 import { resumirFichadas, type FichadaDia } from './asistencia-calendario';
 
 export class AsistenciaError extends ApiError {}
@@ -467,7 +467,6 @@ export async function setPersonaActiva(id: number, activa: boolean) {
   }
   return prisma.asistenciaPersona.update({ where: { id }, data: { activo: activa } });
 }
-
 
 export async function vincularPersona(id: number, empleadoId: number | null) {
   return prisma.$transaction(async (tx) => {

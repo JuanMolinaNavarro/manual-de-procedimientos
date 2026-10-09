@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { setTimeout as sleep } from "node:timers/promises";
+import { MESES_CORTOS, diaLocal, hoyLocal, sumarDias } from "./fechas";
 
 const BASE = "https://www.thesportsdb.com/api/v1/json/123";
 
@@ -33,20 +34,6 @@ const FEATURED_TEAMS: Array<{ id: string; type: string; borderColor: string }> =
   ];
 
 const LIGA_EXCLUDED = new Set(["136197", "135681"]);
-const SPANISH_MONTHS = [
-  "ENE",
-  "FEB",
-  "MAR",
-  "ABR",
-  "MAY",
-  "JUN",
-  "JUL",
-  "AGO",
-  "SEP",
-  "OCT",
-  "NOV",
-  "DIC",
-];
 const LIVE_STATUSES = new Set([
   "1H",
   "2H",
@@ -114,26 +101,10 @@ export interface SyncStatus {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function getUtc3Date(offsetDays = 0): string {
-  const now = new Date();
-  const utc3ms =
-    now.getTime() - 3 * 60 * 60 * 1000 + offsetDays * 24 * 60 * 60 * 1000;
-  const d = new Date(utc3ms);
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
+const getUtc3Date = (offsetDays = 0) => sumarDias(hoyLocal(), offsetDays);
 
-function timestampToUtc3Date(ts: string): string {
-  // ts is "YYYY-MM-DD HH:MM:SS" treated as UTC
-  const utcMs = new Date(ts.replace(" ", "T") + "Z").getTime();
-  const local = new Date(utcMs - 3 * 60 * 60 * 1000);
-  const y = local.getUTCFullYear();
-  const m = String(local.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(local.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
+// ts is "YYYY-MM-DD HH:MM:SS" treated as UTC
+const timestampToUtc3Date = (ts: string) => diaLocal(new Date(ts.replace(" ", "T") + "Z"));
 
 function utcTimeToLocal(t: string): string | null {
   // t is "HH:MM" UTC — subtract 3 hours
@@ -146,7 +117,7 @@ function utcTimeToLocal(t: string): string | null {
 function formatDateES(d: string): string {
   // "YYYY-MM-DD" → "28 ABR"
   const [, m, day] = d.split("-");
-  return `${parseInt(day, 10)} ${SPANISH_MONTHS[parseInt(m, 10) - 1]}`;
+  return `${parseInt(day, 10)} ${MESES_CORTOS[parseInt(m, 10) - 1].toUpperCase()}`;
 }
 
 function getLabel(

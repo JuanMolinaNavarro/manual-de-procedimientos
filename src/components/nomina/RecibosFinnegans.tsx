@@ -22,7 +22,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { periodLabel } from '@/lib/nomina-calc';
+import { fmtMes } from '@/lib/fechas';
 import type { LiquidacionFinnView, ConsumoMes, ResultadoBusqueda, ResultadoImportacion } from '@/lib/recibos-finnegans';
 import { mensajeError, nominaFetch } from './api';
 import { useNomina, useNominaData } from './NominaContext';
@@ -70,7 +70,7 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
         method: 'POST',
         body: JSON.stringify({ periodo }),
       });
-      toast.success(`${r.liquidaciones} liquidación(es) en Finnegans para ${periodLabel(periodo)} (${r.nuevas} nueva(s))`);
+      toast.success(`${r.liquidaciones} liquidación(es) en Finnegans para ${fmtMes(periodo)} (${r.nuevas} nueva(s))`);
       if (r.conProblemas.length > 0) {
         toast.warning(
           `Finnegans devolvió datos incompletos en ${r.conProblemas.length} liquidación(es); no se indexaron: ` +
@@ -132,7 +132,7 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
         )}
       >
         {!d ? (lst.error ? <ErrorCarga error={lst.error} onReintentar={lst.reload} /> : <p>Cargando…</p>)
-          : !liqs.length ? <p>Todavía no se buscaron las liquidaciones de {periodLabel(periodo)} en Finnegans.</p>
+          : !liqs.length ? <p>Todavía no se buscaron las liquidaciones de {fmtMes(periodo)} en Finnegans.</p>
           : (
             <>
               <p><b className="text-foreground">{importadas.length} de {liqs.length}</b> liquidaciones importadas (todas las empresas)</p>
@@ -144,7 +144,7 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
       <Dialog open={abierto} onOpenChange={setAbierto}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Liquidaciones de {periodLabel(periodo)} en Finnegans</DialogTitle>
+            <DialogTitle>Liquidaciones de {fmtMes(periodo)} en Finnegans</DialogTitle>
             <DialogDescription>
               Bloqueá la liquidación en Finnegans antes de importarla: lo que se publica es lo que cada empleado ve y firma. Cada
               recibo va al organigrama de la ficha con ese CUIL (Nómina › Maestro). Si algo no coincide (páginas, CUIL, netos o
@@ -205,7 +205,7 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
       <AlertDialog open={confirmarBuscar} onOpenChange={setConfirmarBuscar}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Consultar las liquidaciones de {periodLabel(periodo)}?</AlertDialogTitle>
+            <AlertDialogTitle>¿Consultar las liquidaciones de {fmtMes(periodo)}?</AlertDialogTitle>
             <AlertDialogDescription>
               Es 1 consulta paga a Finnegans. Trae las liquidaciones de todas las empresas del período; las ya importadas no se
               modifican.{consumo && ` Este mes van ${consumo.usadas} de ${consumo.tope}.`}

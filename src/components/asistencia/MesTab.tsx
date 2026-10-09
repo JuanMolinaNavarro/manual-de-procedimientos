@@ -11,7 +11,7 @@ import { ArrowDown } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Banner, EmpleadoCell } from '@/components/comunes/ui';
 import { cn } from '@/lib/utils';
-import { fmtMes, mesAnterior, mesSiguiente } from '@/lib/asistencia-calendario';
+import { fmtMes, mesAnterior, mesSiguiente } from '@/lib/fechas';
 import { fmtMinutos, plural, type ResumenMesPersona } from '@/lib/asistencia-tablero-calc';
 import type { PersonaMes, TableroMes } from './api';
 import { useAsistencia, useAsistenciaData } from './AsistenciaContext';

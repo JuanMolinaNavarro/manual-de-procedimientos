@@ -7,7 +7,7 @@ import {
   avisoDe, conTurnoTarde, debeVerano, diasDe, inicioValido, noReprog, rangoTocaVerano, solDe, validarSolicitud,
   type EmpleadoVac, type EstadoVac,
 } from '@/lib/vacaciones-calc';
-import { sumarDias } from '@/lib/asistencia-datos';
+import { sumarDias } from '@/lib/fechas';
 import { diaMes, sinCita } from './piezas';
 
 export interface Control { tono: 'ok' | 'error' | 'warn'; txt: string }

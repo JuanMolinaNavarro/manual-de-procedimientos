@@ -13,7 +13,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { FECHA_RE, hoyLocal, inicioDeMes } from '@/lib/asistencia-datos';
-import { MES_RE, type HorarioVersion } from '@/lib/asistencia-calendario';
+import { type HorarioVersion } from '@/lib/asistencia-calendario';
+import { MES_RE } from '@/lib/fechas';
 import { asistFetch, mensajeError, type Persona, type Reloj } from './api';
 
 export interface EmpleadoOpt {

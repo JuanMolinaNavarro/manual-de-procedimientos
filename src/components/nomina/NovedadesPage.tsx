@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { NOVEDAD_COLS, type Novedad } from '@/lib/nomina-datos';
-import { periodLabel } from '@/lib/nomina-calc';
+import { fmtMes } from '@/lib/fechas';
 import type { NovedadRow } from '@/lib/nomina';
 import { mensajeError, nominaFetch } from './api';
 import { useNomina, useNominaData } from './NominaContext';
@@ -25,7 +25,7 @@ export default function NovedadesPage() {
   const [data, setData] = useLocal(nov.data);
 
   const estado = <Estado loading={nov.loading} error={nov.error} sinOrg={listo && organigramaId == null} />;
-  if (!data || organigramaId == null) return <><PageTitle title={`Novedades · ${periodLabel(periodo)}`} />{estado}</>;
+  if (!data || organigramaId == null) return <><PageTitle title={`Novedades · ${fmtMes(periodo)}`} />{estado}</>;
 
   const original = (id: number) => nov.data?.rows.find((r) => r.empleado.id === id)?.novedad;
   function setLocal(id: number, patch: Partial<Novedad>) {
@@ -46,7 +46,7 @@ export default function NovedadesPage() {
 
   return (
     <div className="space-y-6">
-      <PageTitle title={`Novedades · ${periodLabel(periodo)}`} sub="Lo único que cambia mes a mes. Horas en cantidad de horas, días en cantidad de días, el resto en pesos ($)." />
+      <PageTitle title={`Novedades · ${fmtMes(periodo)}`} sub="Lo único que cambia mes a mes. Horas en cantidad de horas, días en cantidad de días, el resto en pesos ($)." />
       {dis
         ? <Banner variant="locked">Este período está <b>cerrado</b>: las novedades quedaron congeladas. Para corregir, reabrí el período desde Histórico.</Banner>
         : <Banner><b>SAC:</b> cargalo manualmente en junio/diciembre (mejor sueldo del semestre ÷ 2). <b>Ganancias:</b> cargá la retención que calcule el contador. Ambos quedan así hasta definir el proceso con quien liquida.</Banner>}

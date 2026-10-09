@@ -7,7 +7,7 @@
  * último período cerrado (para la alerta de variación).
  */
 
-import { mesLocal } from './fechas';
+import { fmtMes } from './fechas';
 import {
   RUBROS_EMPLEADOR,
   type Bono,
@@ -62,17 +62,6 @@ export interface LiqAnterior { periodo: string; netos: Record<number, number> }
 const fmt = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 });
 export function money(n: number | null | undefined): string {
   return fmt.format(Math.round((n || 0) * 100) / 100);
-}
-
-const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-export function periodLabel(p: string): string {
-  const [y, m] = p.split('-');
-  return `${MESES[+m - 1] ?? m} ${y}`;
-}
-
-/** Período actual en formato YYYY-MM. */
-export function periodoActual(): string {
-  return mesLocal();
 }
 
 export function aniosAntiguedad(fechaIngreso: string, periodo: string): number {
@@ -187,7 +176,7 @@ export function liquidarEmpleado(i: LiquidarInput): Liquidacion {
     if (prevNeto !== undefined && prevNeto > 0 && neto > 0) {
       const varPct = (neto - prevNeto) / prevNeto * 100;
       if (Math.abs(varPct) > params.alertaVariacion) {
-        flags.push({ tipo: 'warn', msg: `Variación de ${varPct > 0 ? '+' : ''}${varPct.toFixed(1)}% vs ${periodLabel(prev.periodo)}` });
+        flags.push({ tipo: 'warn', msg: `Variación de ${varPct > 0 ? '+' : ''}${varPct.toFixed(1)}% vs ${fmtMes(prev.periodo)}` });
       }
     }
   }
@@ -376,7 +365,7 @@ export function rankingBono(
 
 export function descValorBono(metrica: Bono['metrica'], valor: number, periodo: string): string {
   if (metrica === 'racha_presentismo') return `${valor} mes(es) seguidos sin faltas injustificadas`;
-  if (metrica === 'horas_extra') return `${valor} horas extra en ${periodLabel(periodo)}`;
+  if (metrica === 'horas_extra') return `${valor} horas extra en ${fmtMes(periodo)}`;
   if (metrica === 'comisiones') return 'líder en resultados comerciales del período';
   return 'mayor reconocimiento por resultados del período';
 }
@@ -425,11 +414,4 @@ export function fechaHora(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   return isNaN(d.getTime()) ? iso : d.toLocaleString('es-AR');
-}
-
-/** Fecha ISO yyyy-mm-dd → dd/mm/aaaa; tolera vacío. */
-export function fechaCorta(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }

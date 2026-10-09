@@ -18,7 +18,8 @@ import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui
 import { Banner, Empty } from '@/components/comunes/ui';
 import { cn } from '@/lib/utils';
 import { fmtDiaLargo, fmtHoraCorta, hoyLocal } from '@/lib/asistencia-datos';
-import { DIAS_SEMANA_LARGO, MES_RE, fmtMes, mesAnterior, mesSiguiente, type CeldaDia, type ResumenLiquidacion } from '@/lib/asistencia-calendario';
+import { DIAS_SEMANA_LARGO, type CeldaDia, type ResumenLiquidacion } from '@/lib/asistencia-calendario';
+import { MES_RE, fmtMes, mesAnterior, mesSiguiente } from '@/lib/fechas';
 import { compensada, horasExtraDia, plural, tardanza, tardesCompensadas } from '@/lib/asistencia-tablero-calc';
 import { asistFetch, mensajeError, type MiAsistencia, type MiAsistenciaRespuesta } from './api';
 
@@ -40,7 +41,6 @@ const COLOR: Record<Tipo, string> = {
 
 /** El servidor acepta hasta 24 meses atrás (`MI_ASISTENCIA_MESES`). */
 const MESES_ATRAS = 24;
-
 
 function tipoDia(c: CeldaDia): Tipo {
   if (c.estado === 'futuro') return 'futuro';

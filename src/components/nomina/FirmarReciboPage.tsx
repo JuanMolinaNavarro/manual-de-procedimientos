@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { Banner } from '@/components/comunes/ui';
-import { fmtMes } from '@/lib/asistencia-calendario';
+import { fechaCorta, fmtMes } from '@/lib/fechas';
 import type { ConstanciaView } from '@/lib/nomina';
 import { fechaHora, money } from '@/lib/nomina-calc';
 import type { MiReciboView } from '@/lib/recibos-finnegans';
@@ -27,11 +27,6 @@ import ConstanciaCard from './ConstanciaCard';
 import VisorPdf from './VisorPdf';
 
 type Recibo = MiReciboView & { sha256: string; adhesion: 'sin_adhesion' | 'pendiente_acta' | 'completa' };
-
-function fechaCorta(iso: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
-}
 
 function Paso({ n, titulo, children }: { n: number; titulo: string; children: ReactNode }) {
   return (

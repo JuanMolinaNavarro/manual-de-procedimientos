@@ -10,12 +10,30 @@ import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Empty } from '@/components/comunes/ui';
-import { cupoSemana, errorRegla, fmtD, nombreDe, ocupacionSemana, perfilDe, reglasDeArea, semanasTemporada, type AreaVac, type ReglaCobertura } from '@/lib/vacaciones-calc';
+import {
+  cupoSemana,
+  errorRegla,
+  nombreDe,
+  ocupacionSemana,
+  perfilDe,
+  reglasDeArea,
+  semanasTemporada,
+  type AreaVac,
+  type ReglaCobertura,
+} from '@/lib/vacaciones-calc';
+import { fechaCorta } from '@/lib/fechas';
 import { cn } from '@/lib/utils';
 import { BOTON, CAMPO, Chip } from './piezas';
 import type { PropsTab } from './VacacionesPage';
@@ -101,7 +119,7 @@ function AreaCard({ a, E, guardar, lugar }: { a: AreaVac; E: PropsTab['E']; guar
                 key={w}
                 type="button"
                 onClick={() => ciclar(w)}
-                aria-label={`Semana del ${fmtD(w)}: ${c === 0 ? 'cerrada' : c == null ? 'sin límite' : `pueden salir ${c}`}, salen ${oc}`}
+                aria-label={`Semana del ${fechaCorta(w)}: ${c === 0 ? 'cerrada' : c == null ? 'sin límite' : `pueden salir ${c}`}, salen ${oc}`}
                 className={cn(
                   'w-12 rounded-md border px-0.5 py-1 text-center text-xs leading-tight tabular-nums transition-colors hover:border-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
                   nuevoMes && 'ml-2',

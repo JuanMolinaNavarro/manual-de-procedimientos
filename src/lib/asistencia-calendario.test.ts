@@ -3,10 +3,6 @@ import {
   diaSemanaDe,
   lunesDe,
   semanaDelCiclo,
-  rangoMes,
-  mesAnterior,
-  mesSiguiente,
-  fmtMes,
   minutosDe,
   minutoLocalDe,
   versionVigente,
@@ -29,6 +25,7 @@ import {
   type FichadaDia,
   type FilaEntrada,
 } from './asistencia-calendario';
+import { rangoMes, mesAnterior, mesSiguiente, fmtMes } from './fechas';
 
 // Septiembre 2026: el 1 es martes, el 7 lunes, el 15 martes (hoy en los tests).
 const HOY = '2026-09-15';

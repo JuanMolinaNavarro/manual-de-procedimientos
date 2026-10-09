@@ -11,7 +11,7 @@ import { useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { periodLabel } from '@/lib/nomina-calc';
+import { fmtMes } from '@/lib/fechas';
 import type { ReciboVista } from '@/lib/nomina';
 import { useNominaData } from './NominaContext';
 import ReciboAnexoIII from './ReciboAnexoIII';
@@ -48,7 +48,7 @@ export default function ReciboImprimible() {
       <div className="font-mono text-[10px] uppercase tracking-widest text-[#6e6a61]">
         Recibo de haberes · modelo Anexo III Decreto 407/2026 · {v.cerrado ? 'liquidación cerrada' : 'pre-liquidación (no válido como recibo)'}
       </div>
-      <h2 className="mb-3 text-[17px] font-bold uppercase">{v.meta.empresa.razonSocial || 'Empleador'} — {periodLabel(v.periodo)}</h2>
+      <h2 className="mb-3 text-[17px] font-bold uppercase">{v.meta.empresa.razonSocial || 'Empleador'} — {fmtMes(v.periodo)}</h2>
       <ReciboAnexoIII liquidacion={v.liquidacion} meta={v.meta} noFlags />
       {v.constancia ? (
         <div className="mt-4"><ConstanciaCard constancia={v.constancia} /></div>

@@ -14,13 +14,36 @@ import { Card } from '@/components/ui/card';
 import { Empty } from '@/components/comunes/ui';
 import { coincide } from '@/components/nomina/PasoCard';
 import {
-  aperturaDe, avisoEstado, diasDe, diffDias, noReprog, pendienteReprog, perfilDe, problemasDePersonas, solDe, turnoAbierto,
-  type EmpleadoVac, type EstadoVac, type Solicitud,
+  aperturaDe,
+  avisoEstado,
+  diasDe,
+  noReprog,
+  pendienteReprog,
+  perfilDe,
+  problemasDePersonas,
+  solDe,
+  turnoAbierto,
+  type EmpleadoVac,
+  type EstadoVac,
+  type Solicitud,
 } from '@/lib/vacaciones-calc';
+import { diffDias } from '@/lib/fechas';
 import { cn } from '@/lib/utils';
 import { BotonesAviso, DevolverForm, MenuCambiar } from './AccionesSolicitud';
 import { avisosDeConfiguracion, controles, limiteAviso } from './controles';
-import { BOTON, Buscador, Chip, Linea, Persona, diaMes, fechaLarga, rangoCorto, rangoLargo, sinCita, useOcupado } from './piezas';
+import {
+  BOTON,
+  Buscador,
+  Chip,
+  Linea,
+  Persona,
+  diaMes,
+  fechaLarga,
+  rangoCorto,
+  rangoLargo,
+  sinCita,
+  useOcupado,
+} from './piezas';
 import type { PropsTab } from './VacacionesPage';
 
 export type Grupo = 'aprobar' | 'avisar' | 'sinElegir' | 'aprobadas';

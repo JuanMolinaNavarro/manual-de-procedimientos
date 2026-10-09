@@ -12,7 +12,8 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { csvLiquidacion, fechaHora, money, periodLabel } from '@/lib/nomina-calc';
+import { csvLiquidacion, fechaHora, money } from '@/lib/nomina-calc';
+import { fmtMes } from '@/lib/fechas';
 import type { LiquidacionData, LiquidacionView } from '@/lib/nomina';
 import { descargar, mensajeError, nominaFetch } from './api';
 import { useNomina, useNominaData } from './NominaContext';
@@ -55,7 +56,7 @@ export default function LiquidacionPage() {
 
   const d = liq.data;
   const estado = <Estado loading={liq.loading} error={liq.error} sinOrg={listo && organigramaId == null} />;
-  if (!d || organigramaId == null) return <><PageTitle title={`Liquidación · ${periodLabel(periodo)}`} />{estado}</>;
+  if (!d || organigramaId == null) return <><PageTitle title={`Liquidación · ${fmtMes(periodo)}`} />{estado}</>;
 
   const t = d.totales;
   const errores = d.liquidaciones.flatMap((l) => l.flags.filter((f) => f.tipo === 'error').map((f) => ({ n: l.nombre, m: f.msg })));
@@ -66,7 +67,7 @@ export default function LiquidacionPage() {
     setOcupado(true);
     try {
       await nominaFetch('/api/admin/nomina/liquidacion/cerrar', { method: 'POST', body: JSON.stringify({ organigramaId, periodo }) });
-      toast.success(`Liquidación de ${periodLabel(periodo)} cerrada`);
+      toast.success(`Liquidación de ${fmtMes(periodo)} cerrada`);
       refrescar();
     } catch (e) { toast.error(mensajeError(e)); } finally { setOcupado(false); }
   }
@@ -74,7 +75,7 @@ export default function LiquidacionPage() {
     setOcupado(true);
     try {
       await nominaFetch('/api/admin/nomina/liquidacion/reabrir', { method: 'POST', body: JSON.stringify({ organigramaId, periodo }) });
-      toast.success(`Período ${periodLabel(periodo)} reabierto`);
+      toast.success(`Período ${fmtMes(periodo)} reabierto`);
       refrescar();
     } catch (e) { toast.error(mensajeError(e)); } finally { setOcupado(false); }
   }
@@ -87,7 +88,7 @@ export default function LiquidacionPage() {
   return (
     <div className="space-y-6">
       <PageTitle
-        title={`${d.cerrado ? 'Liquidación cerrada' : 'Pre-liquidación'} · ${periodLabel(periodo)}`}
+        title={`${d.cerrado ? 'Liquidación cerrada' : 'Pre-liquidación'} · ${fmtMes(periodo)}`}
         sub={d.cerrado ? 'Versión congelada e inmutable de este período.' : 'Cálculo en vivo a partir del Maestro + Novedades + Parámetros. Nada queda fijo hasta cerrar.'}
         right={d.cerrado ? <Badge className="bg-violet-600 text-white hover:bg-violet-600">Cerrado</Badge> : <Badge variant="secondary">En curso</Badge>}
       />
@@ -133,7 +134,7 @@ export default function LiquidacionPage() {
                 title={errores.length ? 'Hay errores que bloquean el cierre' : undefined}
                 onClick={() => setConfirmar('cerrar')}
               >
-                <Lock className="mr-1 h-4 w-4" /> Cerrar liquidación de {periodLabel(periodo)}
+                <Lock className="mr-1 h-4 w-4" /> Cerrar liquidación de {fmtMes(periodo)}
               </Button>
             )}
           </div>
@@ -145,7 +146,7 @@ export default function LiquidacionPage() {
       <AlertDialog open={!!confirmar} onOpenChange={(o) => !o && setConfirmar(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirmar === 'cerrar' ? `Cerrar la liquidación de ${periodLabel(periodo)}` : `Reabrir ${periodLabel(periodo)}`}</AlertDialogTitle>
+            <AlertDialogTitle>{confirmar === 'cerrar' ? `Cerrar la liquidación de ${fmtMes(periodo)}` : `Reabrir ${fmtMes(periodo)}`}</AlertDialogTitle>
             <AlertDialogDescription>
               {confirmar === 'cerrar'
                 ? `${d.liquidaciones.length} empleado(s) · neto total ${money(t.neto)}. El período quedará congelado e inmutable (auditable). ¿Confirmás el cierre?`

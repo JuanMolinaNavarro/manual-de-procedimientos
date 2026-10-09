@@ -8,15 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { ESTADOS_ETAPA, MESES_CORTOS, estadoEtapa } from '@/lib/proyectos-datos';
-import {
-  difDias,
-  hoyISO,
-  limitesCronograma,
-  sumarDias,
-  type EtapaProyecto,
-  type Proyecto,
-} from '@/lib/proyectos-calc';
+import { ESTADOS_ETAPA, estadoEtapa } from '@/lib/proyectos-datos';
+import { limitesCronograma, type EtapaProyecto, type Proyecto } from '@/lib/proyectos-calc';
+import { diffDias, hoyLocal, sumarDias, MESES_CORTOS } from '@/lib/fechas';
 import InfoHint from './InfoHint';
 import ResponsableSelect, { type EmpleadoOpcion } from './ResponsableSelect';
 import type { AccionesProyecto } from './ProyectoDetalle';
@@ -34,7 +28,7 @@ export default function TabCronograma({ proyecto, empleados, puedeEditar, accion
 
   const limites = limitesCronograma(proyecto);
   const pxPorDia = Math.max(3, Math.min(11, 820 / limites.dias));
-  const x = (iso: string) => difDias(limites.min, iso) * pxPorDia;
+  const x = (iso: string) => diffDias(limites.min, iso) * pxPorDia;
   const anchoTotal = limites.dias * pxPorDia;
 
   // Marcas de mes sobre la escala.
@@ -52,7 +46,7 @@ export default function TabCronograma({ proyecto, empleados, puedeEditar, accion
     cursor.setMonth(cursor.getMonth() + 1);
   }
 
-  const hoy = hoyISO();
+  const hoy = hoyLocal();
   const mostrarHoy = hoy >= limites.min && hoy <= limites.max;
 
   return (

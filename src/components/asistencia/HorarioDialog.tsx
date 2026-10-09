@@ -22,7 +22,8 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { fmtFechaDia, hoyLocal, sumarDias } from '@/lib/asistencia-datos';
+import { hoyLocal } from '@/lib/asistencia-datos';
+import { fechaCorta, sumarDias } from '@/lib/fechas';
 import {
   CICLO_LABELS,
   CICLO_MAX,
@@ -166,12 +167,12 @@ function Editor({ empleado, versiones, onCerrar }: { empleado: { id: number; nom
       return {
         tipo: 'nueva' as const,
         texto: cierra
-          ? `La versión vigente queda cerrada el ${fmtFechaDia(sumarDias(f.aplicarDesde, -1))}; los días anteriores no cambian.`
-          : `Se crea una versión nueva (la anterior ya estaba cerrada el ${fmtFechaDia(ultima.vigenteHasta!)}).`,
+          ? `La versión vigente queda cerrada el ${fechaCorta(sumarDias(f.aplicarDesde, -1))}; los días anteriores no cambian.`
+          : `Se crea una versión nueva (la anterior ya estaba cerrada el ${fechaCorta(ultima.vigenteHasta!)}).`,
       };
     }
-    if (f.aplicarDesde === ultima.vigenteDesde) return { tipo: 'corrige' as const, texto: `Corrige en el lugar la versión que empieza el ${fmtFechaDia(ultima.vigenteDesde)}.` };
-    return { tipo: 'bloqueado' as const, texto: `Ya hay una versión que empieza el ${fmtFechaDia(ultima.vigenteDesde)}. Para aplicar desde antes, deshacela primero.` };
+    if (f.aplicarDesde === ultima.vigenteDesde) return { tipo: 'corrige' as const, texto: `Corrige en el lugar la versión que empieza el ${fechaCorta(ultima.vigenteDesde)}.` };
+    return { tipo: 'bloqueado' as const, texto: `Ya hay una versión que empieza el ${fechaCorta(ultima.vigenteDesde)}. Para aplicar desde antes, deshacela primero.` };
   })();
 
   async function guardar() {
@@ -194,7 +195,7 @@ function Editor({ empleado, versiones, onCerrar }: { empleado: { id: number; nom
     setGuardando(true);
     try {
       const r = await asistFetch<ResultadoGuardar>('/api/admin/asistencia/horarios', { method: 'POST', body: JSON.stringify(input) });
-      toast.success(r.corregida ? `Horario de ${empleado.nombre} corregido.` : `Horario de ${empleado.nombre} aplicado desde el ${fmtFechaDia(r.horario.vigenteDesde)}.`);
+      toast.success(r.corregida ? `Horario de ${empleado.nombre} corregido.` : `Horario de ${empleado.nombre} aplicado desde el ${fechaCorta(r.horario.vigenteDesde)}.`);
       refrescar();
       onCerrar();
     } catch (e) {
@@ -268,7 +269,7 @@ function Editor({ empleado, versiones, onCerrar }: { empleado: { id: number; nom
         </div>
         {cicloN > 1 && (
           <p className="-mt-3 text-xs text-muted-foreground">
-            Se toma el lunes de esa semana ({f.cicloAncla ? fmtFechaDia(lunesDe(f.cicloAncla)) : '—'}) como semana 1. Cada día indica en qué semanas del ciclo viene y con qué horario:
+            Se toma el lunes de esa semana ({f.cicloAncla ? fechaCorta(lunesDe(f.cicloAncla)) : '—'}) como semana 1. Cada día indica en qué semanas del ciclo viene y con qué horario:
             para turnos que rotan (mañana una semana, tarde la otra), cargá horas distintas por semana; para que dos personas se alternen, dales el mismo ciclo con el ancla corrida una semana.
           </p>
         )}
@@ -345,7 +346,7 @@ function Editor({ empleado, versiones, onCerrar }: { empleado: { id: number; nom
                 Próximos {DIAS_SEMANA_LARGO[ds].toLowerCase()}{ds >= 5 ? 's' : ''}:{' '}
                 {proximasFechasDia(borrador, ds, f.aplicarDesde || hoy, 4).map((x, i) => (
                   <span key={x.fecha} className={cn('tabular-nums', x.aplica ? 'font-medium text-foreground' : 'line-through')}>
-                    {i > 0 && ', '}{fmtFechaDia(x.fecha).slice(0, 5)}
+                    {i > 0 && ', '}{fechaCorta(x.fecha).slice(0, 5)}
                   </span>
                 ))}
               </p>
@@ -370,7 +371,7 @@ function Editor({ empleado, versiones, onCerrar }: { empleado: { id: number; nom
                 {versiones.map((v) => (
                   <li key={v.id} className="flex flex-wrap items-center gap-2">
                     <Badge variant={v.id === vigente?.id ? 'default' : 'secondary'} className="tabular-nums">
-                      {fmtFechaDia(v.vigenteDesde)} → {v.vigenteHasta ? fmtFechaDia(v.vigenteHasta) : 'abierta'}
+                      {fechaCorta(v.vigenteDesde)} → {v.vigenteHasta ? fechaCorta(v.vigenteHasta) : 'abierta'}
                     </Badge>
                     <span className="text-muted-foreground">{describirHorario(v)}{v.toleranciaMin != null ? ` · tol. ${v.toleranciaMin} min` : ''}</span>
                   </li>
@@ -391,7 +392,7 @@ function Editor({ empleado, versiones, onCerrar }: { empleado: { id: number; nom
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Deshacer la versión que empieza el {fmtFechaDia(ultima.vigenteDesde)}</AlertDialogTitle>
+                <AlertDialogTitle>Deshacer la versión que empieza el {fechaCorta(ultima.vigenteDesde)}</AlertDialogTitle>
                 <AlertDialogDescription>
                   Se borra esa versión. Si había una anterior que se cerró por esta, vuelve a quedar abierta. Los días
                   que ya pasaron se vuelven a evaluar con el horario que quede vigente.
