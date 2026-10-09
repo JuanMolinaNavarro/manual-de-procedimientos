@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import type { AdminModuloSlug } from '@/lib/modulos';
+import type { SlugMenu } from '@/lib/modulos';
 import {
   Gift,
   Users,
@@ -23,20 +23,14 @@ import {
   Building2,
   UsersRound,
   ArrowLeft,
-  LayoutDashboard,
-  ClipboardList,
-  CalendarPlus,
-  Calculator,
-  Archive,
   FileSignature,
-  SlidersHorizontal,
   Receipt,
   TreePalm,
   Plane,
 } from 'lucide-react';
 
 const MODULE_META: Record<
-  AdminModuloSlug,
+  SlugMenu,
   { icon: React.ReactNode; description: string }
 > = {
   bonificaciones: {
@@ -111,37 +105,13 @@ const MODULE_META: Record<
     icon: <Warehouse className="h-8 w-8" />,
     description: 'Gestión de stock y movimientos del depósito.',
   },
-  'nomina-tablero': {
-    icon: <LayoutDashboard className="h-8 w-8" />,
-    description: 'Estado de la liquidación del mes, ciclo del período y reconocimientos.',
-  },
-  'nomina-maestro': {
-    icon: <ClipboardList className="h-8 w-8" />,
-    description: 'Datos estables de nómina por empleado: CUIL, básico, convenio, CBU.',
-  },
-  'nomina-novedades': {
-    icon: <CalendarPlus className="h-8 w-8" />,
-    description: 'Carga mensual: horas extra, faltas, vacaciones, comisiones y descuentos.',
-  },
-  'nomina-liquidacion': {
-    icon: <Calculator className="h-8 w-8" />,
-    description: 'Pre-liquidación con validaciones, recibos y cierre del período.',
-  },
-  'nomina-historico': {
-    icon: <Archive className="h-8 w-8" />,
-    description: 'Períodos cerrados: snapshots inmutables para consulta y auditoría.',
-  },
-  'nomina-parametros': {
-    icon: <SlidersHorizontal className="h-8 w-8" />,
-    description: 'Datos del empleador, alícuotas, conceptos adicionales y bonos.',
-  },
 };
 
 const CATEGORIAS: {
   titulo: string;
   icon: React.ReactNode;
   description: string;
-  slugs: AdminModuloSlug[];
+  slugs: SlugMenu[];
   /** Categoría de un solo módulo: la tarjeta entra directo, sin nivel intermedio. */
   directo?: boolean;
 }[] = [
@@ -161,7 +131,7 @@ const CATEGORIAS: {
     titulo: 'RRHH',
     icon: <UsersRound className="h-8 w-8" />,
     description: 'Usuarios, organigrama, asistencia, recibos y vacaciones de la empresa.',
-    // Los de Nómina pertenecen acá pero no se muestran: `getModulosParaMenu` los filtra antes.
+    // Los de Nómina pertenecen acá pero no van en los menús (`getModulosParaMenu`).
     slugs: [
       'usuarios',
       'organigrama',
@@ -171,12 +141,6 @@ const CATEGORIAS: {
       'mis-recibos',
       'vacaciones',
       'mis-vacaciones',
-      'nomina-tablero',
-      'nomina-maestro',
-      'nomina-novedades',
-      'nomina-liquidacion',
-      'nomina-historico',
-      'nomina-parametros',
     ],
   },
   {
@@ -195,7 +159,7 @@ const CATEGORIAS: {
 ];
 
 export type AdminHomeModulo = {
-  slug: AdminModuloSlug;
+  slug: SlugMenu;
   label: string;
   href: string;
 };

@@ -47,8 +47,8 @@ const EMPLEADO_PREFIJOS = [
   '/api/admin/mis-vacaciones',
 ] as const;
 
-/** La foto de una ficha: la ruta verifica que sea la propia. */
-const FOTO_FICHA_RE = /^\/api\/admin\/organigrama\/empleados\/\d+\/foto$/;
+/** La foto de una ficha (para el empleado, la ruta verifica que sea la propia). */
+export const FOTO_FICHA_RE = /^\/api\/admin\/organigrama\/empleados\/\d+\/foto$/;
 
 /** Lista blanca del rol `empleado` (la usa el middleware). */
 export function rutaPermitidaEmpleado(pathname: string): boolean {

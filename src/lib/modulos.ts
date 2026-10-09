@@ -95,9 +95,12 @@ export function getModulosForUser(modulos: string[]): readonly AdminModulo[] {
  * muestran (decisión del usuario 2026-10-06: el motor propio es simulación y confundía al lado de
  * Gestión de recibos). El permiso sigue vigente: se entra por `/admin/nomina`.
  */
-export function getModulosParaMenu(modulos: string[]): readonly AdminModulo[] {
-  return getModulosForUser(modulos).filter((m) => !(NOMINA_SLUGS as readonly string[]).includes(m.slug));
+export function getModulosParaMenu(modulos: string[]): readonly ModuloMenu[] {
+  return getModulosForUser(modulos).filter((m): m is ModuloMenu => !(NOMINA_SLUGS as readonly string[]).includes(m.slug));
 }
+
+export type ModuloMenu = Exclude<AdminModulo, { slug: (typeof NOMINA_SLUGS)[number] }>;
+export type SlugMenu = ModuloMenu['slug'];
 
 /** Returns true if the given pathname falls under any known admin module. */
 export function isAdminModulePath(pathname: string): boolean {

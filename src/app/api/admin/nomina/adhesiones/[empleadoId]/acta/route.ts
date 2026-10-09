@@ -11,8 +11,10 @@ import { createHash, randomUUID } from 'crypto';
 import { puedeGestionarPinSesion } from '@/lib/admin-auth';
 import { handle, parseId } from '@/lib/nomina-api';
 import { NominaError, clearActa, getAdhesion, setActa } from '@/lib/nomina';
-import { ACTAS_DIR, ACTA_MAX_BYTES } from '@/lib/nomina-actas';
 import { headersArchivo } from '@/lib/archivos';
+
+const ACTAS_DIR = join(process.cwd(), 'uploads', 'nomina', 'actas');
+const ACTA_MAX_BYTES = 15 * 1024 * 1024;
 
 type Ctx = { params: Promise<{ empleadoId: string }> };
 

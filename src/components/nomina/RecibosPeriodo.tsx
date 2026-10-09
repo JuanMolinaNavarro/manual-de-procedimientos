@@ -27,7 +27,7 @@ import { mensajeError, nominaFetch } from './api';
 import ConstanciaCard from './ConstanciaCard';
 import { useNomina } from './NominaContext';
 import { BarraFiltros, coincide } from './PasoCard';
-import { Empty } from './ui';
+import { Empty } from '@/components/comunes/ui';
 
 export function BadgeEntrega({ r }: { r: Pick<ReciboPanelView, 'entrega' | 'dias' | 'constancia'> }) {
   if (r.entrega === 'firmado') {

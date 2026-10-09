@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { setTimeout as sleep } from "node:timers/promises";
 
 const BASE = "https://www.thesportsdb.com/api/v1/json/123";
 
@@ -112,8 +113,6 @@ export interface SyncStatus {
 }
 
 // ---- Helpers ----------------------------------------------------------------
-
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 function getUtc3Date(offsetDays = 0): string {
   const now = new Date();

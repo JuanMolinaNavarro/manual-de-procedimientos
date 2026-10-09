@@ -17,7 +17,7 @@ import type { CasoView } from '@/lib/recibos-finnegans';
 import { cn } from '@/lib/utils';
 import { mensajeError, nominaFetch } from './api';
 import { useNominaData } from './NominaContext';
-import { Empty, ErrorCarga } from './ui';
+import { Empty, ErrorCarga } from '@/components/comunes/ui';
 
 function Encabezado({ c }: { c: CasoView }) {
   return (

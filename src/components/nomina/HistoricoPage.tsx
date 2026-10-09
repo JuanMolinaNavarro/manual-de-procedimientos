@@ -16,7 +16,7 @@ import { csvLiquidacion, fechaHora, money, periodLabel } from '@/lib/nomina-calc
 import type { HistoricoRow, LiquidacionData } from '@/lib/nomina';
 import { descargar, mensajeError, nominaFetch } from './api';
 import { useNomina, useNominaData } from './NominaContext';
-import { Empty, Estado, PageTitle } from './ui';
+import { Empty, Estado, PageTitle } from '@/components/comunes/ui';
 
 export default function HistoricoPage() {
   const { organigramaId, listo, setPeriodo, refrescar } = useNomina();

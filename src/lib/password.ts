@@ -31,7 +31,8 @@ export async function hashPassword(pw: string): Promise<string> {
   return `scrypt$${N}$${R}$${P}$${sal.toString('hex')}$${h.toString('hex')}`;
 }
 
-function igualesTiempoConstante(a: string, b: string): boolean {
+/** Comparación en tiempo constante (sobre sha256 para igualar largos). */
+export function igualesTiempoConstante(a: string, b: string): boolean {
   const ha = createHash('sha256').update(a).digest();
   const hb = createHash('sha256').update(b).digest();
   return timingSafeEqual(ha, hb);

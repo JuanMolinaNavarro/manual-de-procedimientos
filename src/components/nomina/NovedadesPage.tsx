@@ -14,7 +14,7 @@ import type { NovedadRow } from '@/lib/nomina';
 import { mensajeError, nominaFetch } from './api';
 import { useNomina, useNominaData } from './NominaContext';
 import { useLocal } from './useLocal';
-import { Banner, ColHelp, EmpleadoCell, Empty, Estado, PageTitle } from './ui';
+import { Banner, ColHelp, EmpleadoCell, Empty, Estado, PageTitle } from '@/components/comunes/ui';
 
 type Data = { cerrado: boolean; rows: NovedadRow[] };
 

@@ -13,7 +13,7 @@ import { periodLabel } from '@/lib/nomina-calc';
 import type { ReciboVista } from '@/lib/nomina';
 import { useNominaData } from './NominaContext';
 import ReciboAnexoIII from './ReciboAnexoIII';
-import { FlagRow } from './ui';
+import { FlagRow } from '@/components/comunes/ui';
 
 export default function DetalleDialog({ organigramaId, periodo, empleadoId, onClose }: {
   organigramaId: number;

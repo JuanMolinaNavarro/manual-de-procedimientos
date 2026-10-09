@@ -17,7 +17,7 @@ import { fechaHora, money, periodLabel } from '@/lib/nomina-calc';
 import type { BonoCardData, TableroData } from '@/lib/nomina';
 import { mensajeError, nominaFetch } from './api';
 import { useNomina, useNominaData } from './NominaContext';
-import { EmpleadoCell, Estado, PageTitle, StatCard } from './ui';
+import { EmpleadoCell, Estado, PageTitle, StatCard } from '@/components/comunes/ui';
 
 function Paso({ n, done, current, title, desc }: { n: number; done: boolean; current: boolean; title: string; desc: string }) {
   return (

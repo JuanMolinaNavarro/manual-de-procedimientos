@@ -28,7 +28,7 @@ import { mensajeError, nominaFetch } from './api';
 import AdhesionDialog from './AdhesionDialog';
 import { useNomina } from './NominaContext';
 import { BarraFiltros, coincide } from './PasoCard';
-import { Banner, EmpleadoCell } from './ui';
+import { Banner, EmpleadoCell } from '@/components/comunes/ui';
 
 type Filtro = 'todas' | 'sin' | 'pendiente' | 'completa' | 'renovar';
 

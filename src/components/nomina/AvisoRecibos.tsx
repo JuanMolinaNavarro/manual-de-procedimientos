@@ -21,7 +21,7 @@ import type { AvisoView, PreviaAviso, ResultadoAviso, SinAviso } from '@/lib/rec
 import { mensajeError, nominaFetch } from './api';
 import { useNomina, useNominaData } from './NominaContext';
 import { PasoCard, type EstadoPaso } from './PasoCard';
-import { Banner, ErrorCarga } from './ui';
+import { Banner, ErrorCarga } from '@/components/comunes/ui';
 
 const MOTIVO: Record<SinAviso['motivo'], string> = {
   sin_adhesion: 'Sin adhesión',

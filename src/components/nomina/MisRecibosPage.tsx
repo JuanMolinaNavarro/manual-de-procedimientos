@@ -15,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Banner, Empty } from '@/components/comunes/ui';
 import { fmtMes } from '@/lib/asistencia-calendario';
 import type { MiAdhesionView } from '@/lib/nomina';
+import { money } from '@/lib/nomina-calc';
 import type { MiReciboView } from '@/lib/recibos-finnegans';
 import { cn } from '@/lib/utils';
 import { nominaFetch, mensajeError } from './api';
@@ -24,7 +25,6 @@ type Respuesta =
   | { vinculado: false; usuario: string }
   | { vinculado: true; empleado: { id: number; nombre: string }; recibos: MiReciboView[]; adhesion: MiAdhesionView };
 
-const pesos = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
 const pendiente = (r: MiReciboView) => r.entrega === 'pendiente' || r.entrega === 'no_retirado';
 
 function Estado({ r }: { r: MiReciboView }) {
@@ -125,7 +125,7 @@ export default function MisRecibosPage() {
                   <p className="truncate text-sm text-muted-foreground">{r.tipoLiquidacion}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium tabular-nums text-foreground">{pesos.format(r.neto)}</p>
+                  <p className="text-sm font-medium tabular-nums text-foreground">{money(r.neto)}</p>
                   <Estado r={r} />
                 </div>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />

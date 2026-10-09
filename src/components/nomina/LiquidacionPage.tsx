@@ -16,7 +16,7 @@ import { csvLiquidacion, fechaHora, money, periodLabel } from '@/lib/nomina-calc
 import type { LiquidacionData, LiquidacionView } from '@/lib/nomina';
 import { descargar, mensajeError, nominaFetch } from './api';
 import { useNomina, useNominaData } from './NominaContext';
-import { Banner, EmpleadoCell, Empty, Estado, FlagRow, PageTitle, StatCard } from './ui';
+import { Banner, EmpleadoCell, Empty, Estado, FlagRow, PageTitle, StatCard } from '@/components/comunes/ui';
 import DetalleDialog from './DetalleDialog';
 
 export function LiqCard({ l, onClick }: { l: LiquidacionView; onClick: () => void }) {

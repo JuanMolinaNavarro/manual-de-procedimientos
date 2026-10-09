@@ -13,15 +13,8 @@ import {
   updateBonificacion,
   type UpdateBonificacionData,
 } from '@/lib/bonificaciones';
-import { EMPRESAS, type Empresa } from '@/lib/empresas';
+import { isEmpresa, type Empresa } from '@/lib/empresas';
 import { isAdmin } from '@/lib/admin-auth';
-
-// TypeScript no permite includes(string) sobre un union literal.
-const EMPRESAS_STRINGS: readonly string[] = EMPRESAS;
-
-function isEmpresa(value: string): value is Empresa {
-  return EMPRESAS_STRINGS.includes(value);
-}
 
 
 export async function PUT(

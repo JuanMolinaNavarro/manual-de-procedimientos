@@ -13,7 +13,7 @@ import type { Config, MaestroRow } from '@/lib/nomina';
 import { mensajeError, nominaFetch } from './api';
 import { useNomina, useNominaData } from './NominaContext';
 import { useLocal } from './useLocal';
-import { Banner, ColHelp, EmpleadoCell, Estado, PageTitle } from './ui';
+import { Banner, ColHelp, EmpleadoCell, Estado, PageTitle } from '@/components/comunes/ui';
 
 export default function MaestroPage() {
   const { organigramaId, listo, refrescar } = useNomina();

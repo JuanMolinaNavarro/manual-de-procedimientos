@@ -23,7 +23,7 @@ import type { Config } from '@/lib/nomina';
 import { mensajeError, nominaFetch } from './api';
 import { useNomina, useNominaData } from './NominaContext';
 import { useLocal } from './useLocal';
-import { Banner, Estado, PageTitle } from './ui';
+import { Banner, Estado, PageTitle } from '@/components/comunes/ui';
 
 export default function ParametrosPage() {
   const { organigramaId, listo, refrescar } = useNomina();

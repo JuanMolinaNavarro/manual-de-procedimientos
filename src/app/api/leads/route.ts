@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createHash, timingSafeEqual } from 'crypto';
 import { createLead, type CreateLeadData } from '@/lib/leads';
+import { igualesTiempoConstante } from '@/lib/password';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -8,13 +8,10 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, X-Api-Key',
 };
 
-/** Comparación en tiempo constante (sobre sha256 para igualar largos). Sin clave configurada, nadie pasa. */
+/** Sin clave configurada, nadie pasa. */
 function claveValida(recibida: string | null): boolean {
   const esperada = process.env.LEADS_API_KEY;
-  if (!recibida || !esperada) return false;
-  const a = createHash('sha256').update(recibida).digest();
-  const b = createHash('sha256').update(esperada).digest();
-  return timingSafeEqual(a, b);
+  return !!recibida && !!esperada && igualesTiempoConstante(recibida, esperada);
 }
 
 const TEXTO_MAX = 500;

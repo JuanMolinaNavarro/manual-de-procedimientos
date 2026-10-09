@@ -19,7 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Banner } from '@/components/comunes/ui';
 import { fmtMes } from '@/lib/asistencia-calendario';
 import type { ConstanciaView } from '@/lib/nomina';
-import { fechaHora } from '@/lib/nomina-calc';
+import { fechaHora, money } from '@/lib/nomina-calc';
 import type { MiReciboView } from '@/lib/recibos-finnegans';
 import { cn } from '@/lib/utils';
 import { mensajeError, nominaFetch } from './api';
@@ -27,8 +27,6 @@ import ConstanciaCard from './ConstanciaCard';
 import VisorPdf from './VisorPdf';
 
 type Recibo = MiReciboView & { sha256: string; adhesion: 'sin_adhesion' | 'pendiente_acta' | 'completa' };
-
-const pesos = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
 
 function fechaCorta(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
@@ -95,7 +93,7 @@ export default function FirmarReciboPage({ id }: { id: string }) {
               <h1 className="text-2xl font-bold capitalize text-foreground">{fmtMes(r.periodo)}</h1>
               <p className="text-sm text-muted-foreground">{r.tipoLiquidacion} · {r.empresa}</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Neto <b className="text-base tabular-nums text-foreground">{pesos.format(r.neto)}</b>
+                Neto <b className="text-base tabular-nums text-foreground">{money(r.neto)}</b>
                 {r.fechaPago && ` · pagado el ${fechaCorta(r.fechaPago)}`}
               </p>
             </div>

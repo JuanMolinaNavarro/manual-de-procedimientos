@@ -14,15 +14,8 @@ import {
   getBonificacionesActivas,
   type CreateBonificacionData,
 } from '@/lib/bonificaciones';
-import { EMPRESAS, type Empresa } from '@/lib/empresas';
+import { isEmpresa, type Empresa } from '@/lib/empresas';
 import { isAdmin } from '@/lib/admin-auth';
-
-// TypeScript no permite includes(string) sobre un union literal.
-const EMPRESAS_STRINGS: readonly string[] = EMPRESAS;
-
-function isEmpresa(value: string): value is Empresa {
-  return EMPRESAS_STRINGS.includes(value);
-}
 
 // Solo para la lectura pública de activas (el manual de retención corre en otro origen).
 const CORS_HEADERS = {

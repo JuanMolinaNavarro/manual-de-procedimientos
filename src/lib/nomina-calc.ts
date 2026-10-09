@@ -420,10 +420,6 @@ export function totalesLiquidacion(liqs: Liquidacion[]) {
   };
 }
 
-export function iniciales(nombre: string): string {
-  return nombre.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
-}
-
 /** Fecha ISO (datetime) formateada en es-AR; tolera vacío. */
 export function fechaHora(iso: string | null | undefined): string {
   if (!iso) return '—';

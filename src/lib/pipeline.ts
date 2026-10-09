@@ -4,7 +4,7 @@ import { searchMovies, getMovieById } from "@/lib/omdb";
 import { getFanartForMovie, pickMostLiked } from "@/lib/fanart";
 import { upsertOnDemand } from "@/lib/on-demand";
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+import { setTimeout as sleep } from "node:timers/promises";
 
 let isRunning = false;
 

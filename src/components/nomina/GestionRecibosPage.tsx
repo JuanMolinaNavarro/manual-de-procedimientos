@@ -27,7 +27,7 @@ import { useNomina, useNominaData } from './NominaContext';
 import { PasoCard, type EstadoPaso } from './PasoCard';
 import PasoImportar from './RecibosFinnegans';
 import RecibosPeriodo from './RecibosPeriodo';
-import { ErrorCarga } from './ui';
+import { ErrorCarga } from '@/components/comunes/ui';
 
 /** Filtros de la página: empleador (CUIT) y lugar de trabajo (organigrama). '' = todos. */
 interface Filtros { empleador: string; lugar: string }

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X, Home, Gift, Users, Film, Library, Trophy, Inbox, Wifi, Antenna, Network, Fingerprint, CalendarCheck, Database, FolderKanban, Warehouse, LayoutDashboard, ClipboardList, CalendarPlus, Calculator, Archive, FileSignature, SlidersHorizontal, Receipt, TreePalm, Plane, type LucideIcon } from 'lucide-react';
+import { Menu, X, Home, Gift, Users, Film, Library, Trophy, Inbox, Wifi, Antenna, Network, Fingerprint, CalendarCheck, Database, FolderKanban, Warehouse, FileSignature, Receipt, TreePalm, Plane, type LucideIcon } from 'lucide-react';
 import type { AdminModulo } from '@/lib/modulos';
 
 const ICONS: Record<string, LucideIcon> = {
@@ -25,12 +25,6 @@ const ICONS: Record<string, LucideIcon> = {
   padron: Database,
   proyectos: FolderKanban,
   deposito: Warehouse,
-  'nomina-tablero': LayoutDashboard,
-  'nomina-maestro': ClipboardList,
-  'nomina-novedades': CalendarPlus,
-  'nomina-liquidacion': Calculator,
-  'nomina-historico': Archive,
-  'nomina-parametros': SlidersHorizontal,
 };
 
 interface AdminSidebarProps {

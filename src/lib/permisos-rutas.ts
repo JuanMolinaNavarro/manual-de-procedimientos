@@ -12,7 +12,7 @@
  * (`modulos_edit`) sigue en cada ruta con `canEditModule`.
  */
 
-import { isAdminRole, isSuperadmin, isVentasRole } from './roles';
+import { FOTO_FICHA_RE, isAdminRole, isSuperadmin, isVentasRole } from './roles';
 import { NOMINA_SLUGS, canAccessPath, isAdminModulePath, modulosEfectivos, type AdminModuloSlug } from './modulos';
 
 type Regla = {
@@ -58,9 +58,6 @@ export const REGLAS_API: readonly Regla[] = [
   { prefijo: '/api/bonificaciones', modulos: ['bonificaciones'] },
   { prefijo: '/api/plans', modulos: ['planes'] },
 ];
-
-/** Foto de una ficha: se muestra en Organigrama, Asistencia, Nómina, Proyectos… (cualquier admin). */
-const FOTO_FICHA_RE = /^\/api\/admin\/organigrama\/empleados\/\d+\/foto$/;
 
 /**
  * PDF de un recibo: además de Gestión de recibos, lo abre la pestaña Recibos de la ficha del
