@@ -1,0 +1,239 @@
+'use client';
+
+/** Alta (sin `id`) y edición (con `id`) de un contrato de comprador de Señales IP. */
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
+import type { ContratoComprador } from '@/lib/senales-ip';
+import { ErrorForm, LogoContrato, vaciosANull } from './piezas';
+
+interface FormData {
+  nombre_empresa: string;
+  ejecutivo_a_cargo: string;
+  mail_comercial: string;
+  telefono_comercial: string;
+  mail_tecnico: string;
+  telefono_tecnico: string;
+  vigencia_desde: string;
+  vigencia_hasta: string;
+  precio_tipo: string;
+  precio_valor: string;
+  subs_minimo_garantizado: string;
+  reportar_subs: boolean;
+  plazas_reportadas: string;
+  condiciones_pago_contrato: string;
+  condiciones_pago_acordadas: string;
+  tnb_aplicada: string;
+  tecnologias_autorizadas: string[];
+  activa: boolean;
+}
+
+const VACIO: FormData = {
+  nombre_empresa: '', ejecutivo_a_cargo: '', mail_comercial: '', telefono_comercial: '',
+  mail_tecnico: '', telefono_tecnico: '', vigencia_desde: '', vigencia_hasta: '',
+  precio_tipo: '', precio_valor: '', subs_minimo_garantizado: '', reportar_subs: false,
+  plazas_reportadas: '', condiciones_pago_contrato: '', condiciones_pago_acordadas: '',
+  tnb_aplicada: '', tecnologias_autorizadas: [], activa: true,
+};
+
+const BASE = '/api/admin/senales-ip/compradores';
+
+export default function FormularioComprador({ id }: { id?: number }) {
+  const router = useRouter();
+  const volver = id ? `/admin/senales-ip/compradores/${id}` : '/admin/senales-ip/compradores';
+  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(!!id);
+  const [error, setError] = useState('');
+  const [tecnologiaInput, setTecnologiaInput] = useState('');
+  const [formData, setFormData] = useState<FormData>(VACIO);
+
+  useEffect(() => {
+    if (!id) return;
+    apiFetch<ContratoComprador>(`${BASE}/${id}`)
+      .then((c) => {
+        // Lo que viene en null se muestra vacío; el resto, tal cual.
+        const datos = { ...VACIO };
+        for (const k of Object.keys(VACIO) as (keyof FormData)[]) {
+          const v = c[k as keyof ContratoComprador];
+          if (v != null) (datos as Record<string, unknown>)[k] = v;
+        }
+        setFormData(datos);
+      })
+      .catch(() => setError('No se pudo cargar el contrato.'))
+      .finally(() => setFetching(false));
+  }, [id]);
+
+  const set = (field: keyof FormData, value: string | boolean | string[]) =>
+    setFormData((prev) => ({ ...prev, [field]: value }));
+
+  const agregarTecnologia = () => {
+    const tech = tecnologiaInput.trim();
+    if (tech && !formData.tecnologias_autorizadas.includes(tech)) {
+      set('tecnologias_autorizadas', [...formData.tecnologias_autorizadas, tech]);
+    }
+    setTecnologiaInput('');
+  };
+
+  const quitarTecnologia = (tech: string) =>
+    set('tecnologias_autorizadas', formData.tecnologias_autorizadas.filter((t) => t !== tech));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.nombre_empresa.trim()) {
+      setError('El nombre de empresa es requerido.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      // Un alta nace activa: el switch solo existe al editar.
+      const { activa, ...resto } = formData;
+      const body = vaciosANull(id ? { ...resto, activa } : resto);
+      await apiFetch(id ? `${BASE}/${id}` : BASE, { method: id ? 'PUT' : 'POST', body: JSON.stringify(body) });
+      router.push(volver);
+    } catch (err) {
+      setError(mensajeError(err, id ? 'Error al guardar' : 'Error al crear el contrato'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (fetching) return <div className="flex h-64 items-center justify-center text-muted-foreground">Cargando...</div>;
+
+  return (
+    <div className="mx-auto w-full max-w-3xl space-y-6">
+      <div className="flex items-center gap-4">
+        <Button variant="outline" onClick={() => router.push(volver)}>← Volver</Button>
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">{id ? 'Editar' : 'Nuevo'} Contrato Comprador</h2>
+          <p className="text-sm text-muted-foreground">{id ? `#${id}` : 'Adquisición de derechos de señales IP'}</p>
+        </div>
+      </div>
+
+      <ErrorForm error={error} />
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <Card>
+          <CardHeader><CardTitle>Datos de la empresa</CardTitle></CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="nombre_empresa">Nombre de empresa *</Label>
+              <Input id="nombre_empresa" value={formData.nombre_empresa} onChange={(e) => set('nombre_empresa', e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ejecutivo_a_cargo">Ejecutivo a cargo</Label>
+              <Input id="ejecutivo_a_cargo" value={formData.ejecutivo_a_cargo} onChange={(e) => set('ejecutivo_a_cargo', e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Contacto comercial</Label>
+              <Input placeholder="Mail comercial" value={formData.mail_comercial} onChange={(e) => set('mail_comercial', e.target.value)} />
+              <Input placeholder="Teléfono comercial" value={formData.telefono_comercial} onChange={(e) => set('telefono_comercial', e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Contacto técnico</Label>
+              <Input placeholder="Mail técnico" value={formData.mail_tecnico} onChange={(e) => set('mail_tecnico', e.target.value)} />
+              <Input placeholder="Teléfono técnico" value={formData.telefono_tecnico} onChange={(e) => set('telefono_tecnico', e.target.value)} />
+            </div>
+            {id && (
+              <div className="flex items-center gap-3 pt-2">
+                <Switch id="activa" checked={formData.activa} onCheckedChange={(v) => set('activa', v)} />
+                <Label htmlFor="activa">Contrato activo</Label>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Condiciones comerciales</CardTitle></CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="vigencia_desde">Vigencia desde</Label>
+              <Input id="vigencia_desde" type="date" value={formData.vigencia_desde} onChange={(e) => set('vigencia_desde', e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vigencia_hasta">Vigencia hasta</Label>
+              <Input id="vigencia_hasta" type="date" value={formData.vigencia_hasta} onChange={(e) => set('vigencia_hasta', e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="precio_tipo">Tipo de precio</Label>
+              <select
+                id="precio_tipo"
+                value={formData.precio_tipo}
+                onChange={(e) => set('precio_tipo', e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">Sin especificar</option>
+                <option value="subs">Por suscriptores (subs)</option>
+                <option value="fee">Fee fijo</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="precio_valor">Precio / valor</Label>
+              <Input id="precio_valor" value={formData.precio_valor} onChange={(e) => set('precio_valor', e.target.value)} placeholder="Ej: $1.50 por subs" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="subs_minimo_garantizado">Subs. mínimo garantizado</Label>
+              <Input id="subs_minimo_garantizado" value={formData.subs_minimo_garantizado} onChange={(e) => set('subs_minimo_garantizado', e.target.value)} />
+            </div>
+            <div className="flex items-center gap-3 pt-6">
+              <Switch id="reportar_subs" checked={formData.reportar_subs} onCheckedChange={(v) => set('reportar_subs', v)} />
+              <Label htmlFor="reportar_subs">Reportar suscriptores</Label>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="plazas_reportadas">Plazas reportadas</Label>
+              <Input id="plazas_reportadas" value={formData.plazas_reportadas} onChange={(e) => set('plazas_reportadas', e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tnb_aplicada">TNB aplicada</Label>
+              <Input id="tnb_aplicada" value={formData.tnb_aplicada} onChange={(e) => set('tnb_aplicada', e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="condiciones_pago_contrato">Condiciones de pago (contrato firmado)</Label>
+              <Textarea id="condiciones_pago_contrato" rows={3} value={formData.condiciones_pago_contrato} onChange={(e) => set('condiciones_pago_contrato', e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="condiciones_pago_acordadas">Condiciones de pago (acordadas comercialmente)</Label>
+              <Textarea id="condiciones_pago_acordadas" rows={3} value={formData.condiciones_pago_acordadas} onChange={(e) => set('condiciones_pago_acordadas', e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Tecnologías autorizadas</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={tecnologiaInput}
+                  onChange={(e) => setTecnologiaInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); agregarTecnologia(); } }}
+                  placeholder="Escribir y presionar Enter o Agregar"
+                />
+                <Button type="button" variant="outline" onClick={agregarTecnologia}>Agregar</Button>
+              </div>
+              {formData.tecnologias_autorizadas.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {formData.tecnologias_autorizadas.map((t) => (
+                    <Badge key={t} variant="secondary" className="cursor-pointer gap-1" onClick={() => quitarTecnologia(t)}>
+                      {t} ✕
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {id && <LogoContrato tipo="compradores" id={id} />}
+
+        <div className="flex gap-2">
+          <Button type="submit" disabled={loading}>{loading ? 'Guardando...' : id ? 'Guardar cambios' : 'Crear contrato'}</Button>
+          <Button type="button" variant="outline" onClick={() => router.push(volver)}>Cancelar</Button>
+        </div>
+      </form>
+    </div>
+  );
+}
