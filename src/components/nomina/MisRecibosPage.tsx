@@ -18,7 +18,7 @@ import type { MiAdhesionView } from '@/lib/nomina';
 import { money } from '@/lib/nomina-calc';
 import type { MiReciboView } from '@/lib/recibos-finnegans';
 import { cn } from '@/lib/utils';
-import { nominaFetch, mensajeError } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import MiPinFirma from './MiPinFirma';
 
 type Respuesta =
@@ -42,7 +42,7 @@ export default function MisRecibosPage() {
 
   useEffect(() => {
     let vivo = true;
-    nominaFetch<Respuesta>('/api/admin/mis-recibos')
+    apiFetch<Respuesta>('/api/admin/mis-recibos')
       .then((d) => { if (vivo) { setData(d); setError(null); } })
       .catch((e: unknown) => { if (vivo) setError(mensajeError(e)); });
     return () => { vivo = false; };

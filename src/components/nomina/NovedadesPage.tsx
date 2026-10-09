@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { NOVEDAD_COLS, type Novedad } from '@/lib/nomina-datos';
 import { fmtMes } from '@/lib/fechas';
 import type { NovedadRow } from '@/lib/nomina';
-import { mensajeError, nominaFetch } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import { useNomina, useNominaData } from './NominaContext';
 import { useLocal } from './useLocal';
 import { Banner, ColHelp, EmpleadoCell, Empty, Estado, PageTitle } from '@/components/comunes/ui';
@@ -37,7 +37,7 @@ export default function NovedadesPage() {
     if (o && Object.entries(patch).every(([k, v]) => o[k as keyof Novedad] === v)) return;
     setLocal(id, patch);
     try {
-      const n = await nominaFetch<Novedad>(`/api/admin/nomina/novedades/${id}`, { method: 'PUT', body: JSON.stringify({ organigramaId, periodo, ...patch }) });
+      const n = await apiFetch<Novedad>(`/api/admin/nomina/novedades/${id}`, { method: 'PUT', body: JSON.stringify({ organigramaId, periodo, ...patch }) });
       setData((d) => d ? { ...d, rows: d.rows.map((r) => (r.empleado.id === id ? { ...r, novedad: n } : r)) } : d);
     } catch (e) { toast.error(mensajeError(e)); nov.reload(); }
   }

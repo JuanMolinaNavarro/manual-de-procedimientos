@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { fmtMes } from '@/lib/fechas';
 import type { LiquidacionFinnView, ConsumoMes, ResultadoBusqueda, ResultadoImportacion } from '@/lib/recibos-finnegans';
-import { mensajeError, nominaFetch } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import { useNomina, useNominaData } from './NominaContext';
 import { PasoCard, type EstadoPaso } from './PasoCard';
 import { Banner, ErrorCarga } from '@/components/comunes/ui';
@@ -66,7 +66,7 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
   async function buscar() {
     setOcupado('buscar');
     try {
-      const r = await nominaFetch<ResultadoBusqueda>('/api/admin/nomina/finnegans/liquidaciones/buscar', {
+      const r = await apiFetch<ResultadoBusqueda>('/api/admin/nomina/finnegans/liquidaciones/buscar', {
         method: 'POST',
         body: JSON.stringify({ periodo }),
       });
@@ -90,7 +90,7 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
   async function importar(l: LiquidacionFinnView) {
     setOcupado(String(l.transaccionId));
     try {
-      const r = await nominaFetch<ResultadoImportacion>(
+      const r = await apiFetch<ResultadoImportacion>(
         `/api/admin/nomina/finnegans/liquidaciones/${l.transaccionId}/importar`,
         { method: 'POST' },
       );

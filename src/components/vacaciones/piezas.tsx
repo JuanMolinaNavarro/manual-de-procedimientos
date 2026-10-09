@@ -5,7 +5,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { AlertTriangle, CheckCircle2, Info, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { mensajeError, nominaFetch } from '@/components/nomina/api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import { fotoUrl, iniciales } from '@/components/organigrama/foto';
 import { cn } from '@/lib/utils';
 import { DIAS_SEMANA, type EstadoSolicitud, type Flag } from '@/lib/vacaciones-calc';
@@ -20,7 +20,7 @@ export function usePrevia(url: string, body: Record<string, unknown> | null, ver
   useEffect(() => {
     if (!clave) return;
     const t = setTimeout(() => {
-      nominaFetch<{ flags: Flag[] }>(url, { method: 'POST', body: JSON.stringify({ accion: 'validar', ...JSON.parse(clave) }) })
+      apiFetch<{ flags: Flag[] }>(url, { method: 'POST', body: JSON.stringify({ accion: 'validar', ...JSON.parse(clave) }) })
         .then((x) => setR({ clave, flags: x.flags }))
         .catch((e: unknown) => setR({ clave, flags: [{ tipo: 'error', msg: mensajeError(e) }] }));
     }, 300);

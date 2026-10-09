@@ -24,7 +24,7 @@ import { money } from '@/lib/nomina-calc';
 import { fechaCorta, fmtMes } from '@/lib/fechas';
 import type { EstadoEntrega } from '@/lib/recibos-finnegans-calc';
 import type { PanelRecibos, ReciboPanelView } from '@/lib/recibos-finnegans';
-import { mensajeError, nominaFetch } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import ConstanciaCard from './ConstanciaCard';
 import { useNomina } from './NominaContext';
 import { BarraFiltros, coincide } from './PasoCard';
@@ -71,7 +71,7 @@ export default function RecibosPeriodo({ panel, onCambio }: { panel: PanelRecibo
     try {
       const fd = new FormData();
       fd.append('archivo', file);
-      await nominaFetch(`/api/admin/nomina/firma/recibos/${id}/papel`, { method: 'POST', body: fd });
+      await apiFetch(`/api/admin/nomina/firma/recibos/${id}/papel`, { method: 'POST', body: fd });
       toast.success('Entrega en papel registrada');
       onCambio();
     } catch (e) {

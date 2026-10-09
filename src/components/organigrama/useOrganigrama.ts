@@ -15,24 +15,9 @@ import type {
   OrganigramaCompleto,
   EmpleadoOculto,
 } from '@/lib/organigrama';
+import { apiFetch } from '@/components/comunes/api';
 
 const BASE = '/api/admin/organigrama';
-
-async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: init?.body ? { 'Content-Type': 'application/json', ...init?.headers } : init?.headers,
-  });
-  if (!res.ok) {
-    let msg = `Error ${res.status}`;
-    try {
-      const body = await res.json();
-      if (body?.error) msg = body.error;
-    } catch {}
-    throw new Error(msg);
-  }
-  return res.json() as Promise<T>;
-}
 
 export interface OrganigramaApi {
   empleados: OrgEmpleado[];
@@ -88,7 +73,7 @@ export function useOrganigrama(): OrganigramaApi {
 
   // Trae el grafo y lo aplica, sin tocar `loading` (lo usan ocultar/restaurar para no parpadear).
   const aplicarGrafo = useCallback(async (id: number) => {
-    const data = await jsonFetch<OrganigramaCompleto>(`${BASE}?organigramaId=${id}`);
+    const data = await apiFetch<OrganigramaCompleto>(`${BASE}?organigramaId=${id}`);
     setEmpleados(data.empleados);
     setAreas(data.areas);
     setLineas(data.lineas);
@@ -111,7 +96,7 @@ export function useOrganigrama(): OrganigramaApi {
     setLoading(true);
     setError(null);
     try {
-      const list = await jsonFetch<Organigrama[]>(`${BASE}/organigramas`);
+      const list = await apiFetch<Organigrama[]>(`${BASE}/organigramas`);
       setOrganigramas(list);
       const first = list[0]?.id ?? null;
       setOrgIdState(first);
@@ -143,7 +128,7 @@ export function useOrganigrama(): OrganigramaApi {
   );
 
   const createOrganigrama = useCallback(async (nombre: string, direccion?: string) => {
-    const org = await jsonFetch<Organigrama>(`${BASE}/organigramas`, {
+    const org = await apiFetch<Organigrama>(`${BASE}/organigramas`, {
       method: 'POST',
       body: JSON.stringify({ nombre, direccion }),
     });
@@ -158,7 +143,7 @@ export function useOrganigrama(): OrganigramaApi {
 
   const updateOrganigrama = useCallback(
     async (id: number, data: { nombre?: string; direccion?: string | null }) => {
-      const org = await jsonFetch<Organigrama>(`${BASE}/organigramas/${id}`, {
+      const org = await apiFetch<Organigrama>(`${BASE}/organigramas/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
       });
@@ -170,7 +155,7 @@ export function useOrganigrama(): OrganigramaApi {
 
   // ── empleados ──
   const createEmpleado = useCallback(async (data: CreateOrgEmpleadoData) => {
-    const emp = await jsonFetch<OrgEmpleado>(`${BASE}/empleados`, {
+    const emp = await apiFetch<OrgEmpleado>(`${BASE}/empleados`, {
       method: 'POST',
       body: JSON.stringify({ ...data, organigrama_id: orgIdRef.current }),
     });
@@ -179,7 +164,7 @@ export function useOrganigrama(): OrganigramaApi {
   }, []);
 
   const updateEmpleado = useCallback(async (id: number, data: UpdateOrgEmpleadoData) => {
-    const emp = await jsonFetch<OrgEmpleado>(`${BASE}/empleados/${id}`, {
+    const emp = await apiFetch<OrgEmpleado>(`${BASE}/empleados/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -191,7 +176,7 @@ export function useOrganigrama(): OrganigramaApi {
   // pedir el grafo: el servidor desengancha subordinados y jefaturas y filtra sus líneas.
   const ocultarEmpleado = useCallback(
     async (id: number) => {
-      await jsonFetch(`${BASE}/empleados/${id}`, { method: 'DELETE' });
+      await apiFetch(`${BASE}/empleados/${id}`, { method: 'DELETE' });
       if (orgIdRef.current != null) await aplicarGrafo(orgIdRef.current);
     },
     [aplicarGrafo],
@@ -199,7 +184,7 @@ export function useOrganigrama(): OrganigramaApi {
 
   const restaurarEmpleado = useCallback(
     async (id: number) => {
-      await jsonFetch(`${BASE}/empleados/${id}`, { method: 'PATCH', body: JSON.stringify({ oculto: false }) });
+      await apiFetch(`${BASE}/empleados/${id}`, { method: 'PATCH', body: JSON.stringify({ oculto: false }) });
       if (orgIdRef.current != null) await aplicarGrafo(orgIdRef.current);
     },
     [aplicarGrafo],
@@ -208,7 +193,7 @@ export function useOrganigrama(): OrganigramaApi {
   // Pasa la ficha a otro organigrama: sale de este lienzo y sus subordinados quedan sin jefe.
   const transferirEmpleado = useCallback(
     async (id: number, organigramaId: number, area: string) => {
-      await jsonFetch(`${BASE}/empleados/${id}`, {
+      await apiFetch(`${BASE}/empleados/${id}`, {
         method: 'PATCH',
         body: JSON.stringify({ organigrama_id: organigramaId, area }),
       });
@@ -228,13 +213,13 @@ export function useOrganigrama(): OrganigramaApi {
   }, []);
 
   const deleteFoto = useCallback(async (id: number) => {
-    await jsonFetch(`${BASE}/empleados/${id}/foto`, { method: 'DELETE' });
+    await apiFetch(`${BASE}/empleados/${id}/foto`, { method: 'DELETE' });
     setEmpleados((prev) => prev.map((e) => (e.id === id ? { ...e, foto_archivo: null } : e)));
   }, []);
 
   // ── áreas ──
   const createArea = useCallback(async (data: CreateOrgAreaData) => {
-    const area = await jsonFetch<OrgArea>(`${BASE}/areas`, {
+    const area = await apiFetch<OrgArea>(`${BASE}/areas`, {
       method: 'POST',
       body: JSON.stringify({ ...data, organigrama_id: orgIdRef.current }),
     });
@@ -244,7 +229,7 @@ export function useOrganigrama(): OrganigramaApi {
 
   const updateArea = useCallback(async (id: number, data: UpdateOrgAreaData) => {
     const prevArea = areasRef.current.find((a) => a.id === id);
-    const area = await jsonFetch<OrgArea>(`${BASE}/areas/${id}`, {
+    const area = await apiFetch<OrgArea>(`${BASE}/areas/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -259,13 +244,13 @@ export function useOrganigrama(): OrganigramaApi {
   }, []);
 
   const deleteArea = useCallback(async (id: number) => {
-    await jsonFetch(`${BASE}/areas/${id}`, { method: 'DELETE' });
+    await apiFetch(`${BASE}/areas/${id}`, { method: 'DELETE' });
     setAreas((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
   // ── líneas ──
   const createLinea = useCallback(async (data: CreateOrgLineaData) => {
-    const linea = await jsonFetch<OrgLinea>(`${BASE}/lineas`, {
+    const linea = await apiFetch<OrgLinea>(`${BASE}/lineas`, {
       method: 'POST',
       body: JSON.stringify({ ...data, organigrama_id: orgIdRef.current }),
     });
@@ -274,7 +259,7 @@ export function useOrganigrama(): OrganigramaApi {
   }, []);
 
   const updateLinea = useCallback(async (id: number, data: UpdateOrgLineaData) => {
-    const linea = await jsonFetch<OrgLinea>(`${BASE}/lineas/${id}`, {
+    const linea = await apiFetch<OrgLinea>(`${BASE}/lineas/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -283,7 +268,7 @@ export function useOrganigrama(): OrganigramaApi {
   }, []);
 
   const deleteLinea = useCallback(async (id: number) => {
-    await jsonFetch(`${BASE}/lineas/${id}`, { method: 'DELETE' });
+    await apiFetch(`${BASE}/lineas/${id}`, { method: 'DELETE' });
     setLineas((prev) => prev.filter((l) => l.id !== id));
   }, []);
 

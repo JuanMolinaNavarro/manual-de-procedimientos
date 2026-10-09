@@ -15,7 +15,7 @@ import {
 import { csvLiquidacion, fechaHora, money } from '@/lib/nomina-calc';
 import { fmtMes } from '@/lib/fechas';
 import type { HistoricoRow, LiquidacionData } from '@/lib/nomina';
-import { descargar, mensajeError, nominaFetch } from './api';
+import { apiFetch, descargar, mensajeError } from '@/components/comunes/api';
 import { useNomina, useNominaData } from './NominaContext';
 import { Empty, Estado, PageTitle } from '@/components/comunes/ui';
 
@@ -32,13 +32,13 @@ export default function HistoricoPage() {
   function ir(p: string, href: string) { setPeriodo(p); router.push(href); }
   async function csv(p: string) {
     try {
-      const d = await nominaFetch<LiquidacionData>(`/api/admin/nomina/liquidacion?organigramaId=${organigramaId}&periodo=${p}`);
+      const d = await apiFetch<LiquidacionData>(`/api/admin/nomina/liquidacion?organigramaId=${organigramaId}&periodo=${p}`);
       descargar(`liquidacion_${p}.csv`, csvLiquidacion(p, d.liquidaciones, Object.fromEntries(d.liquidaciones.map((l) => [l.empId, l.cuil]))), 'text/csv');
     } catch (e) { toast.error(mensajeError(e)); }
   }
   async function confirmarReabrir(r: HistoricoRow) {
     try {
-      await nominaFetch('/api/admin/nomina/liquidacion/reabrir', { method: 'POST', body: JSON.stringify({ organigramaId, periodo: r.periodo }) });
+      await apiFetch('/api/admin/nomina/liquidacion/reabrir', { method: 'POST', body: JSON.stringify({ organigramaId, periodo: r.periodo }) });
       toast.success(`Período ${fmtMes(r.periodo)} reabierto`);
       refrescar();
     } catch (e) { toast.error(mensajeError(e)); }

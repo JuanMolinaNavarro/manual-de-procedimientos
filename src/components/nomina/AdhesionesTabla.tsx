@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { fechaHora, type EmpleadoNomina } from '@/lib/nomina-calc';
 import type { AdhesionRow, AdhesionView } from '@/lib/nomina';
-import { mensajeError, nominaFetch } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import AdhesionDialog from './AdhesionDialog';
 import { useNomina } from './NominaContext';
 import { BarraFiltros, coincide } from './PasoCard';
@@ -60,7 +60,7 @@ export default function AdhesionesTabla({ adhesiones, onCambio }: { adhesiones: 
 
   async function confirmarRevocar(e: EmpleadoNomina) {
     try {
-      await nominaFetch(`/api/admin/nomina/adhesiones/${e.id}`, {
+      await apiFetch(`/api/admin/nomina/adhesiones/${e.id}`, {
         method: 'DELETE',
         body: JSON.stringify({ motivo }),
       });
@@ -80,14 +80,14 @@ export default function AdhesionesTabla({ adhesiones, onCambio }: { adhesiones: 
     try {
       const fd = new FormData();
       fd.append('archivo', file);
-      await nominaFetch(`/api/admin/nomina/adhesiones/${id}/acta`, { method: 'POST', body: fd });
+      await apiFetch(`/api/admin/nomina/adhesiones/${id}/acta`, { method: 'POST', body: fd });
       toast.success('Acta guardada: ya puede firmar sus recibos');
       onCambio();
     } catch (e) { toast.error(mensajeError(e)); } finally { setSubiendo(null); }
   }
   async function quitarActa(id: number) {
     try {
-      await nominaFetch(actaUrl(id), { method: 'DELETE' });
+      await apiFetch(actaUrl(id), { method: 'DELETE' });
       toast.success('Acta quitada: la adhesión volvió a quedar pendiente');
       onCambio();
     } catch (e) { toast.error(mensajeError(e)); }

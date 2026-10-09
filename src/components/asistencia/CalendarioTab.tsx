@@ -20,7 +20,8 @@ import { cn } from '@/lib/utils';
 import { fmtHoraCorta, tipoMarcaLabel } from '@/lib/asistencia-datos';
 import { fechaCorta, fmtMes, mesAnterior, mesSiguiente } from '@/lib/fechas';
 import { DIAS_SEMANA_CORTO, ESTADOS_DIA, validarConfigInput } from '@/lib/asistencia-calendario';
-import { asistFetch, mensajeError, type CalendarioMes, type CeldaDia, type ConfigAsistencia, type FichadaDetalle, type FilaCalendarioMes } from './api';
+import type { CalendarioMes, CeldaDia, ConfigAsistencia, FichadaDetalle, FilaCalendarioMes } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import { useAsistencia, useAsistenciaData } from './AsistenciaContext';
 import { Campo, Chip, LinkPerfil } from './piezas';
 import { ESTILO_CELDA, LEYENDA_ESTADOS } from './estilo-celda';
@@ -222,7 +223,7 @@ function Celda({ celda, onAbrir }: { celda: CeldaDia; onAbrir: (el: HTMLButtonEl
 async function marcasDelDia(userId: string, fecha: string): Promise<FichadaDetalle[]> {
   const out: FichadaDetalle[] = [];
   for (let page = 1; page <= 20; page++) {
-    const r = await asistFetch<{ items: FichadaDetalle[]; total: number }>(
+    const r = await apiFetch<{ items: FichadaDetalle[]; total: number }>(
       `/api/admin/asistencia/fichadas?userId=${encodeURIComponent(userId)}&desde=${fecha}&hasta=${fecha}&vista=detalle&page=${page}`,
     );
     out.push(...r.items);
@@ -333,7 +334,7 @@ function ConfigDialog({ config }: { config: ConfigAsistencia }) {
     }
     setGuardando(true);
     try {
-      await asistFetch('/api/admin/asistencia/config', { method: 'PUT', body: JSON.stringify(cfg) });
+      await apiFetch('/api/admin/asistencia/config', { method: 'PUT', body: JSON.stringify(cfg) });
       toast.success('Parámetros guardados.');
       refrescar();
       setAbierto(false);

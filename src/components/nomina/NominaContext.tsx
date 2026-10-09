@@ -13,7 +13,7 @@ import { usePathname } from 'next/navigation';
 import { mesLocal, MES_RE } from '@/lib/fechas';
 
 import type { EstadoPeriodo } from '@/lib/nomina';
-import { nominaFetch } from './api';
+import { apiFetch } from '@/components/comunes/api';
 import NominaBar from './NominaBar';
 
 export interface OrganigramaOpcion { id: number; nombre: string }
@@ -88,7 +88,7 @@ export function NominaProvider({ organigramas, links, puedeGestionarPin = false,
   useEffect(() => {
     if (!keyEstado || organigramaId == null) return;
     let vivo = true;
-    nominaFetch<EstadoPeriodo>(`/api/admin/nomina/estado?organigramaId=${organigramaId}&periodo=${periodo}`)
+    apiFetch<EstadoPeriodo>(`/api/admin/nomina/estado?organigramaId=${organigramaId}&periodo=${periodo}`)
       .then((e) => { if (vivo) setEstadoCache({ key: keyEstado, estado: e }); })
       .catch(() => { if (vivo) setEstadoCache({ key: keyEstado, estado: null }); });
     return () => { vivo = false; };
@@ -127,7 +127,7 @@ export function useNominaData<T>(url: string | null): { data: T | null; error: s
   useEffect(() => {
     if (!key || !url) return;
     let vivo = true;
-    nominaFetch<T>(url)
+    apiFetch<T>(url)
       .then((d) => { if (vivo) setCache({ key, data: d, error: null }); })
       .catch((e: unknown) => { if (vivo) setCache({ key, data: null, error: e instanceof Error ? e.message : 'Error' }); });
     return () => { vivo = false; };

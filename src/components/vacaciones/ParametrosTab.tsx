@@ -19,7 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { mensajeError, nominaFetch } from '@/components/nomina/api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import {
   conTurnoTarde,
   fmtCorto,
@@ -103,7 +103,7 @@ export default function ParametrosTab({ E, guardar, recargar, seccion }: PropsTa
   async function cerrarTemporada() {
     setCerrando(true);
     try {
-      const r = await nominaFetch<{ resumen: { personas: number; conVerano: number; arrastres: number } }>('/api/admin/vacaciones/cerrar', {
+      const r = await apiFetch<{ resumen: { personas: number; conVerano: number; arrastres: number } }>('/api/admin/vacaciones/cerrar', {
         method: 'POST', body: JSON.stringify({ ejercicio: c.ejercicio }),
       });
       toast.success(`Temporada cerrada: ${r.resumen.conVerano} de ${r.resumen.personas} tuvieron verano`);

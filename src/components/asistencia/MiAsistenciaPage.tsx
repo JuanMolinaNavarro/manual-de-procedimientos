@@ -21,7 +21,8 @@ import { fmtDiaLargo, fmtHoraCorta, hoyLocal } from '@/lib/asistencia-datos';
 import { DIAS_SEMANA_LARGO, type CeldaDia, type ResumenLiquidacion } from '@/lib/asistencia-calendario';
 import { MES_RE, fmtMes, mesAnterior, mesSiguiente } from '@/lib/fechas';
 import { compensada, horasExtraDia, plural, tardanza, tardesCompensadas } from '@/lib/asistencia-tablero-calc';
-import { asistFetch, mensajeError, type MiAsistencia, type MiAsistenciaRespuesta } from './api';
+import type { MiAsistencia, MiAsistenciaRespuesta } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 
 type Marca = MiAsistencia['marcas'][number];
 
@@ -110,7 +111,7 @@ export default function MiAsistenciaPage() {
   useEffect(() => {
     if (!MES_RE.test(mes)) return;
     const ac = new AbortController();
-    asistFetch<MiAsistenciaRespuesta>(`/api/admin/mi-asistencia?mes=${mes}`, { signal: ac.signal })
+    apiFetch<MiAsistenciaRespuesta>(`/api/admin/mi-asistencia?mes=${mes}`, { signal: ac.signal })
       .then((d) => { setData(d); setError(null); setMesCargado(mes); })
       .catch((e: unknown) => { if (!ac.signal.aborted) { setError(mensajeError(e)); setMesCargado(mes); } });
     return () => ac.abort();

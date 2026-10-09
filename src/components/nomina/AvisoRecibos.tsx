@@ -19,7 +19,7 @@ import {
 import { fechaHora } from '@/lib/nomina-calc';
 import { fmtMes } from '@/lib/fechas';
 import type { AvisoView, PreviaAviso, ResultadoAviso, SinAviso } from '@/lib/recibos-finnegans';
-import { mensajeError, nominaFetch } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import { useNomina, useNominaData } from './NominaContext';
 import { PasoCard, type EstadoPaso } from './PasoCard';
 import { Banner, ErrorCarga } from '@/components/comunes/ui';
@@ -53,7 +53,7 @@ export default function PasoAviso({ onEnviado }: { onEnviado: () => void }) {
   async function enviar() {
     setEnviando(true);
     try {
-      const r = await nominaFetch<ResultadoAviso>('/api/admin/nomina/firma/aviso', {
+      const r = await apiFetch<ResultadoAviso>('/api/admin/nomina/firma/aviso', {
         method: 'POST',
         body: JSON.stringify({ periodo }),
       });

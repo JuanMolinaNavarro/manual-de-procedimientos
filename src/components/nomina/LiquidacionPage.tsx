@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 import { csvLiquidacion, fechaHora, money } from '@/lib/nomina-calc';
 import { fmtMes } from '@/lib/fechas';
 import type { LiquidacionData, LiquidacionView } from '@/lib/nomina';
-import { descargar, mensajeError, nominaFetch } from './api';
+import { apiFetch, descargar, mensajeError } from '@/components/comunes/api';
 import { useNomina, useNominaData } from './NominaContext';
 import { Banner, EmpleadoCell, Empty, Estado, FlagRow, PageTitle, StatCard } from '@/components/comunes/ui';
 import DetalleDialog from './DetalleDialog';
@@ -66,7 +66,7 @@ export default function LiquidacionPage() {
   async function cerrar() {
     setOcupado(true);
     try {
-      await nominaFetch('/api/admin/nomina/liquidacion/cerrar', { method: 'POST', body: JSON.stringify({ organigramaId, periodo }) });
+      await apiFetch('/api/admin/nomina/liquidacion/cerrar', { method: 'POST', body: JSON.stringify({ organigramaId, periodo }) });
       toast.success(`Liquidación de ${fmtMes(periodo)} cerrada`);
       refrescar();
     } catch (e) { toast.error(mensajeError(e)); } finally { setOcupado(false); }
@@ -74,7 +74,7 @@ export default function LiquidacionPage() {
   async function reabrir() {
     setOcupado(true);
     try {
-      await nominaFetch('/api/admin/nomina/liquidacion/reabrir', { method: 'POST', body: JSON.stringify({ organigramaId, periodo }) });
+      await apiFetch('/api/admin/nomina/liquidacion/reabrir', { method: 'POST', body: JSON.stringify({ organigramaId, periodo }) });
       toast.success(`Período ${fmtMes(periodo)} reabierto`);
       refrescar();
     } catch (e) { toast.error(mensajeError(e)); } finally { setOcupado(false); }

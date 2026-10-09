@@ -25,7 +25,8 @@ import {
 import { Banner, ColHelp, Empty, FlagRow } from '@/components/comunes/ui';
 import { cn } from '@/lib/utils';
 import { fmtRelativo, fmtFechaHora } from '@/lib/asistencia-datos';
-import { asistFetch, mensajeError, type Reloj, type ResultadoSync } from './api';
+import type { Reloj, ResultadoSync } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import { useAsistencia } from './AsistenciaContext';
 
 type Accion = 'probar' | 'nuevos' | 'todos' | 'guardar';
@@ -46,7 +47,7 @@ export default function RelojesTab() {
   async function patch(r: Reloj, data: Partial<Reloj>) {
     marcar(r.id, 'guardar');
     try {
-      await asistFetch(`/api/admin/asistencia/relojes/${r.id}`, { method: 'PATCH', body: JSON.stringify(data) });
+      await apiFetch(`/api/admin/asistencia/relojes/${r.id}`, { method: 'PATCH', body: JSON.stringify(data) });
     } catch (e) {
       toast.error(mensajeError(e));
     } finally {
@@ -58,7 +59,7 @@ export default function RelojesTab() {
   async function probar(r: Reloj) {
     marcar(r.id, 'probar');
     try {
-      const res = await asistFetch<{ firmware: string | null; contadores: { registrosTotales: number; usuarios: number; registrosNuevos: number } }>(
+      const res = await apiFetch<{ firmware: string | null; contadores: { registrosTotales: number; usuarios: number; registrosNuevos: number } }>(
         `/api/admin/asistencia/relojes/${r.id}/probar`,
         { method: 'POST' },
       );
@@ -75,7 +76,7 @@ export default function RelojesTab() {
   async function sync(r: Reloj, modo: 'nuevos' | 'todos') {
     marcar(r.id, modo);
     try {
-      const { resultado } = await asistFetch<{ resultado: ResultadoSync }>(
+      const { resultado } = await apiFetch<{ resultado: ResultadoSync }>(
         `/api/admin/asistencia/relojes/${r.id}/sync`,
         { method: 'POST', body: JSON.stringify({ modo }) },
       );
@@ -92,7 +93,7 @@ export default function RelojesTab() {
   async function sincronizarTodos() {
     setSyncTodos(true);
     try {
-      const { resultados } = await asistFetch<{ resultados: ResultadoSync[] }>('/api/admin/asistencia/sync', {
+      const { resultados } = await apiFetch<{ resultados: ResultadoSync[] }>('/api/admin/asistencia/sync', {
         method: 'POST',
         body: JSON.stringify({ modo: 'nuevos' }),
       });
@@ -281,7 +282,7 @@ function BorrarReloj({ reloj: r, onBorrado }: { reloj: Reloj; onBorrado: () => v
     setAbierto(true);
     setFichadas(null);
     try {
-      const r2 = await asistFetch<{ total: number }>(
+      const r2 = await apiFetch<{ total: number }>(
         `/api/admin/asistencia/fichadas?relojId=${r.id}&desde=2000-01-01&hasta=2100-01-01&page=1`,
       );
       setFichadas(r2.total);
@@ -293,7 +294,7 @@ function BorrarReloj({ reloj: r, onBorrado }: { reloj: Reloj; onBorrado: () => v
   async function borrar() {
     setBorrando(true);
     try {
-      await asistFetch(`/api/admin/asistencia/relojes/${r.id}`, { method: 'DELETE' });
+      await apiFetch(`/api/admin/asistencia/relojes/${r.id}`, { method: 'DELETE' });
       toast.success(`Reloj "${r.nombre}" borrado.`);
       setAbierto(false);
       onBorrado();
@@ -361,7 +362,7 @@ function DialogAgregar({ onListo }: { onListo: () => void }) {
     }
     setGuardando(true);
     try {
-      await asistFetch('/api/admin/asistencia/relojes', {
+      await apiFetch('/api/admin/asistencia/relojes', {
         method: 'POST',
         body: JSON.stringify({ ...nuevo, device_id: Number(nuevo.device_id) }),
       });
@@ -430,7 +431,7 @@ function DialogImportar({ onListo }: { onListo: () => void }) {
     try {
       const body = new FormData();
       body.append('file', file);
-      const r = await asistFetch<{ relojes: number; personas: number; fichadas: number; fichadasNuevas: number }>(
+      const r = await apiFetch<{ relojes: number; personas: number; fichadas: number; fichadasNuevas: number }>(
         '/api/admin/asistencia/importar-mdb',
         { method: 'POST', body },
       );

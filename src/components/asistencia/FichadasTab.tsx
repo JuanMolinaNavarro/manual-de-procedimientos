@@ -22,7 +22,8 @@ import {
   PRESETS_RANGO,
   rangoPreset,
 } from '@/lib/asistencia-datos';
-import { mensajeError, type FichadaDetalle, type FichadaDia } from './api';
+import type { FichadaDetalle, FichadaDia } from './api';
+import { mensajeError } from '@/components/comunes/api';
 import { Campo, Chip, ControlesPeriodo, FiltroChip, LinkPerfil, Paginacion } from './piezas';
 import { useAsistencia, useAsistenciaData } from './AsistenciaContext';
 

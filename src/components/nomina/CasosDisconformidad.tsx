@@ -16,7 +16,7 @@ import { fechaHora } from '@/lib/nomina-calc';
 import { fmtMes } from '@/lib/fechas';
 import type { CasoView } from '@/lib/recibos-finnegans';
 import { cn } from '@/lib/utils';
-import { mensajeError, nominaFetch } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import { useNominaData } from './NominaContext';
 import { Empty, ErrorCarga } from '@/components/comunes/ui';
 
@@ -66,7 +66,7 @@ export default function CasosDisconformidad({ casos, filtros, onCambio }: { caso
   async function guardar(c: CasoView, resolver: boolean) {
     setOcupado(c.id);
     try {
-      await nominaFetch(`/api/admin/nomina/firma/casos/${c.id}`, {
+      await apiFetch(`/api/admin/nomina/firma/casos/${c.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ notas: notas[c.id] ?? c.notas, resolver }),
       });

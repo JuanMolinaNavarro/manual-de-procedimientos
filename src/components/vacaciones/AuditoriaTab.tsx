@@ -10,7 +10,7 @@ import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Empty, ErrorCarga } from '@/components/comunes/ui';
-import { descargar, mensajeError, nominaFetch } from '@/components/nomina/api';
+import { apiFetch, descargar, mensajeError } from '@/components/comunes/api';
 import { cn } from '@/lib/utils';
 import { BOTON, CAMPO, csv } from './piezas';
 import type { PropsTab } from './VacacionesPage';
@@ -32,7 +32,7 @@ export default function AuditoriaTab({ E, visibles }: PropsTab) {
 
   useEffect(() => {
     let vivo = true;
-    nominaFetch<Movimiento[]>(`/api/admin/vacaciones/auditoria${persona === TODAS ? '' : `?empleadoId=${persona}`}`)
+    apiFetch<Movimiento[]>(`/api/admin/vacaciones/auditoria${persona === TODAS ? '' : `?empleadoId=${persona}`}`)
       .then((m) => { if (vivo) { setMovs(m); setError(null); } })
       .catch((e: unknown) => { if (vivo) setError(mensajeError(e)); });
     return () => { vivo = false; };

@@ -15,7 +15,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { FECHA_RE, hoyLocal, inicioDeMes } from '@/lib/asistencia-datos';
 import { type HorarioVersion } from '@/lib/asistencia-calendario';
 import { MES_RE } from '@/lib/fechas';
-import { asistFetch, mensajeError, type Persona, type Reloj } from './api';
+import type { Persona, Reloj } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 
 export interface EmpleadoOpt {
   id: number;
@@ -133,7 +134,7 @@ function useRecurso<T>(url: string | null, stamp: string): { data: T | null; err
   useEffect(() => {
     if (!url || cache.get(url)?.stamp === stamp) return;
     const ac = new AbortController();
-    asistFetch<T>(url, { signal: ac.signal })
+    apiFetch<T>(url, { signal: ac.signal })
       .then((d) => {
         cache.set(url, { data: d, error: null, stamp });
       })

@@ -18,7 +18,8 @@ import { usePaginaLocal } from '@/hooks/usePaginaLocal';
 import { cn } from '@/lib/utils';
 import { FILAS_POR_PAGINA, fmtFechaHora, fmtRelativo, hoyLocal } from '@/lib/asistencia-datos';
 import { versionVigente } from '@/lib/asistencia-calendario';
-import { asistFetch, mensajeError, type Persona } from './api';
+import type { Persona } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import { useAsistencia } from './AsistenciaContext';
 import EmpleadoPicker from './EmpleadoPicker';
 import { Chip, LinkPerfil, Paginacion } from './piezas';
@@ -78,7 +79,7 @@ export default function PersonasTab() {
   async function vincular(p: Persona, empleadoId: number | null) {
     setGuardando(p.id);
     try {
-      await asistFetch(`/api/admin/asistencia/personas/${p.id}`, {
+      await apiFetch(`/api/admin/asistencia/personas/${p.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ empleadoId }),
       });
@@ -97,7 +98,7 @@ export default function PersonasTab() {
   async function cambiarActiva(p: Persona, activa: boolean) {
     setGuardando(p.id);
     try {
-      await asistFetch(`/api/admin/asistencia/personas/${p.id}`, {
+      await apiFetch(`/api/admin/asistencia/personas/${p.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ activa }),
       });
@@ -119,7 +120,7 @@ export default function PersonasTab() {
   async function vincularAuto() {
     setVinculando(true);
     try {
-      const r = await asistFetch<{ vinculadas: number }>('/api/admin/asistencia/personas/vincular', { method: 'POST' });
+      const r = await apiFetch<{ vinculadas: number }>('/api/admin/asistencia/personas/vincular', { method: 'POST' });
       if (r.vinculadas > 0) toast.success(`${r.vinculadas} persona(s) vinculadas por CUIL.`);
       else toast.info('No se vinculó ninguna: o ya estaban vinculadas, o ningún CUIL del maestro de nómina coincide con un ID del reloj.');
       refrescar();

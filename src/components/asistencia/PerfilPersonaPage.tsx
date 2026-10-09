@@ -36,7 +36,8 @@ import {
   tardanza,
   type ResumenMesPersona,
 } from '@/lib/asistencia-tablero-calc';
-import { asistFetch, mensajeError, type MarcaReloj, type PerfilPersona } from './api';
+import type { MarcaReloj, PerfilPersona } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import EmpleadoPicker from './EmpleadoPicker';
 import { useAsistencia, useAsistenciaData } from './AsistenciaContext';
 import HorarioDialog from './HorarioDialog';
@@ -67,7 +68,7 @@ export default function PerfilPersonaPage({ personaId }: { personaId: number }) 
     if (!persona) return;
     setVinculando(true);
     try {
-      await asistFetch(`/api/admin/asistencia/personas/${persona.id}`, { method: 'PATCH', body: JSON.stringify({ empleadoId }) });
+      await apiFetch(`/api/admin/asistencia/personas/${persona.id}`, { method: 'PATCH', body: JSON.stringify({ empleadoId }) });
       const e = empleadoId != null ? empleadoPorId.get(empleadoId) : undefined;
       toast.success(e ? `${persona.userId} vinculada a ${e.nombre}.` : `${persona.userId} quedó sin vincular.`);
       refrescar();

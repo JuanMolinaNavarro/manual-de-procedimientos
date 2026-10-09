@@ -15,7 +15,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { mensajeError, nominaFetch } from '@/components/nomina/api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import { sumarDias, fechaCorta } from '@/lib/fechas';
 import { formatoCuit } from '@/lib/recibos-finnegans-calc';
 import { noReprog, type Tramo } from '@/lib/vacaciones-calc';
@@ -53,7 +53,7 @@ export default function DocumentoVacaciones({ modo }: { modo: 'portal' | 'rrhh' 
 
   useEffect(() => {
     if (!url) return;
-    nominaFetch<VistaRespuesta>(url).then(setV).catch((e: unknown) => setError(mensajeError(e)));
+    apiFetch<VistaRespuesta>(url).then(setV).catch((e: unknown) => setError(mensajeError(e)));
   }, [url]);
 
   useEffect(() => {

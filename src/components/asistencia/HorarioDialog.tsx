@@ -41,7 +41,8 @@ import {
   type DiasHorario,
   type HorarioVersion,
 } from '@/lib/asistencia-calendario';
-import { asistFetch, mensajeError, type ResultadoGuardar } from './api';
+import type { ResultadoGuardar } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import { useAsistencia } from './AsistenciaContext';
 import { Campo } from './piezas';
 
@@ -194,7 +195,7 @@ function Editor({ empleado, versiones, onCerrar }: { empleado: { id: number; nom
     }
     setGuardando(true);
     try {
-      const r = await asistFetch<ResultadoGuardar>('/api/admin/asistencia/horarios', { method: 'POST', body: JSON.stringify(input) });
+      const r = await apiFetch<ResultadoGuardar>('/api/admin/asistencia/horarios', { method: 'POST', body: JSON.stringify(input) });
       toast.success(r.corregida ? `Horario de ${empleado.nombre} corregido.` : `Horario de ${empleado.nombre} aplicado desde el ${fechaCorta(r.horario.vigenteDesde)}.`);
       refrescar();
       onCerrar();
@@ -212,7 +213,7 @@ function Editor({ empleado, versiones, onCerrar }: { empleado: { id: number; nom
     if (!ultima) return;
     setGuardando(true);
     try {
-      const r = await asistFetch<{ reabierta: HorarioVersion | null }>(`/api/admin/asistencia/horarios/${ultima.id}`, { method: 'DELETE' });
+      const r = await apiFetch<{ reabierta: HorarioVersion | null }>(`/api/admin/asistencia/horarios/${ultima.id}`, { method: 'DELETE' });
       toast.success(r.reabierta ? 'Última versión deshecha; la anterior vuelve a estar vigente.' : 'Última versión deshecha.');
       refrescar();
       onCerrar();

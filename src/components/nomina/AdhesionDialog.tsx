@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { PIN_RE } from '@/lib/nomina-datos';
 import { emailValido } from '@/lib/recibos-aviso';
 import type { EmpleadoNomina } from '@/lib/nomina-calc';
-import { mensajeError, nominaFetch } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 
 export default function AdhesionDialog({ empleado, onClose, onOk }: {
   empleado: EmpleadoNomina | null;
@@ -39,7 +39,7 @@ export default function AdhesionDialog({ empleado, onClose, onOk }: {
     if (pin.trim() !== pin2.trim()) { toast.error('Los PIN no coinciden'); return; }
     setEnviando(true);
     try {
-      await nominaFetch('/api/admin/nomina/adhesiones', { method: 'POST', body: JSON.stringify({ empleadoId: empleado.id, email: email.trim(), pin: pin.trim(), pin2: pin2.trim() }) });
+      await apiFetch('/api/admin/nomina/adhesiones', { method: 'POST', body: JSON.stringify({ empleadoId: empleado.id, email: email.trim(), pin: pin.trim(), pin2: pin2.trim() }) });
       toast.success(`Adhesión de ${empleado.nombre} registrada: imprimí el acta, firmala y subila para habilitar la firma`);
       cerrar();
       onOk();

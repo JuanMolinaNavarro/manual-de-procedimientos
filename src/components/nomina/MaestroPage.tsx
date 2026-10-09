@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils';
 import { CONVENIOS, type Maestro } from '@/lib/nomina-datos';
 import type { Config, MaestroRow } from '@/lib/nomina';
-import { mensajeError, nominaFetch } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import { useNomina, useNominaData } from './NominaContext';
 import { useLocal } from './useLocal';
 import { Banner, ColHelp, EmpleadoCell, Estado, PageTitle } from '@/components/comunes/ui';
@@ -35,7 +35,7 @@ export default function MaestroPage() {
     if (o && Object.entries(patch).every(([k, v]) => o[k as keyof Maestro] === v)) return;
     setLocalField(id, patch);
     try {
-      const r = await nominaFetch<MaestroRow>(`/api/admin/nomina/maestro/${id}`, { method: 'PUT', body: JSON.stringify({ organigramaId, ...patch }) });
+      const r = await apiFetch<MaestroRow>(`/api/admin/nomina/maestro/${id}`, { method: 'PUT', body: JSON.stringify({ organigramaId, ...patch }) });
       setRows((l) => (l ?? []).map((x) => (x.empleado.id === id ? r : x)));
       if ('incluir' in patch || 'basico' in patch) refrescar();
     } catch (e) { toast.error(mensajeError(e)); maestro.reload(); }

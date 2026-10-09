@@ -22,7 +22,7 @@ import type { ConstanciaView } from '@/lib/nomina';
 import { fechaHora, money } from '@/lib/nomina-calc';
 import type { MiReciboView } from '@/lib/recibos-finnegans';
 import { cn } from '@/lib/utils';
-import { mensajeError, nominaFetch } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import ConstanciaCard from './ConstanciaCard';
 import VisorPdf from './VisorPdf';
 
@@ -51,10 +51,10 @@ export default function FirmarReciboPage({ id }: { id: string }) {
 
   useEffect(() => {
     let vivo = true;
-    nominaFetch<Recibo>(`/api/admin/mis-recibos/${id}`)
+    apiFetch<Recibo>(`/api/admin/mis-recibos/${id}`)
       .then(async (d) => {
         const c = d.entrega === 'firmado'
-          ? (await nominaFetch<{ constancia: ConstanciaView | null }>(`/api/admin/mis-recibos/${id}/constancia`)).constancia
+          ? (await apiFetch<{ constancia: ConstanciaView | null }>(`/api/admin/mis-recibos/${id}/constancia`)).constancia
           : null;
         if (!vivo) return;
         setR(d);
@@ -208,7 +208,7 @@ function FormularioFirma({ id, pdfListo, onFirmado }: { id: string; pdfListo: bo
     setEnviando(true);
     setError(null);
     try {
-      await nominaFetch<ConstanciaView>(`/api/admin/mis-recibos/${id}/firmar`, {
+      await apiFetch<ConstanciaView>(`/api/admin/mis-recibos/${id}/firmar`, {
         method: 'POST',
         body: JSON.stringify({ pin, conformidad, observaciones, leido: true }),
       });

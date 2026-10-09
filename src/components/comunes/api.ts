@@ -1,5 +1,5 @@
 /** fetch JSON con la convención de error del panel ({ error } → Error(message)). */
-export async function nominaFetch<T>(url: string, init?: RequestInit): Promise<T> {
+export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
     headers: init?.body && !(init.body instanceof FormData)
@@ -17,6 +17,10 @@ export async function nominaFetch<T>(url: string, init?: RequestInit): Promise<T
   return res.json() as Promise<T>;
 }
 
+export function mensajeError(e: unknown, fallback = 'Algo salió mal'): string {
+  return e instanceof Error && e.message ? e.message : fallback;
+}
+
 /** Descarga un archivo generado en el cliente (CSV, etc.). */
 export function descargar(nombre: string, contenido: string, mime: string) {
   const a = document.createElement('a');
@@ -24,8 +28,4 @@ export function descargar(nombre: string, contenido: string, mime: string) {
   a.download = nombre;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-}
-
-export function mensajeError(e: unknown, fallback = 'Algo salió mal'): string {
-  return e instanceof Error && e.message ? e.message : fallback;
 }

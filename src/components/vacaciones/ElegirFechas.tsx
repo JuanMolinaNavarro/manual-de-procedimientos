@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { AlertCircle, CalendarDays, Check, ChevronLeft, ChevronRight, Minus, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { mensajeError, nominaFetch } from '@/components/nomina/api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import { mesAnterior, mesSiguiente, sumarDias } from '@/lib/fechas';
 import { TEXTO_PORTAL, noReprog, vueltaDe, type Flag } from '@/lib/vacaciones-calc';
 import type { VistaRespuesta } from '@/lib/vacaciones';
@@ -145,7 +145,7 @@ export function useVista(url: string) {
   const [ocupado, setOcupado] = useState(false);
 
   const cargar = useCallback(() => {
-    nominaFetch<(VistaRespuesta & { vinculado?: true }) | { vinculado: false; usuario: string }>(url)
+    apiFetch<(VistaRespuesta & { vinculado?: true }) | { vinculado: false; usuario: string }>(url)
       .then((r) => {
         if (r.vinculado === false) setSinVinculo(r.usuario);
         else setData(r);
@@ -158,7 +158,7 @@ export function useVista(url: string) {
   const accion: Accion = async (body, ok) => {
     setOcupado(true);
     try {
-      setData(await nominaFetch<VistaRespuesta>(url, { method: 'POST', body: JSON.stringify(body) }));
+      setData(await apiFetch<VistaRespuesta>(url, { method: 'POST', body: JSON.stringify(body) }));
       if (ok) toast.success(ok);
       return true;
     } catch (e) {
@@ -319,7 +319,7 @@ export function ElegirFechas({ v, url, voz, accion, ocupado, reprog = false }: {
 
   async function sugerir() {
     try {
-      const r = await nominaFetch<{ desde: string | null; dias: number }>(url, { method: 'POST', body: JSON.stringify({ accion: 'sugerir', dias }) });
+      const r = await apiFetch<{ desde: string | null; dias: number }>(url, { method: 'POST', body: JSON.stringify({ accion: 'sugerir', dias }) });
       if (!r.desde) { toast.info(t.sinLugar); return; }
       setDesde(r.desde); setDias(r.dias); setMes(r.desde.slice(0, 7));
     } catch (e) {

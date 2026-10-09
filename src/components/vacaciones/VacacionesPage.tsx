@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ErrorCarga } from '@/components/comunes/ui';
-import { descargar, mensajeError, nominaFetch } from '@/components/nomina/api';
+import { apiFetch, descargar, mensajeError } from '@/components/comunes/api';
 import {
   anticipos, convenioCodigo, diasDe, diasPorMes, incluidos, perfilDe, solDe, tramosEfectivos,
   type EmpleadoVac, type EstadoVac,
@@ -70,7 +70,7 @@ export default function VacacionesPage() {
   const [lugar, setLugar] = useState('');
 
   const recargar = useCallback(() => {
-    nominaFetch<Snapshot>('/api/admin/vacaciones')
+    apiFetch<Snapshot>('/api/admin/vacaciones')
       .then((s) => { setSnap(s); setError(null); })
       .catch((e: unknown) => setError(mensajeError(e)));
   }, []);
@@ -87,7 +87,7 @@ export default function VacacionesPage() {
 
   const guardar = useCallback(async (url: string, metodo: 'PATCH' | 'POST', body: unknown, ok?: string) => {
     try {
-      await nominaFetch(url, { method: metodo, body: JSON.stringify(body) });
+      await apiFetch(url, { method: metodo, body: JSON.stringify(body) });
       if (ok) toast.success(ok);
       recargar();
       return true;

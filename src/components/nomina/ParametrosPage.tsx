@@ -20,7 +20,7 @@ import {
   type Bono, type Concepto, type EmpresaKey, type ParamKey,
 } from '@/lib/nomina-datos';
 import type { Config } from '@/lib/nomina';
-import { mensajeError, nominaFetch } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import { useNomina, useNominaData } from './NominaContext';
 import { useLocal } from './useLocal';
 import { Banner, Estado, PageTitle } from '@/components/comunes/ui';
@@ -43,7 +43,7 @@ export default function ParametrosPage() {
   async function guardarEmpresa(k: EmpresaKey, v: string) {
     if (config.data?.empresa[k] === v) return;
     try {
-      const r = await nominaFetch<Config>('/api/admin/nomina/config', { method: 'PUT', body: JSON.stringify({ organigramaId, empresa: { [k]: v } }) });
+      const r = await apiFetch<Config>('/api/admin/nomina/config', { method: 'PUT', body: JSON.stringify({ organigramaId, empresa: { [k]: v } }) });
       setCfg(r); toast.success('Datos del empleador actualizados'); refrescar();
     } catch (e) { toast.error(mensajeError(e)); }
   }
@@ -51,13 +51,13 @@ export default function ParametrosPage() {
     const n = Number(v);
     if (!Number.isFinite(n) || config.data?.params[k] === n) return;
     try {
-      const r = await nominaFetch<Config>('/api/admin/nomina/config', { method: 'PUT', body: JSON.stringify({ organigramaId, params: { [k]: n } }) });
+      const r = await apiFetch<Config>('/api/admin/nomina/config', { method: 'PUT', body: JSON.stringify({ organigramaId, params: { [k]: n } }) });
       setCfg(r); toast.success('Parámetro actualizado');
     } catch (e) { toast.error(mensajeError(e)); }
   }
   async function restaurar() {
     try {
-      const r = await nominaFetch<Config>('/api/admin/nomina/config', { method: 'PUT', body: JSON.stringify({ organigramaId, resetParams: true }) });
+      const r = await apiFetch<Config>('/api/admin/nomina/config', { method: 'PUT', body: JSON.stringify({ organigramaId, resetParams: true }) });
       setCfg(r); toast.success('Parámetros restaurados');
     } catch (e) { toast.error(mensajeError(e)); }
   }
@@ -65,20 +65,20 @@ export default function ParametrosPage() {
   // ── Conceptos ──
   async function addConcepto() {
     try {
-      const c = await nominaFetch<Concepto>('/api/admin/nomina/conceptos', { method: 'POST', body: JSON.stringify({ organigramaId }) });
+      const c = await apiFetch<Concepto>('/api/admin/nomina/conceptos', { method: 'POST', body: JSON.stringify({ organigramaId }) });
       setConcs((l) => [...(l ?? []), c]);
     } catch (e) { toast.error(mensajeError(e)); }
   }
   async function setConcepto(id: number, patch: Partial<Concepto>) {
     setConcs((l) => (l ?? []).map((c) => (c.id === id ? { ...c, ...patch } : c)));
     try {
-      const c = await nominaFetch<Concepto>(`/api/admin/nomina/conceptos/${id}`, { method: 'PUT', body: JSON.stringify({ organigramaId, ...patch }) });
+      const c = await apiFetch<Concepto>(`/api/admin/nomina/conceptos/${id}`, { method: 'PUT', body: JSON.stringify({ organigramaId, ...patch }) });
       setConcs((l) => (l ?? []).map((x) => (x.id === id ? c : x)));
     } catch (e) { toast.error(mensajeError(e)); conceptos.reload(); }
   }
   async function delConcepto(c: Concepto) {
     try {
-      await nominaFetch(`/api/admin/nomina/conceptos/${c.id}?organigramaId=${organigramaId}`, { method: 'DELETE' });
+      await apiFetch(`/api/admin/nomina/conceptos/${c.id}?organigramaId=${organigramaId}`, { method: 'DELETE' });
       setConcs((l) => (l ?? []).filter((x) => x.id !== c.id));
     } catch (e) { toast.error(mensajeError(e)); }
   }
@@ -86,20 +86,20 @@ export default function ParametrosPage() {
   // ── Bonos ──
   async function addBono() {
     try {
-      const b = await nominaFetch<Bono>('/api/admin/nomina/bonos', { method: 'POST', body: JSON.stringify({ organigramaId }) });
+      const b = await apiFetch<Bono>('/api/admin/nomina/bonos', { method: 'POST', body: JSON.stringify({ organigramaId }) });
       setBns((d) => d ? { ...d, bonos: [...d.bonos, b] } : d);
     } catch (e) { toast.error(mensajeError(e)); }
   }
   async function setBono(id: number, patch: Partial<Bono>) {
     setBns((d) => d ? { ...d, bonos: d.bonos.map((b) => (b.id === id ? { ...b, ...patch } : b)) } : d);
     try {
-      const b = await nominaFetch<Bono>(`/api/admin/nomina/bonos/${id}`, { method: 'PUT', body: JSON.stringify({ organigramaId, ...patch }) });
+      const b = await apiFetch<Bono>(`/api/admin/nomina/bonos/${id}`, { method: 'PUT', body: JSON.stringify({ organigramaId, ...patch }) });
       setBns((d) => d ? { ...d, bonos: d.bonos.map((x) => (x.id === id ? b : x)) } : d);
     } catch (e) { toast.error(mensajeError(e)); bonos.reload(); }
   }
   async function delBono(b: Bono) {
     try {
-      await nominaFetch(`/api/admin/nomina/bonos/${b.id}?organigramaId=${organigramaId}`, { method: 'DELETE' });
+      await apiFetch(`/api/admin/nomina/bonos/${b.id}?organigramaId=${organigramaId}`, { method: 'DELETE' });
       setBns((d) => d ? { ...d, bonos: d.bonos.filter((x) => x.id !== b.id) } : d);
     } catch (e) { toast.error(mensajeError(e)); }
   }

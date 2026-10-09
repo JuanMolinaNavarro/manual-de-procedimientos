@@ -16,7 +16,7 @@ import { METRICA_META } from '@/lib/nomina-datos';
 import { fechaHora, money } from '@/lib/nomina-calc';
 import { fmtMes } from '@/lib/fechas';
 import type { BonoCardData, TableroData } from '@/lib/nomina';
-import { mensajeError, nominaFetch } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 import { useNomina, useNominaData } from './NominaContext';
 import { EmpleadoCell, Estado, PageTitle, StatCard } from '@/components/comunes/ui';
 
@@ -80,7 +80,7 @@ export default function TableroPage() {
 
   async function confirmarOtorgar(b: BonoCardData) {
     try {
-      const r = await nominaFetch<{ ganador: { nombre: string } }>(`/api/admin/nomina/bonos/${b.bono.id}/otorgar`, { method: 'POST', body: JSON.stringify({ organigramaId, periodo }) });
+      const r = await apiFetch<{ ganador: { nombre: string } }>(`/api/admin/nomina/bonos/${b.bono.id}/otorgar`, { method: 'POST', body: JSON.stringify({ organigramaId, periodo }) });
       toast.success(`«${b.bono.nombre}» otorgado a ${r.ganador.nombre}`);
       refrescar();
     } catch (e) { toast.error(mensajeError(e)); }

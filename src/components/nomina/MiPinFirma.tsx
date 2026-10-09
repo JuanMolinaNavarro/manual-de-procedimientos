@@ -17,7 +17,7 @@ import type { MiAdhesionView } from '@/lib/nomina';
 import { fechaHora } from '@/lib/nomina-calc';
 import { PIN_RE } from '@/lib/nomina-datos';
 import { cn } from '@/lib/utils';
-import { mensajeError, nominaFetch } from './api';
+import { apiFetch, mensajeError } from '@/components/comunes/api';
 
 const soloDigitos = (v: string) => v.replace(/\D/g, '').slice(0, 8);
 
@@ -45,7 +45,7 @@ export default function MiPinFirma({ adhesion, onCambio }: { adhesion: MiAdhesio
     if (pin === actual) { setError('El PIN nuevo tiene que ser distinto del actual'); return; }
     setEnviando(true);
     try {
-      await nominaFetch('/api/admin/mis-recibos/pin', { method: 'POST', body: JSON.stringify({ pinActual: actual, pin, pin2 }) });
+      await apiFetch('/api/admin/mis-recibos/pin', { method: 'POST', body: JSON.stringify({ pinActual: actual, pin, pin2 }) });
       toast.success('PIN cambiado. Usalo desde ahora para firmar tus recibos');
       cerrar();
       onCambio();
