@@ -6,8 +6,32 @@ import { useEffect, useRef, useState } from 'react';
 import { Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { fechaCorta } from '@/lib/fechas';
+import type { ContratoComprador, ContratoVendedor } from '@/lib/senales-ip';
 
 export type TipoContrato = 'compradores' | 'vendedores';
+export type Contrato = ContratoComprador | ContratoVendedor;
+
+/** Lo que cambia entre los dos tipos de contrato en las pantallas compartidas. */
+export const CONTRATO = {
+  compradores: {
+    singular: 'comprador',
+    titulo: 'Comprador',
+    subtitulo: 'Adquisición de derechos de señales IP',
+    mail: (c: Contrato) => (c as ContratoComprador).mail_comercial,
+    ejecutivo: (c: Contrato) => (c as ContratoComprador).ejecutivo_a_cargo,
+  },
+  vendedores: {
+    singular: 'vendedor',
+    titulo: 'Vendedor',
+    subtitulo: 'Contratos con terceros externos',
+    mail: (c: Contrato) => (c as ContratoVendedor).mail_comercial_cliente,
+    ejecutivo: (c: Contrato) => (c as ContratoVendedor).ejecutivo_cargo,
+  },
+} as const;
+
+export const vigenciaTexto = (c: Contrato) =>
+  c.vigencia_desde || c.vigencia_hasta ? `${fechaCorta(c.vigencia_desde)} – ${fechaCorta(c.vigencia_hasta)}` : 'Sin límite';
 
 /** El formulario usa '' para "sin dato"; la API espera null. */
 export function vaciosANull<T extends object>(datos: T): T {
