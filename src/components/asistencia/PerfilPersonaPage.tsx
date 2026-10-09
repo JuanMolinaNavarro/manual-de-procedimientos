@@ -14,7 +14,7 @@ import { AlertTriangle, ArrowLeft, CalendarClock, Check, ChevronDown, Info, List
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Banner, Empty } from '@/components/comunes/ui';
+import { Avatar, Banner, Empty } from '@/components/comunes/ui';
 import { cn } from '@/lib/utils';
 import { fmtHoraCorta, hoyLocal, tipoMarcaLabel } from '@/lib/asistencia-datos';
 import {
@@ -41,7 +41,6 @@ import { apiFetch, mensajeError } from '@/components/comunes/api';
 import EmpleadoPicker from './EmpleadoPicker';
 import { useAsistencia, useAsistenciaData } from './AsistenciaContext';
 import HorarioDialog from './HorarioDialog';
-import { Foto } from './PerfilPiezas';
 import { BarraHoras, Etiqueta, NavPeriodo } from './piezas';
 
 export default function PerfilPersonaPage({ personaId }: { personaId: number }) {
@@ -95,7 +94,7 @@ export default function PerfilPersonaPage({ personaId }: { personaId: number }) 
 
       <div className="flex flex-wrap items-center justify-between gap-5">
         <div className="flex min-w-0 items-center gap-4">
-          <Foto nombre={persona?.nombre ?? null} emp={emp} className="size-16 text-xl" />
+          <Avatar nombre={persona?.nombre ?? null} emp={emp} className="size-16 text-xl" />
           {persona ? (
             <div className="min-w-0 space-y-0.5">
               <div className="flex flex-wrap items-center gap-2">

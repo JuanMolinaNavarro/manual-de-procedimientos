@@ -20,15 +20,22 @@ export interface EmpleadoConFoto {
   foto_archivo: string | null;
 }
 
+/** Foto de la ficha o, sin foto, sus iniciales. `className` fija el tamaño y la letra (por defecto 96 px). */
+export function Avatar({ nombre, emp, className }: { nombre: string | null; emp?: { id: number; foto_archivo: string | null }; className?: string }) {
+  const url = emp ? fotoUrl(emp) : null;
+  return (
+    <div className={cn('flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-2xl font-semibold text-muted-foreground', className)}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : nombre ? iniciales(nombre) : ''}
+    </div>
+  );
+}
+
 /** `grande`: letra de 16 px y foto de 40 px, para las pantallas pensadas para leer sin esfuerzo. */
 export function EmpleadoCell({ empleado, sub, className, grande = false }: { empleado: EmpleadoConFoto; sub?: ReactNode; className?: string; grande?: boolean }) {
-  const url = fotoUrl(empleado);
   return (
     <div className={cn('flex min-w-0 items-center', grande ? 'gap-3' : 'gap-2.5', className)}>
-      <div className={cn('flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted font-semibold text-muted-foreground', grande ? 'h-10 w-10 text-sm' : 'h-9 w-9 text-xs')}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : iniciales(empleado.nombre)}
-      </div>
+      <Avatar nombre={empleado.nombre} emp={empleado} className={grande ? 'h-10 w-10 text-sm' : 'h-9 w-9 text-xs'} />
       <div className="min-w-0">
         <div className={cn('truncate font-semibold text-foreground', grande ? 'text-base' : 'text-sm')}>{empleado.nombre}</div>
         {/* En grande el detalle se parte en dos líneas antes que cortarse: en el celular trae datos (horas). */}

@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { AlertTriangle, CheckCircle2, Info, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { apiFetch, mensajeError } from '@/components/comunes/api';
-import { fotoUrl, iniciales } from '@/components/organigrama/foto';
+import { Avatar } from '@/components/comunes/ui';
 import { cn } from '@/lib/utils';
 import { DIAS_SEMANA, type EstadoSolicitud, type Flag } from '@/lib/vacaciones-calc';
 
@@ -84,13 +84,9 @@ export const CAMPO = 'h-11 text-base';
 
 /** Foto (o iniciales), nombre y una línea de detalle, en tamaño cómodo. */
 export function Persona({ e, sub, grande }: { e: { id: number; nombre: string; fotoArchivo: string | null }; sub?: ReactNode; grande?: boolean }) {
-  const url = fotoUrl({ id: e.id, foto_archivo: e.fotoArchivo });
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <div className={cn('flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted font-semibold text-muted-foreground', grande ? 'h-14 w-14 text-lg' : 'h-11 w-11 text-sm')}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : iniciales(e.nombre)}
-      </div>
+      <Avatar nombre={e.nombre} emp={{ id: e.id, foto_archivo: e.fotoArchivo }} className={grande ? 'h-14 w-14 text-lg' : 'h-11 w-11 text-sm'} />
       <div className="min-w-0">
         <div className={cn('truncate font-semibold text-foreground', grande ? 'text-2xl' : 'text-[17px]')}>{e.nombre}</div>
         {sub !== undefined && <div className="truncate text-[15px] text-muted-foreground">{sub}</div>}

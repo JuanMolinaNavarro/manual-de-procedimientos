@@ -1,24 +1,12 @@
 'use client';
 
 /**
- * Piezas de asistencia que no dependen del contexto del módulo (reciben todo por props): la foto
- * del perfil y la grilla de días de un horario, que también usa la ficha del organigrama.
+ * Piezas de asistencia que no dependen del contexto del módulo (reciben todo por props): la grilla
+ * de días de un horario, que también usa la ficha del organigrama.
  */
 
-import { fotoUrl, iniciales } from '@/components/organigrama/foto';
 import { cn } from '@/lib/utils';
 import { DIAS_SEMANA, DIAS_SEMANA_CORTO, DIAS_SEMANA_LARGO, type HorarioVersion } from '@/lib/asistencia-calendario';
-
-/** `className` cambia el tamaño (por defecto 96 px). */
-export function Foto({ nombre, emp, className }: { nombre: string | null; emp?: { id: number; foto_archivo: string | null }; className?: string }) {
-  const url = emp ? fotoUrl(emp) : null;
-  return (
-    <div className={cn('flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-2xl font-semibold text-muted-foreground', className)}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : nombre ? iniciales(nombre) : ''}
-    </div>
-  );
-}
 
 /**
  * Días de la semana de un horario (con turnos rotativos por semana del ciclo). Lo usa la ficha del
