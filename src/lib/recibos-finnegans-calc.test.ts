@@ -9,6 +9,8 @@ import {
   fichasPorCuil,
   formatoCuit,
   validarFirmaInput,
+  textoFirma,
+  tieneObservaciones,
   fechaIso,
   formatoNeto,
   periodoDe,
@@ -176,27 +178,40 @@ describe('clasificarRespuestaPdf', () => {
 });
 
 describe('estadoEntrega', () => {
-  const pub = new Date('2026-09-01T12:00:00Z');
-  const dia = (n: number) => new Date(pub.getTime() + n * 86_400_000);
-  it('pendiente hasta el día 14, no retirado desde el 15', () => {
-    expect(estadoEntrega({ estado: 'disponible', publicado: pub }, dia(14))).toEqual({ estado: 'pendiente', dias: 14 });
-    expect(estadoEntrega({ estado: 'accedido', publicado: pub }, dia(15))).toEqual({ estado: 'no_retirado', dias: 15 });
+  const aviso = new Date('2026-09-01T12:00:00Z');
+  const dia = (n: number) => new Date(aviso.getTime() + n * 86_400_000);
+  it('pendiente hasta el día 14 del aviso, sin firmar desde el 15', () => {
+    expect(estadoEntrega({ estado: 'disponible', notificado: aviso }, dia(14))).toEqual({ estado: 'pendiente', dias: 14 });
+    expect(estadoEntrega({ estado: 'accedido', notificado: aviso }, dia(15))).toEqual({ estado: 'sin_firmar', dias: 15 });
+  });
+  it('sin aviso el plazo no corre', () => {
+    expect(estadoEntrega({ estado: 'disponible', notificado: null }, dia(90))).toEqual({ estado: 'pendiente', dias: 0 });
   });
   it('firmado y papel ganan siempre', () => {
-    expect(estadoEntrega({ estado: 'firmado', publicado: pub }, dia(40)).estado).toBe('firmado');
-    expect(estadoEntrega({ estado: 'papel', publicado: pub }, dia(40)).estado).toBe('papel');
+    expect(estadoEntrega({ estado: 'firmado', notificado: aviso }, dia(40)).estado).toBe('firmado');
+    expect(estadoEntrega({ estado: 'papel', notificado: aviso }, dia(40)).estado).toBe('papel');
   });
 });
 
 describe('validarFirmaInput', () => {
-  const ok = { pin: '4821', conformidad: 'conforme', observaciones: '', leido: true };
-  it('acepta una firma conforme', () => expect(validarFirmaInput(ok)).toEqual({ ok: true, firma: { pin: '4821', conformidad: 'conforme', observaciones: '' } }));
-  it('exige la declaración de lectura', () => expect(validarFirmaInput({ ...ok, leido: 'true' })).toMatchObject({ ok: false }));
-  it('no hay conformidad por defecto', () => expect(validarFirmaInput({ ...ok, conformidad: undefined })).toMatchObject({ ok: false }));
-  it('disconforme exige observaciones', () => {
-    expect(validarFirmaInput({ ...ok, conformidad: 'disconforme', observaciones: '   ' })).toMatchObject({ ok: false });
-    expect(validarFirmaInput({ ...ok, conformidad: 'disconforme', observaciones: ' faltan horas ' }))
-      .toEqual({ ok: true, firma: { pin: '4821', conformidad: 'disconforme', observaciones: 'faltan horas' } });
+  const ok = { pin: '4821', observaciones: '', leido: true };
+  it('firmar es constancia de recepción, sin conformidad', () => {
+    expect(validarFirmaInput(ok)).toEqual({ ok: true, firma: { pin: '4821', conformidad: 'recibido', observaciones: '' } });
+    expect(validarFirmaInput({ ...ok, observaciones: '   ' })).toMatchObject({ ok: true, firma: { conformidad: 'recibido' } });
   });
+  it('con observaciones queda observado', () => {
+    expect(validarFirmaInput({ ...ok, observaciones: ' faltan horas ' }))
+      .toEqual({ ok: true, firma: { pin: '4821', conformidad: 'observado', observaciones: 'faltan horas' } });
+  });
+  it('exige la declaración de lectura', () => expect(validarFirmaInput({ ...ok, leido: 'true' })).toMatchObject({ ok: false }));
   it('PIN con formato inválido', () => expect(validarFirmaInput({ ...ok, pin: '12' })).toMatchObject({ ok: false }));
+});
+
+describe('textoFirma / tieneObservaciones', () => {
+  it('las constancias viejas se leen como fueron firmadas', () => {
+    expect(textoFirma('conforme')).toBe('En conformidad');
+    expect(textoFirma('observado')).toBe('Recibido con observaciones');
+    expect(tieneObservaciones('disconforme')).toBe(true);
+    expect(tieneObservaciones('recibido')).toBe(false);
+  });
 });

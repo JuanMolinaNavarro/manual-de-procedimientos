@@ -404,6 +404,7 @@ model OrgEmpleado {
   // horario esperado (versionado por vigencia) contra el que se mide.
   asistencia_personas AsistenciaPersona[]
   asistencia_horarios AsistenciaHorario[]
+  asistencia_justificaciones AsistenciaJustificacion[]
 
   // Vacaciones: ficha (saldos, convenio, historial de veranos) y una solicitud por ejercicio.
   vacaciones_perfil      VacacionesPerfil?
@@ -1129,6 +1130,35 @@ model AsistenciaConfig {
   updated_at      DateTime @updatedAt
 
   @@map("asistencia_config")
+}
+
+// Justificativo de una inasistencia: lo sube el empleado desde Mi asistencia
+// (un día ausente del mes en curso o del anterior) y RR.HH. lo aprueba marcando
+// los días que cubre (`dias`, un reposo puede abarcar varios) o lo rechaza. Un
+// día con aprobación y sin marcas se deriva como "justificado". Un pedido por
+// día: el unique hace que un rechazo sea definitivo. Restrict: es documentación.
+model AsistenciaJustificacion {
+  id              Int       @id @default(autoincrement())
+  empleado_id     Int
+  fecha           String // yyyy-mm-dd: el día ausente que eligió el empleado
+  comentario      String?
+  nombre_original String
+  nombre_archivo  String // uuid + extensión elegida por el servidor
+  tamano          Int
+  sha256          String
+  estado          String    @default("pendiente") // pendiente | aprobada | rechazada
+  dias            String[] // días que justificó RR.HH. al aprobar
+  motivo_rechazo  String?
+  revisado_por    String?
+  revisado_en     DateTime?
+  created_by      String?
+  created_at      DateTime  @default(now())
+
+  empleado OrgEmpleado @relation(fields: [empleado_id], references: [id], onDelete: Restrict)
+
+  @@unique([empleado_id, fecha])
+  @@index([estado])
+  @@map("asistencia_justificaciones")
 }
 
 // ─── Vacaciones ─────────────────────────────────────────────────────────────

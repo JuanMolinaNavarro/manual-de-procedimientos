@@ -17,6 +17,7 @@ import {
   validarConfigInput,
   describirHorario,
   resumenLiquidacion,
+  diaJustificable,
   horasExtraDe,
   detectarFeriados,
   fmtHorasMin,
@@ -179,6 +180,19 @@ describe('evaluarDia', () => {
     expect(ev('2026-09-14', []).jornada).toEqual({ entrada: '08:00', salida: '17:00' });
   });
 
+  it('justificado: sin marcas no es ausente; con marcas manda lo fichado', () => {
+    expect(ev('2026-09-14', [], { justificado: true }).estado).toBe('justificado');
+    expect(ev(HOY, [], { justificado: true }).estado).toBe('justificado');
+    expect(ev('2026-09-16', [], { justificado: true }).estado).toBe('futuro');
+    expect(ev('2026-09-13', [], { justificado: true }).estado).toBe('no_laborable'); // domingo
+    expect(ev('2026-09-14', [marca('2026-09-14', '08:00')], { justificado: true }).estado).toBe('a_horario');
+    expect(diaJustificable(ev('2026-09-14', []))).toBe(true); // ausente
+    expect(diaJustificable(ev('2026-09-16', []))).toBe(true); // futuro con jornada
+    expect(diaJustificable(ev('2026-09-19', []))).toBe(false); // sábado sin jornada
+    expect(diaJustificable(ev('2026-09-14', [marca('2026-09-14', '08:00')]))).toBe(false);
+    expect(diaJustificable(ev('2026-09-14', [], { justificado: true }))).toBe(false);
+  });
+
   it('a horario / tarde / tarde grave desde la hora pactada', () => {
     expect(ev('2026-09-14', [marca('2026-09-14', '08:09'), marca('2026-09-14', '17:00', 1)]).estado).toBe('a_horario');
     expect(ev('2026-09-14', [marca('2026-09-14', '08:10'), marca('2026-09-14', '17:00', 1)]).estado).toBe('a_horario');
@@ -276,6 +290,10 @@ describe('armarCalendario y totales', () => {
     ];
     const cal = armarCalendario({ desde: '2026-09-01', hasta: '2026-09-30', hoy: HOY, cfg: CONFIG_DEFAULT, filas });
     expect(cal.dias).toHaveLength(30);
+    const conJustif = armarCalendario({ desde: '2026-09-01', hasta: '2026-09-30', hoy: HOY, cfg: CONFIG_DEFAULT, filas: [{ ...filas[0], justificados: new Set(['2026-09-03']) }] });
+    expect(conJustif.filas[0].celdas[2].estado).toBe('justificado');
+    expect(resumenLiquidacion(conJustif.filas[0].celdas)).toMatchObject({ justificados: ['2026-09-03'] });
+    expect(resumenLiquidacion(conJustif.filas[0].celdas).ausentes).not.toContain('2026-09-03');
     expect(cal.dias[0]).toMatchObject({ fecha: '2026-09-01', dia: 1, diaSemana: 1, finDeSemana: false });
     expect(cal.dias[14]).toMatchObject({ fecha: HOY, esHoy: true });
     expect(cal.dias[4].finDeSemana).toBe(true); // sábado 5

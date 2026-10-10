@@ -124,7 +124,7 @@ export default function PasoAviso({ onEnviado }: { onEnviado: () => void }) {
               Le llega un mail a <b>{total}</b> persona(s) con recibos sin firmar
               {nuevos < total ? ` (${total - nuevos} ya avisada(s): les llega como recordatorio)` : ''}. No lleva el recibo ni
               importes, solo el enlace para verlo y firmarlo con su PIN. Desde el primer aviso corren los 15 días para
-              considerarlo «no retirado».
+              firmarlo; después queda «notificado sin firmar».
             </AlertDialogDescription>
           </AlertDialogHeader>
           {d?.modo === 'prueba' && (

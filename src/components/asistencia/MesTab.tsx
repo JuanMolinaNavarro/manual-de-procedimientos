@@ -121,7 +121,7 @@ function Tarjeta({ p }: { p: PersonaMes }) {
       <dl className="divide-y divide-border border-t border-border">
         <Cifra label="Llegadas tarde" tono={r.tardes ? 'warn' : null} valor={r.tardes} sub={r.tardes ? plural(r.compensadas, 'compensada', 'compensadas') : undefined} />
         <Cifra label="Horas extra" tono={extra ? 'info' : null} valor={extra} unidad=" h" sub={r.extra100 ? `${r.extra100} h al 100 %` : undefined} />
-        <Cifra label="Faltas" tono={r.faltas ? 'bad' : null} valor={r.faltas} sub={r.sinMarca ? plural(r.sinMarca, 'día sin marca', 'días sin marca') : undefined} />
+        <Cifra label="Faltas" tono={r.faltas ? 'bad' : null} valor={r.faltas} sub={[r.justificadas && plural(r.justificadas, 'justificada', 'justificadas'), r.sinMarca && plural(r.sinMarca, 'día sin marca', 'días sin marca')].filter(Boolean).join(' · ') || undefined} />
       </dl>
     </div>
   );
@@ -186,7 +186,10 @@ function Tabla({ personas, personaId, mes, orden }: { personas: PersonaMes[]; pe
                 <td className={cn('whitespace-nowrap px-3 text-right font-mono', !r.minutosTarde && cero)}>{r.minutosTarde ? fmtMinutos(r.minutosTarde) : '0'}</td>
                 <td className={cn('px-3 text-right', r.extra50 ? 'text-sky-700 dark:text-sky-300' : cero)}><span className="font-mono">{r.extra50}</span> h</td>
                 <td className={cn('px-3 text-right', r.extra100 ? 'text-sky-700 dark:text-sky-300' : cero)}><span className="font-mono">{r.extra100}</span> h</td>
-                <td className="px-3 text-right">{r.faltas ? <Etiqueta tono="bad"><span className="font-mono">{r.faltas}</span></Etiqueta> : <span className={cero}>0</span>}</td>
+                <td className="px-3 text-right">
+                  {r.faltas ? <Etiqueta tono="bad"><span className="font-mono">{r.faltas}</span></Etiqueta> : <span className={cero}>0</span>}
+                  {r.justificadas > 0 && <span className="block whitespace-nowrap text-xs text-teal-700 dark:text-teal-300">+{plural(r.justificadas, 'justificada', 'justificadas')}</span>}
+                </td>
                 <td className="px-5 pl-3 text-right">{r.sinMarca ? <Etiqueta tono="warn"><span className="font-mono">{r.sinMarca}</span></Etiqueta> : <span className={cero}>0</span>}</td>
               </tr>
             );

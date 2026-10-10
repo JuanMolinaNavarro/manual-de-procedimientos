@@ -2,11 +2,12 @@
 
 /**
  * Ver y firmar un recibo propio (`/admin/mis-recibos/[id]`), pensado para el celular: el
- * trabajador lee el PDF oficial de Finnegans, declara que lo leyó, elige conformidad o
- * disconformidad (con observaciones) y firma con su PIN. La ficha sale de la sesión.
+ * trabajador lee el PDF oficial de Finnegans, declara que lo recibió y lo leyó y firma con su
+ * PIN. Firmar es constancia de recepción, no de conformidad; si algo no le cierra puede dejarle
+ * una observación a RR.HH. al firmar. La ficha sale de la sesión.
  */
 
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { ArrowLeft, CheckCircle2, Download } from 'lucide-react';
@@ -21,6 +22,7 @@ import { fechaCorta, fmtMes } from '@/lib/fechas';
 import type { ConstanciaView } from '@/lib/nomina';
 import { fechaHora, money } from '@/lib/nomina-calc';
 import type { MiReciboView } from '@/lib/recibos-finnegans';
+import { tieneObservaciones } from '@/lib/recibos-finnegans-calc';
 import { cn } from '@/lib/utils';
 import { apiFetch, mensajeError } from '@/components/comunes/api';
 import ConstanciaCard from './ConstanciaCard';
@@ -65,7 +67,7 @@ export default function FirmarReciboPage({ id }: { id: string }) {
   }, [id, version]);
 
   const pdf = `/api/admin/mis-recibos/${id}/pdf`;
-  const porFirmar = !!r && (r.entrega === 'pendiente' || r.entrega === 'no_retirado');
+  const porFirmar = !!r && (r.entrega === 'pendiente' || r.entrega === 'sin_firmar');
   const puedeFirmar = porFirmar && r?.adhesion === 'completa';
 
   const visor = (
@@ -102,8 +104,8 @@ export default function FirmarReciboPage({ id }: { id: string }) {
               <div className="flex items-center gap-3 rounded-xl bg-emerald-500/10 p-4">
                 <CheckCircle2 className="h-6 w-6 shrink-0 text-emerald-600" />
                 <p className="text-sm text-foreground">
-                  <b>Ya firmaste este recibo</b> {constancia.conformidad === 'conforme' ? 'en conformidad' : 'en disconformidad'} el {fechaHora(constancia.fecha)}.
-                  {constancia.conformidad === 'disconforme' && ' RR.HH. se va a comunicar con vos.'}
+                  <b>Ya firmaste este recibo</b> el {fechaHora(constancia.fecha)}
+                  {tieneObservaciones(constancia.conformidad) ? ', con observaciones. RR.HH. se va a comunicar con vos.' : '.'}
                 </p>
               </div>
               <details>
@@ -145,63 +147,16 @@ export default function FirmarReciboPage({ id }: { id: string }) {
   );
 }
 
-function OpcionConformidad({ activa, enfocable, titulo, detalle, onClick, boton }: {
-  activa: boolean;
-  /** Tab entra al grupo por la opción elegida (o la primera si no hay): "roving tabindex". */
-  enfocable: boolean;
-  titulo: string;
-  detalle: string;
-  onClick: () => void;
-  boton: (b: HTMLButtonElement | null) => void;
-}) {
-  return (
-    <button
-      ref={boton}
-      type="button"
-      role="radio"
-      aria-checked={activa}
-      tabIndex={enfocable ? 0 : -1}
-      onClick={onClick}
-      className={cn(
-        'flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors',
-        activa ? 'border-primary bg-primary/5' : 'border-border hover:border-foreground/30',
-      )}
-    >
-      <span className={cn('mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border', activa ? 'border-primary' : 'border-muted-foreground/50')}>
-        {activa && <span className="h-2 w-2 rounded-full bg-primary" />}
-      </span>
-      <span>
-        <span className="block text-sm font-medium text-foreground">{titulo}</span>
-        <span className="block text-xs text-muted-foreground">{detalle}</span>
-      </span>
-    </button>
-  );
-}
-
-const OPCIONES = ['conforme', 'disconforme'] as const;
-
 function FormularioFirma({ id, pdfListo, onFirmado }: { id: string; pdfListo: boolean; onFirmado: () => void }) {
   const [leido, setLeido] = useState(false);
-  const [conformidad, setConformidad] = useState<'conforme' | 'disconforme' | null>(null);
+  const [conObservacion, setConObservacion] = useState(false);
   const [observaciones, setObservaciones] = useState('');
   const [pin, setPin] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [firmado, setFirmado] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const botones = useRef<(HTMLButtonElement | null)[]>([]);
 
-  const listo = pdfListo && leido && !!conformidad && /^\d{4,8}$/.test(pin) && (conformidad === 'conforme' || observaciones.trim() !== '');
-
-  // Flechas dentro del grupo de conformidad, como un radio nativo.
-  function teclas(e: KeyboardEvent<HTMLDivElement>) {
-    const paso = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 0;
-    if (!paso) return;
-    e.preventDefault();
-    const actual = conformidad ? OPCIONES.indexOf(conformidad) : -1;
-    const sig = (actual + paso + OPCIONES.length) % OPCIONES.length;
-    setConformidad(OPCIONES[sig]);
-    botones.current[sig]?.focus();
-  }
+  const listo = pdfListo && leido && /^\d{4,8}$/.test(pin) && (!conObservacion || observaciones.trim() !== '');
 
   async function firmar() {
     if (!listo || enviando || firmado) return;
@@ -210,7 +165,7 @@ function FormularioFirma({ id, pdfListo, onFirmado }: { id: string; pdfListo: bo
     try {
       await apiFetch<ConstanciaView>(`/api/admin/mis-recibos/${id}/firmar`, {
         method: 'POST',
-        body: JSON.stringify({ pin, conformidad, observaciones, leido: true }),
+        body: JSON.stringify({ pin, observaciones: conObservacion ? observaciones : '', leido: true }),
       });
       toast.success('Recibo firmado');
       setFirmado(true); // el formulario se cierra ya: un segundo toque no vuelve a firmar
@@ -241,32 +196,23 @@ function FormularioFirma({ id, pdfListo, onFirmado }: { id: string; pdfListo: bo
           {!pdfListo && <span className="block text-xs">Esperá a que se muestre el recibo arriba.</span>}
         </span>
       </label>
+      <p className="text-xs text-muted-foreground">
+        Firmar confirma que lo recibiste. No significa que estés de acuerdo ni te hace perder ningún derecho.
+      </p>
 
-      <div className="space-y-2" role="radiogroup" aria-label="Conformidad" onKeyDown={teclas}>
-        <OpcionConformidad
-          activa={conformidad === 'conforme'}
-          enfocable={conformidad !== 'disconforme'}
-          titulo="Firmo en conformidad"
-          detalle="Estoy de acuerdo con lo liquidado."
-          onClick={() => setConformidad('conforme')}
-          boton={(b) => { botones.current[0] = b; }}
-        />
-        <OpcionConformidad
-          activa={conformidad === 'disconforme'}
-          enfocable={conformidad === 'disconforme'}
-          titulo="Firmo en disconformidad"
-          detalle="Lo recibo, pero hay algo que quiero observar. No pierdo ningún derecho y RR.HH. se va a comunicar conmigo."
-          onClick={() => setConformidad('disconforme')}
-          boton={(b) => { botones.current[1] = b; }}
-        />
+      <div className="space-y-2">
+        <label className="flex items-start gap-3 text-sm">
+          <Checkbox checked={conObservacion} onCheckedChange={(v) => setConObservacion(v === true)} className="mt-0.5" />
+          <span>Quiero dejarle una observación a RR.HH. sobre este recibo.</span>
+        </label>
+        {conObservacion && (
+          <div className="space-y-1.5 pl-7">
+            <Label htmlFor="obs">¿Qué observás?</Label>
+            <Textarea id="obs" rows={3} maxLength={2000} value={observaciones} onChange={(e) => setObservaciones(e.target.value)} placeholder="Contá qué no te cierra del recibo" />
+            <p className="text-xs text-muted-foreground">Queda registrada con la firma y RR.HH. se va a comunicar con vos.</p>
+          </div>
+        )}
       </div>
-
-      {conformidad === 'disconforme' && (
-        <div className="space-y-1.5">
-          <Label htmlFor="obs">¿Qué observás?</Label>
-          <Textarea id="obs" rows={3} maxLength={2000} value={observaciones} onChange={(e) => setObservaciones(e.target.value)} placeholder="Contá qué no te cierra del recibo" />
-        </div>
-      )}
 
       <div className="space-y-1.5">
         <Label htmlFor="pin">Tu PIN personal</Label>
@@ -285,7 +231,7 @@ function FormularioFirma({ id, pdfListo, onFirmado }: { id: string; pdfListo: bo
       {error && <p className="text-sm font-medium text-destructive" role="alert">{error}</p>}
 
       <Button size="lg" className="w-full" disabled={!listo || enviando} onClick={firmar}>
-        {enviando ? 'Firmando…' : 'Firmar recibo'}
+        {enviando ? 'Firmando…' : 'Firmar: recibí este recibo'}
       </Button>
     </div>
   );

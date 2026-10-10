@@ -4,7 +4,7 @@ import { listarCasos } from '@/lib/recibos-finnegans';
 
 export const dynamic = 'force-dynamic';
 
-/** Casos de disconformidad. `estado` = abierto (default) | resuelto | todos; filtros `empleador` y `lugar`. */
+/** Casos de observaciones a recibos firmados. `estado` = abierto (default) | resuelto | todos; filtros `empleador` y `lugar`. */
 export async function GET(request: NextRequest) {
   return handle('GET /api/admin/nomina/firma/casos', async () => {
     const p = request.nextUrl.searchParams;

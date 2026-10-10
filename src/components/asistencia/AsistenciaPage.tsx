@@ -7,13 +7,15 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { PageTitle } from '@/components/comunes/ui';
 import { cn } from '@/lib/utils';
 import { fmtRelativo } from '@/lib/asistencia-datos';
-import { AsistenciaProvider, useAsistencia, type EmpleadoOpt, type TabAsistencia } from './AsistenciaContext';
+import { AsistenciaProvider, useAsistencia, useAsistenciaData, type EmpleadoOpt, type TabAsistencia } from './AsistenciaContext';
 import DiaTab from './DiaTab';
 import MesTab from './MesTab';
 import CalendarioTab from './CalendarioTab';
 import FichadasTab from './FichadasTab';
 import PersonasTab from './PersonasTab';
 import RelojesTab from './RelojesTab';
+import JustificativosTab, { URL_PENDIENTES } from './JustificativosTab';
+import type { JustificacionView } from '@/lib/asistencia-justificaciones';
 
 export type { EmpleadoOpt };
 
@@ -21,6 +23,7 @@ export type { EmpleadoOpt };
 const VISTAS: { tab: TabAsistencia; label: string }[] = [
   { tab: 'dia', label: 'Día' },
   { tab: 'mes', label: 'Mes' },
+  { tab: 'justificativos', label: 'Justificativos' },
 ];
 
 /** Herramientas de mantenimiento: quedan a mano pero fuera del camino. */
@@ -34,6 +37,7 @@ const HERRAMIENTAS: { tab: TabAsistencia; label: string; desc: string }[] = [
 const CONTENIDO: Record<TabAsistencia, React.ReactNode> = {
   dia: <DiaTab />,
   mes: <MesTab />,
+  justificativos: <JustificativosTab />,
   calendario: <CalendarioTab />,
   fichadas: <FichadasTab />,
   personas: <PersonasTab />,
@@ -51,6 +55,7 @@ export default function AsistenciaPage({ empleados }: { empleados: EmpleadoOpt[]
 function Contenido() {
   const { f, set } = useAsistencia();
   const herramienta = HERRAMIENTAS.find((h) => h.tab === f.tab);
+  const porRevisar = useAsistenciaData<JustificacionView[]>(URL_PENDIENTES).data?.length ?? 0;
 
   return (
     // Mismo ancho contenido que proyectos y señales IP: en un monitor grande, a
@@ -59,7 +64,7 @@ function Contenido() {
       <PageTitle title="Asistencia" sub={<UltimoSync />} />
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <nav aria-label="Vista" className="grid flex-1 grid-cols-2 gap-1 rounded-[10px] bg-muted p-1 sm:max-w-xs">
+        <nav aria-label="Vista" className="grid w-full grid-cols-[1fr_1fr_auto] gap-1 rounded-[10px] bg-muted p-1 sm:w-auto sm:min-w-md">
           {VISTAS.map((v) => (
             <button
               key={v.tab}
@@ -68,11 +73,14 @@ function Contenido() {
               // De Día a Mes se abre el mes del día que se estaba mirando.
               onClick={() => set(v.tab === 'mes' && f.tab === 'dia' ? { tab: 'mes', mes: f.fecha.slice(0, 7) } : { tab: v.tab })}
               className={cn(
-                'h-11 rounded-lg text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                'h-11 whitespace-nowrap rounded-lg px-3 text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
                 f.tab === v.tab ? 'bg-card font-semibold text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
               )}
             >
               {v.label}
+              {v.tab === 'justificativos' && porRevisar > 0 && (
+                <span className="ml-1.5 inline-flex min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-sm font-semibold text-primary-foreground" aria-label={`${porRevisar} para revisar`}>{porRevisar}</span>
+              )}
             </button>
           ))}
         </nav>

@@ -17,21 +17,26 @@ import { Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ActaDatos } from '@/lib/nomina';
 import { fechaHora } from '@/lib/nomina-calc';
-import { DIAS_NO_RETIRADO } from '@/lib/recibos-finnegans-calc';
+import { DIAS_PARA_FIRMAR } from '@/lib/recibos-finnegans-calc';
 import { useNominaData } from './NominaContext';
 
-export const ACTA_VERSION = 'acta-v4';
+export const ACTA_VERSION = 'acta-v5';
 
-function clausulas(empresa: string, email: string | null): string[] {
+const EMPLEADOR_GENERICO = '(empresa que paga el sueldo)';
+
+function clausulas(empresa: { razonSocial: string; cuit: string }, email: string | null): string[] {
+  const empleador = empresa.razonSocial
+    ? `${empresa.razonSocial}${empresa.cuit ? `, CUIT ${empresa.cuit}` : ''}`
+    : EMPLEADOR_GENERICO;
   return [
     'Que acepta recibir sus recibos de haberes en formato digital, conforme lo habilita el art. 139 de la Ley de Contrato de Trabajo (texto según Ley 27.802).',
     'Que la constancia de entrega de cada recibo se instrumentará mediante firma electrónica (Ley 25.506, art. 5), que consiste en ingresar al portal de la empresa con su usuario personal, desde cualquier dispositivo, y confirmar con un PIN personal y secreto elegido por el trabajador, sobre el recibo identificado por su hash SHA-256.',
-    `Que declara como dirección de correo electrónico para recibir los avisos de recibos disponibles la siguiente: ${email || '________________________________'}. Los avisos no incluyen los recibos ni sus importes. Se obliga a informar a Recursos Humanos cualquier cambio de esa dirección.`,
+    `Que declara como dirección de correo electrónico para recibir los avisos de recibos disponibles la siguiente: ${email || '________________________________'}. Los avisos no incluyen los recibos ni sus importes. Se obliga a informar a Recursos Humanos cualquier cambio de esa dirección. Si la dirección declarada fuera una casilla provista por el empleador, reconoce que su titularidad y administración corresponden a este; que los avisos recibidos quedarán almacenados en ella; y que, extinguida la relación laboral por cualquier causa, dejará de tener acceso a dicha casilla y a su contenido, lo que acepta expresamente, sin perjuicio de su derecho a requerir al empleador copia de sus recibos y constancias. En tal supuesto podrá declarar, en cualquier momento, una dirección personal para continuar recibiendo los avisos.`,
     'Que se obliga a no divulgar su PIN. Puede cambiarlo cuando lo desee desde el portal de la empresa, ingresando su PIN actual; Recursos Humanos no puede cambiarlo ni conocerlo. Si lo olvida o cree que otra persona pudo conocerlo, deberá avisar a Recursos Humanos y renovar esta adhesión en forma presencial, con una nueva acta.',
-    'Que en cada oportunidad podrá firmar en conformidad o en disconformidad, dejando en este último caso sus observaciones. Firmar no implica renuncia a derecho alguno (arts. 12 y 260 LCT).',
-    `Que sus recibos quedan a su disposición en el portal de la empresa desde su publicación, lo que se le avisará al correo declarado. Si no los firma dentro de los ${DIAS_NO_RETIRADO} días del aviso, se le entregarán en papel para su firma. Su silencio no implica conformidad (art. 58 LCT).`,
+    'Que su firma de cada recibo constituye constancia de su recepción (arts. 138 a 140 LCT) y no implica conformidad con su contenido ni renuncia a derecho alguno (arts. 12 y 260 LCT). Si tuviera observaciones sobre un recibo, podrá comunicarlas a Recursos Humanos desde el mismo portal al firmarlo, donde quedarán registradas con fecha.',
+    `Que sus recibos quedan a su disposición en el portal de la empresa desde su publicación, lo que se le avisará al correo declarado. El empleador conservará constancia del aviso, del acceso al recibo y de la acreditación del pago. Si no lo firma dentro de los ${DIAS_PARA_FIRMAR} días del aviso, Recursos Humanos podrá requerirle la firma por otro medio. Su silencio no implica conformidad (art. 58 LCT).`,
     'Que podrá ver, descargar e imprimir sus recibos y constancias en cualquier momento, y que el empleador los conservará por los plazos legales (art. 143 LCT).',
-    `Que fue informado de que sus datos personales y de remuneración son tratados por ${empresa || 'el empleador'} con la finalidad de liquidar, entregar y conservar sus recibos; que no se comunican a terceros salvo obligación legal; y que puede ejercer sus derechos de acceso, rectificación y supresión ante el empleador (Ley 25.326, art. 6).`,
+    `Que fue informado de que sus datos personales y de remuneración son tratados por ${empleador}, en su carácter de responsable, con la finalidad de liquidar, entregar y conservar sus recibos; que no se comunican a terceros salvo obligación legal; y que puede ejercer sus derechos de acceso, rectificación y supresión ante el empleador (Ley 25.326, art. 6).`,
     'Que podrá revocar esta adhesión comunicándolo por escrito al empleador. Desde entonces recibirá sus recibos en papel.',
   ];
 }
@@ -82,12 +87,12 @@ export default function ActaAdhesion() {
               </div>
             </div>
             <div className="my-4 border-y border-[#999] py-2">
-              <b>Empleador:</b> {d.empresa.razonSocial || raya} · CUIT {d.empresa.cuit || '____________'} · {d.empresa.domicilio || raya}<br />
+              <b>Empleador:</b> {d.empresa.razonSocial || EMPLEADOR_GENERICO} · CUIT {d.empresa.cuit || '____________'} · {d.empresa.domicilio || raya}<br />
               <b>Trabajador:</b> {d.trabajador.nombre} · CUIL {d.trabajador.cuil || '____________'} · Categoría {d.trabajador.categoria || '—'}
             </div>
             <p>En {d.empresa.domicilio || '________________'}, a los ____ días del mes de __________ de ______, quien suscribe manifiesta:</p>
             <ol className="my-3 list-decimal space-y-1.5 pl-5">
-              {clausulas(d.empresa.razonSocial, d.adhesion?.email ?? null).map((c) => <li key={c}>{c}</li>)}
+              {clausulas(d.empresa, d.adhesion?.email ?? null).map((c) => <li key={c}>{c}</li>)}
             </ol>
             <p className="text-[11px] text-[#555]">
               El código {d.adhesion?.codigo ?? 'de adhesión'} identifica este acto en el sistema. El PIN no figura en este documento ni se

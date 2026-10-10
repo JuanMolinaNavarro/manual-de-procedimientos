@@ -482,7 +482,7 @@ export async function misRecibos(empleadoId: number, soloId?: string): Promise<M
     neto: r.neto,
     estado: r.estado,
     accedidoEn: r.accedido_en?.toISOString() ?? null,
-    entrega: estadoEntrega({ estado: r.estado, publicado: r.notificado_en ?? r.created_at }, hoy).estado,
+    entrega: estadoEntrega({ estado: r.estado, notificado: r.notificado_en }, hoy).estado,
     firma: r.constancia ? { conformidad: r.constancia.conformidad, fecha: r.constancia.fecha } : null,
   }));
 }
@@ -534,10 +534,11 @@ export interface FirmaReciboInput {
 /**
  * Firma de un recibo propio desde el portal (usuario + PIN). La ficha sale de la sesión y el
  * recibo tiene que ser suyo (404 si no). Orden: recibo propio → adhesión COMPLETA (con acta),
- * mismo CUIL y mismo EMPLEADOR que el recibo → hash del PDF → bloqueo → entrada (lectura,
- * conformidad explícita, observaciones) → PIN (hash lento; los fallos se guardan) → constancia
- * encadenada en la cadena de ese empleador, bajo lock, re-chequeando dentro de la transacción
- * que no esté firmado. Disconforme → caso para RR.HH.
+ * mismo CUIL y mismo EMPLEADOR que el recibo → hash del PDF → bloqueo → entrada (lectura y
+ * observaciones opcionales) → PIN (hash lento; los fallos se guardan) → constancia encadenada en
+ * la cadena de ese empleador, bajo lock, re-chequeando dentro de la transacción que no esté
+ * firmado. La firma es constancia de recepción, no de conformidad; con observaciones → caso
+ * para RR.HH.
  */
 export async function firmarRecibo(empleadoId: number, reciboId: string, input: FirmaReciboInput): Promise<ConstanciaView> {
   const propio = await reciboDelEmpleado(empleadoId, reciboId); // 404 si no es suyo
@@ -614,7 +615,7 @@ export async function firmarRecibo(empleadoId: number, reciboId: string, input: 
         data: { estado: 'firmado' },
       });
       if (firmado.count !== 1) throw new NominaError('Este recibo ya está firmado', 409);
-      if (conformidad === 'disconforme') {
+      if (conformidad === 'observado') {
         await tx.nominaCasoRecibo.create({ data: { constancia_id: c.id, empleado_id: r.empleado_id } });
       }
       return c;
@@ -757,7 +758,7 @@ function exigirMailReal(modo: ModoMail): void {
  * Manda el aviso a todos los destinatarios de `previaAviso` (botón de RR.HH.). El envío y cada
  * destinatario quedan registrados a medida que salen (si el proceso se corta a mitad, lo enviado
  * ya consta) y se marca `notificado_en` en los recibos avisados que todavía no lo tenían: desde
- * ahí corren los 15 días de "no retirado". En modo prueba (desarrollo, sin SMTP) se registra el
+ * ahí corren los 15 días para firmar. En modo prueba (desarrollo, sin SMTP) se registra el
  * aviso pero **no** se marca `notificado_en`: nadie recibió nada. Volver a apretarlo reenvía a
  * los pendientes (recordatorio); la fecha del primer aviso no se pisa. Un aviso por período a
  * la vez.
@@ -844,7 +845,7 @@ export async function listarAvisos(periodo: string): Promise<AvisoView[]> {
   }));
 }
 
-// ─── Panel de RR.HH.: recibos del período, papel y disconformidades ────────
+// ─── Panel de RR.HH.: recibos del período, papel y observaciones ───────────
 
 export interface ReciboPanelView {
   id: string;
@@ -874,7 +875,7 @@ export interface EmpleadorOpcion {
 
 export interface PanelRecibos {
   recibos: ReciboPanelView[];
-  resumen: { total: number; firmados: number; pendientes: number; noRetirados: number; papel: number; disconformes: number };
+  resumen: { total: number; firmados: number; pendientes: number; sinFirmar: number; papel: number };
   casosAbiertos: number;
   /** Empleadores con recibos publicados en el período (sin filtrar): opciones del filtro. */
   empleadores: EmpleadorOpcion[];
@@ -899,7 +900,7 @@ export async function panelRecibos(periodo: string, filtros: FiltrosRecibos = {}
   ]);
   const hoy = new Date();
   const recibos: ReciboPanelView[] = rows.map((r) => {
-    const e = estadoEntrega({ estado: r.estado, publicado: r.notificado_en ?? r.created_at }, hoy);
+    const e = estadoEntrega({ estado: r.estado, notificado: r.notificado_en }, hoy);
     const adh = r.empleado.nomina_adhesion;
     const completa = !!adh?.acta_archivo;
     const mismoEmpleador = !!adh && soloDigitos(adh.empleador_cuit) === soloDigitos(r.liquidacion.empresa_cuit);
@@ -929,9 +930,8 @@ export async function panelRecibos(periodo: string, filtros: FiltrosRecibos = {}
       total: recibos.length,
       firmados: cuenta('firmado'),
       pendientes: cuenta('pendiente'),
-      noRetirados: cuenta('no_retirado'),
+      sinFirmar: cuenta('sin_firmar'),
       papel: cuenta('papel'),
-      disconformes: recibos.filter((r) => r.constancia?.conformidad === 'disconforme').length,
     },
     casosAbiertos,
     empleadores,
@@ -948,7 +948,7 @@ async function empleadoresDelPeriodo(periodo: string): Promise<EmpleadorOpcion[]
   return [...porCuit].map(([cuit, nombre]) => ({ cuit, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 }
 
-/** Los mismos filtros, aplicados a una constancia (casos de disconformidad). */
+/** Los mismos filtros, aplicados a una constancia (casos de observaciones). */
 function whereConstancia(f: FiltrosRecibos): Prisma.NominaConstanciaWhereInput {
   return {
     ...(f.empleador ? { empleador_cuit: f.empleador } : {}),

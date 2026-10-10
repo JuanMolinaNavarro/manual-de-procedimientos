@@ -6,15 +6,17 @@
  * que la lea de un vistazo una persona de 60 años: el mes, unas pocas frases
  * cortas y un calendario de colores. Cada frase lleva el mismo símbolo que su
  * color del calendario, así el resumen hace de leyenda. Tocar un día abre su
- * detalle (entrada, salida, horas). Solo lectura.
+ * detalle (entrada, salida, horas). Un día ausente del mes en curso o del anterior se puede
+ * justificar subiendo un documento (certificado médico, de examen…) que revisa RR.HH.
  */
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Clock, Paperclip } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { Banner, Empty } from '@/components/comunes/ui';
 import { cn } from '@/lib/utils';
 import { fmtDiaLargo, fmtHoraCorta, hoyLocal } from '@/lib/asistencia-datos';
@@ -25,9 +27,10 @@ import type { MiAsistencia, MiAsistenciaRespuesta } from './api';
 import { apiFetch, mensajeError } from '@/components/comunes/api';
 
 type Marca = MiAsistencia['marcas'][number];
+type Justificacion = MiAsistencia['justificaciones'][number];
 
 /** Lo único que el calendario distingue de un día. */
-type Tipo = 'presente' | 'tarde' | 'recuperada' | 'extra' | 'revisar' | 'libre' | 'hoy' | 'futuro';
+type Tipo = 'presente' | 'tarde' | 'recuperada' | 'extra' | 'revisar' | 'justificada' | 'libre' | 'hoy' | 'futuro';
 
 const COLOR: Record<Tipo, string> = {
   presente: 'bg-emerald-300 text-emerald-950 dark:bg-emerald-700 dark:text-emerald-50',
@@ -35,6 +38,7 @@ const COLOR: Record<Tipo, string> = {
   recuperada: 'bg-amber-400 text-amber-950',
   extra: 'bg-sky-300 text-sky-950 dark:bg-sky-700 dark:text-sky-50',
   revisar: 'bg-red-600 text-white',
+  justificada: 'bg-teal-300 text-teal-950 dark:bg-teal-700 dark:text-teal-50',
   libre: 'text-muted-foreground/60',
   hoy: 'border-2 border-dashed border-border',
   futuro: 'text-muted-foreground/60',
@@ -46,6 +50,7 @@ const MESES_ATRAS = 24;
 function tipoDia(c: CeldaDia): Tipo {
   if (c.estado === 'futuro') return 'futuro';
   if (c.estado === 'pendiente') return 'hoy';
+  if (c.estado === 'justificado') return 'justificada';
   if (c.estado === 'ausente' || c.sinSalida || c.estado === 'sin_entrada') return 'revisar';
   if (tardanza(c)) return compensada(c) ? 'recuperada' : 'tarde';
   if (horasExtraDia(c)) return 'extra';
@@ -55,7 +60,7 @@ function tipoDia(c: CeldaDia): Tipo {
 function Simbolo({ c }: { c: CeldaDia }) {
   const t = tipoDia(c);
   if (t === 'recuperada') return <Check className="size-4" strokeWidth={3.5} aria-hidden />;
-  return <>{t === 'tarde' ? 'T' : t === 'revisar' ? '!' : t === 'extra' ? `+${horasExtraDia(c)}` : ''}</>;
+  return <>{t === 'tarde' ? 'T' : t === 'revisar' ? '!' : t === 'justificada' ? 'J' : t === 'extra' ? `+${horasExtraDia(c)}` : ''}</>;
 }
 
 /** "2026-09-22" → "Martes 22 de septiembre". */
@@ -76,6 +81,7 @@ function fraseDia(c: CeldaDia): string {
   const t = tardanza(c);
   const rec = c.extra?.compensado ?? 0;
   if (c.estado === 'ausente') return 'No hay marcas tuyas este día. Si viniste, avisale a RR.HH.';
+  if (c.estado === 'justificado') return 'Faltaste con justificativo: RR.HH. lo aprobó y el día se te paga.';
   if (c.sinSalida) return 'Falta tu marca de salida. Si fichaste al salir, avisale a RR.HH.';
   if (c.estado === 'sin_entrada') return 'Falta tu marca de entrada. Avisale a RR.HH.';
   // Un día tarde también puede sumar horas extra (el calendario muestra un solo símbolo: lo dice la frase).
@@ -102,6 +108,8 @@ export default function MiAsistenciaPage() {
   // se sigue mostrando el anterior atenuado.
   const [mesCargado, setMesCargado] = useState<string | null>(null);
   const [abierto, setAbierto] = useState<string | null>(null);
+  // Sube después de mandar un justificativo: vuelve a pedir el mes.
+  const [recarga, setRecarga] = useState(0);
   const loading = mesCargado !== mes;
   const mesMinimo = (() => {
     const [y, m] = mesActual.split('-').map(Number);
@@ -115,7 +123,7 @@ export default function MiAsistenciaPage() {
       .then((d) => { setData(d); setError(null); setMesCargado(mes); })
       .catch((e: unknown) => { if (!ac.signal.aborted) { setError(mensajeError(e)); setMesCargado(mes); } });
     return () => ac.abort();
-  }, [mes]);
+  }, [mes, recarga]);
 
   if (data && !data.vinculado) {
     return (
@@ -178,7 +186,16 @@ export default function MiAsistenciaPage() {
           aria-describedby={undefined}
           className="top-auto bottom-0 left-0 max-h-[90dvh] max-w-full translate-x-0 translate-y-0 gap-5 overflow-y-auto rounded-t-2xl rounded-b-none bg-card p-5 text-lg sm:top-[50%] sm:bottom-auto sm:left-[50%] sm:max-w-md sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-2xl"
         >
-          {celdaAbierta && <DetalleDia c={celdaAbierta} marcas={d!.marcas.filter((m) => m.fecha === celdaAbierta.fecha)} />}
+          {celdaAbierta && (
+            <DetalleDia c={celdaAbierta} marcas={d!.marcas.filter((m) => m.fecha === celdaAbierta.fecha)}>
+              <JustificarDia
+                c={celdaAbierta}
+                justificacion={d!.justificaciones.find((j) => j.fecha === celdaAbierta.fecha)}
+                enPlazo={celdaAbierta.fecha >= d!.justificarDesde}
+                onEnviado={() => setRecarga((n) => n + 1)}
+              />
+            </DetalleDia>
+          )}
           <DialogClose asChild>
             <Button className="h-14 w-full text-lg">Cerrar</Button>
           </DialogClose>
@@ -211,10 +228,11 @@ function Resumen({ r, enCurso }: { r: ResumenLiquidacion; enCurso: boolean }) {
   const recuperadas = tardesCompensadas(r);
   const extra = r.horasExtra50 + r.horasExtra100;
   const revisar = new Set([...r.ausentes, ...r.sinSalida, ...r.sinEntrada]).size;
+  const vino = r.laborables - r.ausentes.length - r.justificados.length;
   return (
     <ul className="divide-y divide-border rounded-2xl border border-border bg-card px-5 sm:px-6">
       <Linea muestra={<Muestra tipo="presente" />}>
-        {enCurso ? 'Hasta hoy viniste' : 'Viniste'} <strong>{r.laborables - r.ausentes.length} de {plural(r.laborables, 'día', 'días')}</strong>
+        {enCurso ? 'Hasta hoy viniste' : 'Viniste'} <strong>{vino} de {plural(r.laborables, 'día', 'días')}</strong>
       </Linea>
       <Linea muestra={<span className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border-2 border-border text-muted-foreground" aria-hidden><Clock className="size-5" /></span>}>
         Trabajaste <strong>{plural(Math.floor(r.minutosTrabajados / 60), 'hora', 'horas')}</strong> de {esperadas}
@@ -230,6 +248,11 @@ function Resumen({ r, enCurso }: { r: ResumenLiquidacion; enCurso: boolean }) {
       {extra > 0 && (
         <Linea muestra={<Muestra tipo="extra">+</Muestra>}>
           Hiciste <strong>{plural(extra, 'hora extra', 'horas extra')}</strong>
+        </Linea>
+      )}
+      {r.justificados.length > 0 && (
+        <Linea muestra={<Muestra tipo="justificada">J</Muestra>}>
+          <strong>{plural(r.justificados.length, 'falta justificada', 'faltas justificadas')}</strong>
         </Linea>
       )}
       {revisar > 0 && (
@@ -279,7 +302,7 @@ function Calendario({ celdas, onAbrir }: { celdas: CeldaDia[]; onAbrir: (fecha: 
   );
 }
 
-function DetalleDia({ c, marcas }: { c: CeldaDia; marcas: Marca[] }) {
+function DetalleDia({ c, marcas, children }: { c: CeldaDia; marcas: Marca[]; children?: ReactNode }) {
   const tipo = tipoDia(c);
   return (
     <div className="space-y-5">
@@ -298,7 +321,57 @@ function DetalleDia({ c, marcas }: { c: CeldaDia; marcas: Marca[] }) {
       {marcas.length > 2 && (
         <p className="text-base text-muted-foreground">Todas tus marcas del reloj: <span className="font-mono">{marcas.map((m) => fmtHoraCorta(m.fechaHora)).join(' · ')}</span></p>
       )}
+      {children}
       <p className="text-base text-muted-foreground">¿No es lo que fichaste? Hablá con RR.HH.</p>
     </div>
+  );
+}
+
+/** Justificativo de un día ausente: lo que ya se mandó y cómo terminó, o el formulario para mandarlo. */
+function JustificarDia({ c, justificacion: j, enPlazo, onEnviado }: { c: CeldaDia; justificacion?: Justificacion; enPlazo: boolean; onEnviado: () => void }) {
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [comentario, setComentario] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const verDocumento = j && (
+    <a href={`/api/admin/mi-asistencia/justificaciones/${j.id}/archivo`} target="_blank" rel="noreferrer" className="font-medium underline underline-offset-4">Ver lo que mandaste</a>
+  );
+  if (j?.estado === 'pendiente') return <Banner variant="info">Mandaste un justificativo para este día. RR.HH. lo está revisando. {verDocumento}</Banner>;
+  if (j?.estado === 'rechazada') return <Banner variant="warn">RR.HH. no aceptó tu justificativo y el día queda como ausente. Motivo: «{j.motivoRechazo}» {verDocumento}</Banner>;
+  if (c.estado !== 'ausente' || j) return null;
+  if (!enPlazo) return <p className="text-base text-muted-foreground">Ya pasó el plazo para justificar este día: se puede el mes en curso y el anterior.</p>;
+
+  async function enviar(e: FormEvent) {
+    e.preventDefault();
+    if (!archivo) return;
+    const form = new FormData();
+    form.set('fecha', c.fecha);
+    form.set('archivo', archivo);
+    form.set('comentario', comentario);
+    setEnviando(true);
+    setError(null);
+    try {
+      await apiFetch('/api/admin/mi-asistencia/justificaciones', { method: 'POST', body: form });
+      onEnviado();
+    } catch (err) {
+      setError(mensajeError(err));
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <form onSubmit={enviar} className="space-y-4 rounded-xl border border-border p-4">
+      <p className="font-semibold">¿Faltaste por un motivo justificado?</p>
+      <p className="text-base text-muted-foreground">Subí el certificado (médico, de examen…) en PDF o una foto. RR.HH. lo revisa.</p>
+      <label className="flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border px-4 text-center text-base font-medium hover:bg-muted focus-within:ring-[3px] focus-within:ring-ring/50">
+        <Paperclip className="size-5 shrink-0" aria-hidden />
+        <span className="truncate">{archivo ? archivo.name : 'Elegir el documento'}</span>
+        <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} />
+      </label>
+      <Textarea value={comentario} onChange={(e) => setComentario(e.target.value)} maxLength={500} placeholder="Comentario para RR.HH. (opcional)" className="text-base" />
+      {error && <Banner variant="warn">{error}</Banner>}
+      <Button type="submit" className="h-14 w-full text-lg" disabled={!archivo || enviando}>{enviando ? 'Enviando…' : 'Enviar justificativo'}</Button>
+    </form>
   );
 }

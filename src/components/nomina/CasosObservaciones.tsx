@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * Disconformidades: cada firma en disconformidad abre un caso para RR.HH. (reunión con el
+ * Observaciones: cada firma con observaciones (o en disconformidad, antes del acta v5) abre un
+ * caso para RR.HH. (reunión con el
  * trabajador, ajuste en la próxima liquidación, etc.). La constancia firmada nunca se
  * modifica: la resolución se anota en el caso. Los resueltos se consultan aparte y sus notas ya
  * no se editan (son el registro de cómo se resolvió).
@@ -58,7 +59,7 @@ function Resueltos({ filtros }: { filtros: string }) {
 }
 
 /** `filtros`: query string con los filtros de la página (empleador, lugar), para los resueltos. */
-export default function CasosDisconformidad({ casos, filtros, onCambio }: { casos: CasoView[] | null; filtros: string; onCambio: () => void }) {
+export default function CasosObservaciones({ casos, filtros, onCambio }: { casos: CasoView[] | null; filtros: string; onCambio: () => void }) {
   const [notas, setNotas] = useState<Record<number, string>>({});
   const [ocupado, setOcupado] = useState<number | null>(null);
   const [vista, setVista] = useState<'abiertos' | 'resueltos'>('abiertos');
@@ -107,8 +108,8 @@ export default function CasosDisconformidad({ casos, filtros, onCambio }: { caso
     return (
       <div className="space-y-3">
         {selector}
-        <Empty title="No hay disconformidades abiertas">
-          Cuando alguien firme un recibo en disconformidad, su caso aparece acá para coordinar la revisión.
+        <Empty title="No hay observaciones abiertas">
+          Cuando alguien firme un recibo dejando una observación, su caso aparece acá para coordinar la revisión.
         </Empty>
       </div>
     );
@@ -117,8 +118,8 @@ export default function CasosDisconformidad({ casos, filtros, onCambio }: { caso
     <div className="space-y-3">
       {selector}
       <p className="text-sm text-muted-foreground">
-        Firmar en disconformidad no es negarse a recibir: la entrega está cumplida. Coordiná la revisión con el trabajador y anotá
-        cómo se resolvió. La constancia firmada no se modifica.
+        El recibo está firmado como recibido: la entrega está cumplida. Coordiná la revisión con el trabajador y anotá cómo se
+        resolvió. La constancia firmada no se modifica.
       </p>
       {casos.map((c) => (
         <div key={c.id} className="space-y-3 rounded-xl border border-border bg-card p-4">

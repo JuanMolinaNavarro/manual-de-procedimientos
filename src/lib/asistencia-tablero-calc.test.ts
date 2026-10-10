@@ -68,6 +68,9 @@ describe('pendienteDeRevisar', () => {
     expect(pendienteDeRevisar(dia('2026-09-02', [['16:00', 1]]))).toBe('sin_entrada');
     expect(pendienteDeRevisar(dia('2026-09-02', [['08:00', 0]]))).toBe('sin_salida');
     expect(pendienteDeRevisar(dia('2026-09-02', [['08:00', 0], ['16:00', 1]]))).toBeNull();
+    const justificado = evaluarDia({ fecha: '2026-09-02', hoy: HOY, version: VERSION, fichadas: [], justificado: true }, CONFIG_DEFAULT);
+    expect(pendienteDeRevisar(justificado)).toBeNull();
+    expect(grupoDelDia(justificado, 0)).toBe('falto');
   });
 });
 
@@ -81,6 +84,8 @@ describe('resumenMesPersona', () => {
     ];
     const r = resumenMesPersona(resumenLiquidacion(celdas), false);
     expect(r).toMatchObject({ tardes: 2, compensadas: 1, minutosTarde: 63, faltas: 1, sinMarca: 1 });
+    const conJustificada = [...celdas, evaluarDia({ fecha: '2026-09-08', hoy: HOY, version: VERSION, fichadas: [], justificado: true }, CONFIG_DEFAULT)];
+    expect(resumenMesPersona(resumenLiquidacion(conJustificada), false)).toMatchObject({ faltas: 1, justificadas: 1 });
   });
 });
 

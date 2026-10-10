@@ -89,7 +89,8 @@ export type EstadoDia =
   | 'tarde_grave'
   | 'ausente'
   | 'sin_entrada'
-  | 'feriado';
+  | 'feriado'
+  | 'justificado';
 
 export const ESTADOS_DIA: Record<EstadoDia, { label: string; desc: string }> = {
   futuro: { label: 'Futuro', desc: 'Todavía no llegó ese día.' },
@@ -102,6 +103,7 @@ export const ESTADOS_DIA: Record<EstadoDia, { label: string; desc: string }> = {
   tarde_grave: { label: 'Tarde grave', desc: 'Entró con más minutos de atraso que el umbral general.' },
   ausente: { label: 'Ausente', desc: 'Tenía horario y no hay ninguna fichada.' },
   sin_entrada: { label: 'Sin entrada', desc: 'Vino, pero fichó una sola marca y fue de salida: no se sabe a qué hora entró. No cuenta como tardanza; hay que verificarlo.' },
+  justificado: { label: 'Inasistencia justificada', desc: 'No vino, pero RR.HH. aprobó un justificativo (certificado médico, de examen…): se paga y no cuenta como falta.' },
   feriado: { label: 'Feriado', desc: 'Detectado: ese día fichó menos del 20 % de las personas de los relojes con datos. Cuenta como no laborable; quien fichó tiene toda la jornada como extra al 100 %.' },
 };
 
@@ -312,6 +314,8 @@ export interface EntradaEvaluacion {
   fechaIngreso?: string | null;
   /** Feriado detectado (`detectarFeriados`): se trata como domingo. */
   feriado?: boolean;
+  /** RR.HH. aprobó un justificativo que cubre este día: sin marcas no es ausente. */
+  justificado?: boolean;
 }
 
 export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDia {
@@ -352,7 +356,7 @@ export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDi
   }
 
   const conJornada: CeldaDia = { ...conMarcas, jornada: { entrada: jornada.entrada, salida: jornada.salida } };
-  if (r.marcas === 0) return { ...conJornada, estado: e.fecha === e.hoy ? 'pendiente' : 'ausente' };
+  if (r.marcas === 0) return { ...conJornada, estado: e.justificado ? 'justificado' : e.fecha === e.hoy ? 'pendiente' : 'ausente' };
   // Vino (hay marcas) pero la única fue de salida: sin hora de entrada no hay tardanza que medir.
   if (r.entrada == null) return { ...conJornada, estado: 'sin_entrada' };
 
@@ -373,6 +377,15 @@ export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDi
     extra = { ...horasExtraDe(e.fecha, salidaEsperada + compensado, salidaReal), compensado };
   }
   return { ...conJornada, estado, minutosTarde, extra };
+}
+
+/**
+ * Día que RR.HH. puede cubrir con un justificativo: tenía jornada y no hay marcas (ya pasó y
+ * faltó, es hoy o es futuro: un reposo puede abarcar días que todavía no llegaron). Uno ya
+ * justificado por otro pedido no.
+ */
+export function diaJustificable(c: Pick<CeldaDia, 'estado' | 'jornada' | 'marcas'>): boolean {
+  return !!c.jornada && c.marcas === 0 && (c.estado === 'ausente' || c.estado === 'pendiente' || c.estado === 'futuro');
 }
 
 /**
@@ -409,6 +422,8 @@ export interface ResumenLiquidacion {
   /** Días con jornada en todo el mes, futuro incluido. */
   laborablesMes: number;
   ausentes: string[]; // fechas
+  /** Inasistencias con justificativo aprobado (se pagan; no son `ausentes`). */
+  justificados: string[];
   /** `recuperado`: minutos de esa llegada tarde que compensó quedándose después de hora. */
   tardes: { fecha: string; minutos: number; grave: boolean; recuperado: number }[];
   minutosTarde: number;
@@ -436,7 +451,7 @@ export interface ResumenLiquidacion {
 
 export function resumenLiquidacion(celdas: readonly CeldaDia[]): ResumenLiquidacion {
   const r: ResumenLiquidacion = {
-    laborables: 0, laborablesMes: 0, ausentes: [], tardes: [], minutosTarde: 0, trabajoNoLaborable: [], sinSalida: [], sinEntrada: [],
+    laborables: 0, laborablesMes: 0, ausentes: [], justificados: [], tardes: [], minutosTarde: 0, trabajoNoLaborable: [], sinSalida: [], sinEntrada: [],
     sinHorarioConMarcas: 0, minutosEsperadosMes: 0, minutosEsperadosHastaHoy: 0, minutosTrabajados: 0, diasComputados: 0,
     horasExtra50: 0, horasExtra100: 0, diasConExtra: [], minutosCompensados: 0, feriados: [],
   };
@@ -451,6 +466,7 @@ export function resumenLiquidacion(celdas: readonly CeldaDia[]): ResumenLiquidac
       }
     }
     if (c.estado === 'ausente') r.ausentes.push(c.fecha);
+    if (c.estado === 'justificado') r.justificados.push(c.fecha);
     if (c.estado === 'feriado') r.feriados.push(c.fecha);
     if (c.estado === 'tarde' || c.estado === 'tarde_grave') {
       r.tardes.push({ fecha: c.fecha, minutos: c.minutosTarde ?? 0, grave: c.estado === 'tarde_grave', recuperado: c.extra?.compensado ?? 0 });
@@ -518,6 +534,8 @@ export interface FilaEntrada {
   fechaIngreso?: string | null;
   /** Fichadas del rango agrupadas por `fecha` local. */
   fichadasPorFecha: Record<string, FichadaDia[]>;
+  /** Días con justificativo aprobado. */
+  justificados?: ReadonlySet<string>;
 }
 
 export interface FilaCalendario {
@@ -561,9 +579,9 @@ export function armarCalendario<T extends FilaEntrada>(
     return { fecha, dia: Number(fecha.slice(8, 10)), diaSemana: ds, esHoy: fecha === p.hoy, finDeSemana: ds >= 5, feriado: feriados.has(fecha) };
   });
   const filas = p.filas.map((fila) => {
-    const { versiones, fechaIngreso, fichadasPorFecha, ...resto } = fila;
+    const { versiones, fechaIngreso, fichadasPorFecha, justificados, ...resto } = fila;
     const celdas = fechas.map((fecha) =>
-      evaluarDia({ fecha, hoy: p.hoy, version: versionVigente(versiones, fecha), fichadas: fichadasPorFecha[fecha] ?? [], fechaIngreso, feriado: feriados.has(fecha) }, p.cfg),
+      evaluarDia({ fecha, hoy: p.hoy, version: versionVigente(versiones, fecha), fichadas: fichadasPorFecha[fecha] ?? [], fechaIngreso, feriado: feriados.has(fecha), justificado: justificados?.has(fecha) }, p.cfg),
     );
     const tieneHorario = versiones.some((v) => v.incluir && v.vigenteDesde <= p.hasta && (v.vigenteHasta == null || v.vigenteHasta >= p.desde));
     return { ...(resto as Omit<T, keyof FilaEntrada>), celdas, totales: totalesDe(celdas), tieneHorario };

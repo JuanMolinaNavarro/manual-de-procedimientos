@@ -7,7 +7,7 @@ import { Prisma, type AsistenciaHorario as HorarioRow } from '@prisma/client';
 import { prisma } from './prisma';
 import { AsistenciaError } from './asistencia';
 import { ESTADO_EMPLEADO_ACTIVO, hoyLocal, personaActiva } from './asistencia-datos';
-import { sumarDias, rangoMes } from './fechas';
+import { sumarDias, rangoMes, mesAnterior, mesLocal } from './fechas';
 import {
   armarCalendario,
   detectarFeriados,
@@ -36,6 +36,9 @@ function aVersion(r: HorarioRow): HorarioVersion {
     dias: (r.dias ?? {}) as DiasHorario,
   };
 }
+
+/** `AsistenciaJustificacion.estado` de un justificativo aprobado (el único que cambia el día). */
+export const JUSTIFICACION_APROBADA = 'aprobada';
 
 // ─── Config (singleton id = 1) ───────────────────────────────────────────────
 
@@ -351,14 +354,29 @@ export async function calendarioRango(desde: string, hasta: string, incluirSinHo
   const feriados = detectarFeriados(diasDelRango(desde, hasta), poolPorFecha, presentesPorFecha, hoy);
 
   const userIds = [...new Set(visibles.flatMap((f) => f.userIds))];
-  const fichadas = userIds.length
-    ? await prisma.asistenciaFichada.findMany({
-        where: { user_id: { in: userIds }, fecha: { gte: desde, lte: hasta } },
-        select: { user_id: true, fecha: true, fecha_hora: true, tipo: true },
-        orderBy: { fecha_hora: 'asc' },
-        take: MAX_FILAS_CALENDARIO,
-      })
-    : [];
+  const empleadoIds = visibles.flatMap((f) => (f.empleadoId != null ? [f.empleadoId] : []));
+  const [fichadas, justificaciones] = await Promise.all([
+    userIds.length
+      ? prisma.asistenciaFichada.findMany({
+          where: { user_id: { in: userIds }, fecha: { gte: desde, lte: hasta } },
+          select: { user_id: true, fecha: true, fecha_hora: true, tipo: true },
+          orderBy: { fecha_hora: 'asc' },
+          take: MAX_FILAS_CALENDARIO,
+        })
+      : [],
+    empleadoIds.length
+      ? prisma.asistenciaJustificacion.findMany({
+          where: { empleado_id: { in: empleadoIds }, estado: JUSTIFICACION_APROBADA, dias: { hasSome: diasDelRango(desde, hasta) } },
+          select: { empleado_id: true, dias: true },
+        })
+      : [],
+  ]);
+  const justificadosPor = new Map<number, Set<string>>();
+  for (const j of justificaciones) {
+    const dias = justificadosPor.get(j.empleado_id) ?? new Set<string>();
+    for (const d of j.dias) dias.add(d);
+    justificadosPor.set(j.empleado_id, dias);
+  }
   const porUser = new Map<string, Record<string, FichadaDia[]>>();
   for (const f of fichadas) {
     let porFecha = porUser.get(f.user_id);
@@ -373,7 +391,7 @@ export async function calendarioRango(desde: string, hasta: string, incluirSinHo
     }
     const { activa: _a, ...resto } = f;
     void _a;
-    return { ...resto, fichadasPorFecha };
+    return { ...resto, fichadasPorFecha, justificados: f.empleadoId != null ? justificadosPor.get(f.empleadoId) : undefined };
   };
   const cal = armarCalendario({ desde, hasta, hoy, cfg, filas: visibles.map(conFichadas), feriados });
   const filasOrdenadas = [...cal.filas].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
@@ -465,6 +483,10 @@ export interface MiAsistencia {
   /** Marcas crudas del reloj del mes, en orden: lo que la persona fichó, para que lo pueda verificar. */
   marcas: MarcaReloj[];
   versiones: HorarioVersion[];
+  /** Justificativos que pidió para días de este mes (el día que tocó), con cómo terminaron. */
+  justificaciones: { id: number; fecha: string; estado: string; motivoRechazo: string | null }[];
+  /** Primer día que todavía se puede justificar (el 1.º del mes anterior). */
+  justificarDesde: string;
 }
 
 /** Meses hacia atrás que se pueden pedir en Mi asistencia (además del actual). */
@@ -494,10 +516,14 @@ export async function miAsistencia(empleadoId: number, mes: string): Promise<MiA
   const hoy = hoyLocal();
   const { desde, hasta } = rangoMes(mes);
 
-  const [cal, versiones, personas] = await Promise.all([
+  const [cal, versiones, personas, justificaciones] = await Promise.all([
     calendarioRango(desde, hasta, true, `e:${emp.id}`),
     listarHorarios(emp.id),
     prisma.asistenciaPersona.findMany({ where: { empleado_id: emp.id }, select: { id: true, user_id: true, nombre_reloj: true }, orderBy: { user_id: 'asc' } }),
+    prisma.asistenciaJustificacion.findMany({
+      where: { empleado_id: emp.id, fecha: { gte: desde, lte: hasta } },
+      select: { id: true, fecha: true, estado: true, motivo_rechazo: true },
+    }),
   ]);
   const marcas = await marcasDelRango(personas.map((p) => p.user_id), desde, hasta);
   // Sin legajo en el reloj ni horario no hay fila en el calendario general:
@@ -520,6 +546,13 @@ export async function miAsistencia(empleadoId: number, mes: string): Promise<MiA
     marcas,
     // La tolerancia no se le muestra al empleado (decisión del usuario): tampoco viaja.
     versiones: versiones.map((v) => ({ ...v, toleranciaMin: null })),
+    justificaciones: justificaciones.map((j) => ({ id: j.id, fecha: j.fecha, estado: j.estado, motivoRechazo: j.motivo_rechazo })),
+    justificarDesde: justificarDesde(),
   };
+}
+
+/** Plazo para subir un justificativo: días del mes en curso y del anterior (decisión del usuario). */
+export function justificarDesde(): string {
+  return rangoMes(mesAnterior(mesLocal())).desde;
 }
 

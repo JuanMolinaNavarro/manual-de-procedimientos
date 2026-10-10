@@ -45,7 +45,7 @@ export function armarMailAviso(d: DatosAviso): { subject: string; text: string; 
     `Ya está${d.recibos === 1 ? '' : 'n'} disponible${d.recibos === 1 ? '' : 's'} ${cuantos} de ${mes} (${d.empresa}).`,
     '',
     instruccion,
-    'Podés firmar en conformidad o en disconformidad; firmar en disconformidad no te hace perder ningún derecho.',
+    'Firmar confirma que lo recibiste, no que estés de acuerdo: si algo no te cierra, al firmar podés dejarle una observación a RR.HH.',
     '',
     d.url,
     '',
@@ -56,7 +56,7 @@ export function armarMailAviso(d: DatosAviso): { subject: string; text: string; 
 <p>Hola ${escaparHtml(primerNombre)}:</p>
 <p>Ya está${d.recibos === 1 ? '' : 'n'} disponible${d.recibos === 1 ? '' : 's'} <b>${escaparHtml(cuantos)}</b> de ${escaparHtml(mes)} (${escaparHtml(d.empresa)}).</p>
 <p>${escaparHtml(instruccion)}
-Podés firmar en conformidad o en disconformidad; firmar en disconformidad no te hace perder ningún derecho.</p>
+Firmar confirma que lo recibiste, no que estés de acuerdo: si algo no te cierra, al firmar podés dejarle una observación a RR.HH.</p>
 <p><a href="${escaparHtml(d.url)}" style="display:inline-block;background:#1f2937;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Ver y firmar mis recibos</a></p>
 <p style="font-size:12px;color:#666">Por seguridad este mail no incluye el recibo ni importes. Nadie de la empresa te va a pedir tu PIN.
 Si olvidaste tu PIN, acercate a Recursos Humanos.</p>

@@ -209,6 +209,7 @@ function Numeros({ r }: { r: ResumenMesPersona }) {
         </Tarjeta>
         <Tarjeta label="Faltas">
           <span className={cn(grande, 'font-mono', r.faltas && 'text-red-700 dark:text-red-400')}>{r.faltas}</span>
+          {r.justificadas > 0 && <span className="text-sm font-medium text-teal-700 dark:text-teal-300">{plural(r.justificadas, 'justificada', 'justificadas')}</span>}
           {r.sinMarca > 0 && <span className="text-sm font-medium text-amber-700 dark:text-amber-400">{plural(r.sinMarca, 'día con una marca faltante', 'días con una marca faltante')}</span>}
         </Tarjeta>
       </div>
@@ -223,7 +224,7 @@ function Numeros({ r }: { r: ResumenMesPersona }) {
 }
 
 const conNovedad = (c: CeldaDia) =>
-  tardanza(c) > 0 || c.sinSalida || horasExtraDia(c) > 0 || c.estado === 'ausente' || c.estado === 'sin_entrada' || c.estado === 'trabajo_no_laborable';
+  tardanza(c) > 0 || c.sinSalida || horasExtraDia(c) > 0 || c.estado === 'ausente' || c.estado === 'justificado' || c.estado === 'sin_entrada' || c.estado === 'trabajo_no_laborable';
 
 /** Etiquetas de un día: siempre con palabra, el color acompaña. */
 function Etiquetas({ c }: { c: CeldaDia }) {
@@ -232,6 +233,7 @@ function Etiquetas({ c }: { c: CeldaDia }) {
   const estado: Partial<Record<CeldaDia['estado'], React.ReactNode>> = {
     a_horario: <Etiqueta tono="ok">A horario</Etiqueta>,
     ausente: <Etiqueta tono="bad">Faltó</Etiqueta>,
+    justificado: <Etiqueta tono="comp">Inasistencia justificada</Etiqueta>,
     sin_entrada: <Etiqueta tono="warn">Sin entrada</Etiqueta>,
     feriado: <Etiqueta tono="neutro">Feriado</Etiqueta>,
     pendiente: <Etiqueta tono="neutro">Todavía no fichó</Etiqueta>,

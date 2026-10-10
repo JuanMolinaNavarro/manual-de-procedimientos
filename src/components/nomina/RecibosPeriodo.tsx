@@ -2,9 +2,10 @@
 
 /**
  * Gestión de recibos › pestaña "Recibos del mes": un renglón por recibo PDF del período con su estado de
- * entrega (pendiente / no retirado / firmado / en papel). Buscador + filtros, y las acciones
- * de cada recibo (PDF, constancia, entrega en papel) en un menú. Cada trabajador firma desde
- * el portal con su PIN; a los 15 días del aviso sin firmar corresponde entregarlo en papel.
+ * entrega (pendiente / notificado sin firmar / firmado / en papel). Buscador + filtros, y las
+ * acciones de cada recibo (PDF, constancia, entrega en papel) en un menú. Cada trabajador firma
+ * desde el portal con su PIN; a los 15 días del aviso sin firmar, RR.HH. puede pedirle la firma
+ * por otro medio (el silencio no es conformidad, art. 58 LCT).
  */
 
 import { useRef, useState } from 'react';
@@ -22,7 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { money } from '@/lib/nomina-calc';
 import { fechaCorta, fmtMes } from '@/lib/fechas';
-import type { EstadoEntrega } from '@/lib/recibos-finnegans-calc';
+import { tieneObservaciones, type EstadoEntrega } from '@/lib/recibos-finnegans-calc';
 import type { PanelRecibos, ReciboPanelView } from '@/lib/recibos-finnegans';
 import { apiFetch, mensajeError } from '@/components/comunes/api';
 import ConstanciaCard from './ConstanciaCard';
@@ -31,13 +32,17 @@ import { BarraFiltros } from './PasoCard';
 import { coincide } from '@/lib/utils';
 import { Empty } from '@/components/comunes/ui';
 
+/** Recibo firmado: con observaciones va en ámbar (abrió un caso para RR.HH.). */
+export function BadgeFirmado({ conformidad }: { conformidad: string }) {
+  return tieneObservaciones(conformidad)
+    ? <Badge className="bg-amber-600 text-white hover:bg-amber-600">Firmado con observaciones</Badge>
+    : <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Firmado</Badge>;
+}
+
 export function BadgeEntrega({ r }: { r: Pick<ReciboPanelView, 'entrega' | 'dias' | 'constancia'> }) {
-  if (r.entrega === 'firmado') {
-    const conforme = r.constancia?.conformidad !== 'disconforme';
-    return <Badge className={conforme ? 'bg-emerald-600 text-white hover:bg-emerald-600' : 'bg-amber-600 text-white hover:bg-amber-600'}>{conforme ? 'Firmado' : 'Firmado disconforme'}</Badge>;
-  }
+  if (r.entrega === 'firmado') return <BadgeFirmado conformidad={r.constancia?.conformidad ?? ''} />;
   if (r.entrega === 'papel') return <Badge className="bg-sky-700 text-white hover:bg-sky-700">En papel</Badge>;
-  if (r.entrega === 'no_retirado') return <Badge variant="destructive">No retirado · {r.dias} días</Badge>;
+  if (r.entrega === 'sin_firmar') return <Badge variant="destructive">Notificado sin firmar · {r.dias} días</Badge>;
   return <Badge variant="outline">Pendiente</Badge>;
 }
 
@@ -95,7 +100,7 @@ export default function RecibosPeriodo({ panel, onCambio }: { panel: PanelRecibo
   const filtros: { valor: FiltroEntrega; label: string; cuenta: number }[] = [
     { valor: 'todos', label: 'Todos', cuenta: r.total },
     { valor: 'pendiente', label: 'Pendientes', cuenta: r.pendientes },
-    { valor: 'no_retirado', label: 'No retirados', cuenta: r.noRetirados },
+    { valor: 'sin_firmar', label: 'Sin firmar', cuenta: r.sinFirmar },
     { valor: 'firmado', label: 'Firmados', cuenta: r.firmados },
     { valor: 'papel', label: 'En papel', cuenta: r.papel },
   ];
@@ -136,7 +141,7 @@ export default function RecibosPeriodo({ panel, onCambio }: { panel: PanelRecibo
                     <a href={`/api/admin/nomina/firma/recibos/${x.id}/papel`} target="_blank" rel="noopener"><ScanLine className="h-4 w-4" /> Ver escaneo en papel</a>
                   </DropdownMenuItem>
                 )}
-                {(x.entrega === 'pendiente' || x.entrega === 'no_retirado') && (
+                {(x.entrega === 'pendiente' || x.entrega === 'sin_firmar') && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onSelect={() => elegirPapel(x)}><Upload className="h-4 w-4" /> Registrar entrega en papel…</DropdownMenuItem>

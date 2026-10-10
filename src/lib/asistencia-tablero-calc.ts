@@ -46,6 +46,7 @@ export function grupoDelDia(c: CeldaDia, ahoraMin: number): GrupoDia | null {
     case 'sin_entrada':
       return c.estado;
     case 'ausente':
+    case 'justificado': // sigue en «No vinieron», con su etiqueta
       return 'falto';
     case 'pendiente':
       return c.jornada && minutosDe(c.jornada.entrada) > ahoraMin ? 'entra_mas_tarde' : 'sin_fichar';
@@ -74,6 +75,8 @@ export interface ResumenMesPersona {
   extra50: number;
   extra100: number;
   faltas: number;
+  /** Inasistencias con justificativo aprobado (no son faltas). */
+  justificadas: number;
   /** Días con una marca faltante (sin salida o sin entrada). */
   sinMarca: number;
 }
@@ -92,6 +95,7 @@ export function resumenMesPersona(r: ResumenLiquidacion, hoyEnMes: boolean): Res
     extra50: r.horasExtra50,
     extra100: r.horasExtra100,
     faltas: r.ausentes.length,
+    justificadas: r.justificados.length,
     sinMarca: r.sinSalida.length + r.sinEntrada.length,
   };
 }
@@ -108,6 +112,7 @@ export function explicarDia(c: CeldaDia): string[] {
   if (c.estado === 'sin_horario') return ['No tiene horario cargado ese día: solo se muestran sus marcas.'];
   if (c.estado === 'feriado') return ['Ese día casi nadie fichó: se toma como feriado y no cuenta como falta.'];
   if (c.estado === 'ausente' && j) return [`Tenía que entrar a las ${j.entrada} y no hay ninguna marca del reloj.`];
+  if (c.estado === 'justificado') return ['No vino, pero tiene un justificativo aprobado por RR.HH.: se paga y no cuenta como falta.'];
   if (c.estado === 'pendiente' && j) return [`Entra a las ${j.entrada}. Todavía no hay marcas.`];
 
   const out: string[] = [];

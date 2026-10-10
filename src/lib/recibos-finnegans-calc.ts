@@ -275,27 +275,46 @@ export function clasificarRespuestaPdf(buf: Uint8Array): RespuestaPdf {
 
 // ─── Firma en el portal: estado de entrega y validación ────────────────────
 
-/** Días desde la publicación (puesta a disposición) sin firma → "no retirado". */
-export const DIAS_NO_RETIRADO = 15;
+/** Días desde el aviso por mail sin firma → "notificado sin firmar". */
+export const DIAS_PARA_FIRMAR = 15;
 
-export type EstadoEntrega = 'pendiente' | 'no_retirado' | 'firmado' | 'papel';
+export type EstadoEntrega = 'pendiente' | 'sin_firmar' | 'firmado' | 'papel';
 
 /**
- * Estado de entrega de un recibo. "No retirado" se deriva (no se guarda): sin firma
- * ni papel a los 15 días de publicado. Nunca implica conformidad (art. 58 LCT):
- * solo indica que corresponde entregarlo en papel.
+ * Estado de entrega de un recibo. "Notificado sin firmar" se deriva (no se guarda): sin firma
+ * ni papel a los 15 días del aviso por mail; sin aviso el plazo no corre. Nunca implica
+ * conformidad (art. 58 LCT: el silencio no se presume a favor del empleador): RR.HH. puede
+ * pedirle la firma por otro medio.
  */
 export function estadoEntrega(
-  r: { estado: string; publicado: Date | string },
+  r: { estado: string; notificado: Date | string | null },
   hoy: Date = new Date(),
 ): { estado: EstadoEntrega; dias: number } {
-  const dias = Math.floor((hoy.getTime() - new Date(r.publicado).getTime()) / 86_400_000);
+  const dias = r.notificado ? Math.floor((hoy.getTime() - new Date(r.notificado).getTime()) / 86_400_000) : 0;
   if (r.estado === 'firmado') return { estado: 'firmado', dias };
   if (r.estado === 'papel') return { estado: 'papel', dias };
-  return { estado: dias >= DIAS_NO_RETIRADO ? 'no_retirado' : 'pendiente', dias };
+  return { estado: r.notificado && dias >= DIAS_PARA_FIRMAR ? 'sin_firmar' : 'pendiente', dias };
 }
 
-export type Conformidad = 'conforme' | 'disconforme';
+/**
+ * Lo que la firma deja asentado. Desde el acta v5 firmar es solo constancia de recepción
+ * (arts. 138 a 140 LCT), sin conformidad: `recibido`, u `observado` si el trabajador le dejó
+ * observaciones a RR.HH. Las constancias anteriores dicen `conforme` / `disconforme` y se
+ * siguen mostrando así (la constancia nunca se reescribe).
+ */
+export type Conformidad = 'recibido' | 'observado';
+
+const TEXTO_FIRMA: Record<string, string> = {
+  recibido: 'Recibido',
+  observado: 'Recibido con observaciones',
+  conforme: 'En conformidad',
+  disconforme: 'En disconformidad',
+};
+
+export const textoFirma = (conformidad: string): string => TEXTO_FIRMA[conformidad] ?? conformidad;
+
+/** La firma lleva observaciones para RR.HH. (y abrió un caso). */
+export const tieneObservaciones = (conformidad: string): boolean => conformidad === 'observado' || conformidad === 'disconforme';
 
 export interface FirmaValida {
   pin: string;
@@ -304,25 +323,17 @@ export interface FirmaValida {
 }
 
 /**
- * Valida la entrada de una firma antes de tocar el PIN: la declaración de lectura
- * es obligatoria, la conformidad debe ser explícita (no hay valor por defecto) y
- * la disconformidad exige observaciones.
+ * Valida la entrada de una firma antes de tocar el PIN: la declaración de lectura es
+ * obligatoria y las observaciones son opcionales (con texto, la firma queda `observado`).
  */
 export function validarFirmaInput(input: {
   pin?: unknown;
-  conformidad?: unknown;
   observaciones?: unknown;
   leido?: unknown;
 }): { ok: true; firma: FirmaValida } | { ok: false; error: string } {
   if (input.leido !== true) return { ok: false, error: 'Falta la declaración de lectura del recibo' };
-  if (input.conformidad !== 'conforme' && input.conformidad !== 'disconforme') {
-    return { ok: false, error: 'Elegí si firmás en conformidad o en disconformidad' };
-  }
   const pin = typeof input.pin === 'string' ? input.pin.trim() : '';
   if (!/^\d{4,8}$/.test(pin)) return { ok: false, error: 'Ingresá tu PIN (4 a 8 dígitos)' };
   const observaciones = typeof input.observaciones === 'string' ? input.observaciones.trim().slice(0, 2000) : '';
-  if (input.conformidad === 'disconforme' && !observaciones) {
-    return { ok: false, error: 'Para firmar en disconformidad escribí tus observaciones' };
-  }
-  return { ok: true, firma: { pin, conformidad: input.conformidad, observaciones } };
+  return { ok: true, firma: { pin, conformidad: observaciones ? 'observado' : 'recibido', observaciones } };
 }

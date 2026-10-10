@@ -6,6 +6,7 @@ import { fechaHora, money } from '@/lib/nomina-calc';
 import { fmtMes } from '@/lib/fechas';
 import type { ReciboDeEmpleado } from '@/lib/nomina';
 import type { DatosDeEmpleado } from './useDeEmpleado';
+import { BadgeFirmado } from '@/components/nomina/RecibosPeriodo';
 
 export default function RecibosDelEmpleado({ datos: recibos, error }: DatosDeEmpleado<ReciboDeEmpleado> & { empleadoId: number }) {
   if (error) return <p className="text-sm text-destructive">{error}</p>;
@@ -34,7 +35,7 @@ export default function RecibosDelEmpleado({ datos: recibos, error }: DatosDeEmp
           <div className="flex shrink-0 items-center gap-2">
             <span className="font-mono text-sm tabular-nums">{money(r.neto)}</span>
             {r.constancia
-              ? <Badge className={r.constancia.conformidad === 'conforme' ? 'bg-emerald-600 text-white hover:bg-emerald-600' : 'bg-amber-600 text-white hover:bg-amber-600'}>{r.constancia.conformidad === 'conforme' ? 'Conforme' : 'Disconforme'}</Badge>
+              ? <BadgeFirmado conformidad={r.constancia.conformidad} />
               : r.estado === 'papel'
                 ? <Badge className="bg-sky-700 text-white hover:bg-sky-700">En papel</Badge>
                 : <Badge variant="outline">Sin firmar</Badge>}

@@ -519,6 +519,27 @@ la de la ficha del organigrama vinculada a su cuenta (`Usuario.empleado_id`, se 
   salida (`compensado + minutos50 + minutos100`). El cálculo de horas extra no cambió, solo la lectura. La respuesta
   de Mi asistencia tampoco trae la tolerancia (`config` no viaja y `versiones[].toleranciaMin` va en null).
 
+### Asistencia: justificación de inasistencias
+
+Decisiones del usuario 2026-10-10. El empleado, en **Mi asistencia**, toca un día `ausente` y sube un documento
+(certificado médico, de examen…; PDF/JPG/PNG/WEBP ≤ 10 MB, tipo por **magic bytes** con `extensionDocumento` de
+`archivos.ts`) con un comentario opcional. **Plazo: días del mes en curso y del anterior** (`justificarDesde`). RR.HH.
+lo revisa en **Asistencia › Justificativos** (tercer segmento, con la cantidad pendiente): ve el documento, **marca en
+un calendario los días que cubre** (un reposo puede abarcar varios, incluso futuros: `diaJustificable` = con jornada y
+sin marcas) y aprueba, o rechaza con motivo obligatorio que el empleado lee. **Rechazado = definitivo**: el día queda
+`ausente` y no se puede volver a pedir (`@@unique([empleado_id, fecha])` en `AsistenciaJustificacion`, Restrict).
+Nadie revisa su propio pedido (403).
+
+- El estado no se guarda: `calendarioRango` lee las `aprobada` (`dias String[]`) y pasa `justificados` por fila;
+  `evaluarDia` da **`justificado`** («Inasistencia justificada») a un día con jornada, sin marcas y `<= hoy`. Si
+  después aparecen marcas, manda lo fichado. No cuenta como falta (`ResumenLiquidacion.justificados`,
+  `ResumenMesPersona.justificadas`) y se paga: el sueldo lo liquida Finnegans, Mes/Perfil lo muestran para pasarlo.
+- Servidor en `src/lib/asistencia-justificaciones.ts`; archivos en `uploads/asistencia/justificaciones/<uuid>.<ext>`
+  con sha256 verificado al servir. Rutas: `POST /api/admin/mi-asistencia/justificaciones` y `GET …/[id]/archivo`
+  (ficha SOLO de la sesión; ajeno → 404); `GET /api/admin/asistencia/justificaciones?estado=pendiente|resueltas`,
+  `GET|PATCH …/[id]` (`?mes=`; `{accion:'aprobar', dias}` | `{accion:'rechazar', motivo}`) y `GET …/[id]/archivo`.
+- UI: `JustificarDia` en `MiAsistenciaPage.tsx` (color «J» verde azulado) y `JustificativosTab.tsx`.
+
 ### Recibos de Finnegans (PDF oficial) y Mis recibos
 
 El recibo legal lo **emite Finnegans** (donde se liquida); Aurelius lo distribuye y más adelante lo hace firmar. Es
@@ -554,7 +575,7 @@ dos **módulos separados** (decisión del usuario: Nómina › Recibos estaba so
   recibos guarda organigrama (`NominaReciboPdf`, `NominaConstancia`, `NominaAdhesion[Revocada]`, `NominaCasoRecibo`,
   `NominaAviso`), así que **mover una ficha de organigrama no toca nada de recibos** (sus recibos y su adhesión la
   siguen). El lugar solo sirve para filtrar (`FiltrosRecibos`: `empleador` CUIT y `lugar` organigrama, opcionales, en
-  panel, adhesiones y disconformidades; `parseFiltrosRecibos`). La importación busca cada CUIL en **todas** las fichas
+  panel, adhesiones y observaciones; `parseFiltrosRecibos`). La importación busca cada CUIL en **todas** las fichas
   (`fichasPorCuil`); un CUIL de la liquidación en dos fichas es diferencia. El CUIT de Nómina › Parámetros **no vincula
   nada** con recibos (es del motor propio). Empleador actual de una persona = su última liquidación de Finnegans
   (`empleadoresPorCuil` / `empleadorPorCuil` en `nomina.ts`, SQL `DISTINCT ON` sobre `filas`).
@@ -598,9 +619,13 @@ de evidencia), Ley 25.326 art. 6.
   (`src/lib/nomina-pin.ts` → `hashSecreto`, CUIL mezclado en la entrada; nunca el PIN). Los PIN de antes de 2026-10 quedan
   en scrypt y **no se re-hashean**: `pin_hash` entra en `codigoAdhesion`, impreso en el acta firmada. `codigo` =
   `ADH-<id>-<8 hex>` (`codigoAdhesion`) se imprime en el acta y ata papel ↔ registro. **Sin acta subida la adhesión
-  queda PENDIENTE y no firma** (`AdhesionView.completa`). El acta (`ActaAdhesion.tsx`, `acta-v4`: firma en el portal
-  con usuario + PIN desde cualquier dispositivo, email declarado, 15 días desde el aviso; dos copias) se escanea y se
-  sube: se guarda `acta_sha256`. Texto **sujeto a revisión del asesor laboral**. **Revocar no borra nada**: se archiva
+  queda PENDIENTE y no firma** (`AdhesionView.completa`). El acta (`ActaAdhesion.tsx`, `acta-v5`; dos copias) se escanea y
+  se sube: se guarda `acta_sha256`. Decisiones del usuario 2026-10 para la v5: firma en el portal con usuario + PIN desde
+  cualquier dispositivo; email declarado (si es la casilla laboral, el trabajador acepta que queda en manos del empleador
+  y que pierde el acceso al desvincularse); **la firma es constancia de recepción, no de conformidad** (arts. 138 a 140,
+  12 y 260 LCT; las observaciones van a RR.HH. al firmar); a los 15 días del aviso RR.HH. puede pedir la firma por otro
+  medio y **el silencio no implica conformidad** (art. 58: el usuario quería que sí, y la ley lo prohíbe); los datos los
+  trata la empresa que paga el sueldo (sin trabajador: «(empresa que paga el sueldo)»). Texto **sujeto a revisión del asesor laboral**. **Revocar no borra nada**: se archiva
   en `NominaAdhesionRevocada` (código, acta, motivo); después se adhiere de nuevo. Con firmas hechas bajo la adhesión
   vigente, el acta **no se puede quitar ni reemplazar** (409).
 - **PIN:** el cambio es **solo por autogestión** (`MiPinFirma.tsx`, `POST /api/admin/mis-recibos/pin`,
@@ -633,41 +658,44 @@ de evidencia), Ley 25.326 art. 6.
   **solo** de la sesión): recibo ajeno → 404 → adhesión completa del mismo CUIL **y del mismo empleador** (409 «pedile a
   RR.HH. que la renueve», antes de gastar un intento de PIN) → verifica el hash del PDF (409 si
   cambió) → **el recibo tiene que haberse abierto** (`accedido_en`, 409 "Abrí el recibo antes de firmarlo", antes de
-  gastar un intento de PIN) → bloqueo (429) → `validarFirmaInput` (lectura obligatoria, conformidad **explícita**,
-  disconforme exige observaciones) → PIN (`comprobarPin`, intento reservado atómicamente; 401 / 429) → transacción
+  gastar un intento de PIN) → bloqueo (429) → `validarFirmaInput` (lectura obligatoria; observaciones opcionales:
+  con texto la firma queda `observado`, si no `recibido`) → PIN (`comprobarPin`, intento reservado atómicamente; 401 / 429) → transacción
   con el lock de la cadena que **bloquea el recibo y la adhesión** (`SELECT … FOR UPDATE`), re-chequea estado y que
   la adhesión siga siendo la misma y con acta, y pasa a `firmado` con un `updateMany` condicional. Entrega en papel,
   quitar/reemplazar acta y revocar (`adhesionBloqueada` en `nomina.ts`) bloquean la misma fila: no se cruzan con una
   firma en curso. El primer acceso (`reciboPropio`) actualiza `accedido_en`/estado con updates condicionales (nunca
-  retrocede un `firmado` o `papel`). P2002 → 409. Las notas de un caso de disconformidad resuelto no se pisan (409).
+  retrocede un `firmado` o `papel`). P2002 → 409. Las notas de un caso resuelto no se pisan (409).
 - **Visor del PDF en el celular:** `VisorPdf.tsx` dibuja con pdf.js en `<canvas>` (Chrome de Android no muestra PDF en
   `<iframe>`). Un worker propio por ejecución del efecto (con StrictMode compartirlo lo dejaba colgado).
-- **Estados del recibo** (`NominaReciboPdf.estado`): `disponible` → `accedido` → `firmado` | `papel`. **"No
-  retirado" se deriva** (`estadoEntrega`, `DIAS_NO_RETIRADO = 15` desde `notificado_en ?? created_at`) y **nunca
-  implica conformidad** (art. 58): corresponde entregarlo en papel.
+- **Estados del recibo** (`NominaReciboPdf.estado`): `disponible` → `accedido` → `firmado` | `papel`. **"Notificado
+  sin firmar" se deriva** (`estadoEntrega` → `sin_firmar`, `DIAS_PARA_FIRMAR = 15` desde `notificado_en`; sin aviso el
+  plazo no corre) y **nunca implica conformidad** (art. 58): RR.HH. puede pedir la firma por otro medio o en papel.
+- **Qué asienta la firma** (`NominaConstancia.conformidad`): `recibido` u `observado` desde el acta v5; las constancias
+  anteriores dicen `conforme` / `disconforme` y se muestran tal cual (`textoFirma`, `tieneObservaciones` en
+  `recibos-finnegans-calc.ts`; la constancia nunca se reescribe).
 - **Entrega en papel** (`registrarEntregaPapel`): RR.HH. sube el escaneo del recibo impreso y firmado a mano
   (`uploads/nomina/papel/<uuid>.pdf`, `papel_sha256`); excluye la firma electrónica y viceversa.
-- **Disconformidad** → `NominaCasoRecibo` abierto (panel de RR.HH.); se anota y se resuelve (resolver exige notas). La
+- **Observaciones** (o disconformidad, en constancias viejas) → `NominaCasoRecibo` abierto (panel de RR.HH.); se anota y se resuelve (resolver exige notas). La
   constancia **nunca** se modifica.
 - **UI de RR.HH.** (Gestión de recibos, centrada, `max-w-5xl`): `GestionRecibosPage` = encabezado con mes + filtros
   Empleador (los del mes, `PanelRecibos.empleadores`) y Lugar (organigramas), en `useState` (no persisten); cada recibo y
   cada adhesión muestran empleador y lugar. Tres tarjetas de pasos del mes (`PasoCard`):
   1 **Importar** (`RecibosFinnegans.tsx` → `PasoImportar`, la tabla de liquidaciones vive en un diálogo), 2 **Avisar**
   (`AvisoRecibos.tsx` → `PasoAviso`, confirmación con quién no recibe agrupado por motivo) y 3 **Firmas** (progreso); abajo
-  pestañas **Recibos del mes** (`RecibosPeriodo`), **Adhesiones** (`AdhesionesTabla`) y **Disconformidades**
-  (`CasosDisconformidad`). Las listas usan `BarraFiltros` (buscador sin tildes + chips con cantidad) y las acciones
+  pestañas **Recibos del mes** (`RecibosPeriodo`), **Adhesiones** (`AdhesionesTabla`) y **Observaciones**
+  (`CasosObservaciones`). Las listas usan `BarraFiltros` (buscador sin tildes + chips con cantidad) y las acciones
   secundarias van en un menú «…» por fila. La ayuda larga está en el popover «Cómo funciona» y la integridad de la cadena
   en un sello chico. Si una carga falla se muestra `ErrorCarga` (con «Reintentar», en `comunes/ui.tsx`) en vez de quedar
   en «Cargando…». **Registrar en papel** y **Quitar acta** piden confirmación (son irreversibles / dejan la adhesión
   pendiente). El paso Avisar distingue «no hay recibos» de «no queda nadie pendiente», muestra por nombre a quién no le
   llegó el último envío y el historial de avisos se despliega con cada destinatario (la prueba de la puesta a
-  disposición). Disconformidades tiene «Abiertos / Resueltos»; las notas de un resuelto son de solo lectura. APIs en `src/app/api/admin/nomina/firma/**` (`aviso`, `panel`, `recibos/[id]/{pdf,papel}`, `casos`, `casos/[id]`)
+  disposición). Observaciones tiene «Abiertos / Resueltos»; las notas de un resuelto son de solo lectura. APIs en `src/app/api/admin/nomina/firma/**` (`aviso`, `panel`, `recibos/[id]/{pdf,papel}`, `casos`, `casos/[id]`)
   + `recibos/cadena`.
 - **UI del empleado** (columna `max-w-xl`, pensada para el celular): `MisRecibosPage` (aviso «Tenés N para firmar»,
-  lista tocable, PIN al pie) y `FirmarReciboPage` (pasos «Leé tu recibo» / «Firmalo con tu PIN», conformidad como
-  opciones con explicación, PIN grande; ya firmado → resumen y la constancia desplegable). La casilla «Lo leí» se
-  habilita recién cuando `VisorPdf` terminó de dibujar el recibo (`onListo`), las opciones de conformidad son un
-  radiogroup que se maneja con flechas, y al firmar el formulario se cierra al instante (sin doble toque). `ConstanciaCard` es una lista
+  lista tocable, PIN al pie) y `FirmarReciboPage` (pasos «Leé tu recibo» / «Firmalo con tu PIN»: casilla «Recibí
+  este recibo y lo leí», observación opcional para RR.HH., PIN grande y botón «Firmar: recibí este recibo»; ya firmado →
+  resumen y la constancia desplegable). La casilla «Lo leí» se habilita recién cuando `VisorPdf` terminó de dibujar el
+  recibo (`onListo`), y al firmar el formulario se cierra al instante (sin doble toque). `ConstanciaCard` es una lista
   legible (firmante, identidad, desde dónde, hashes) y se comparte con el diálogo de RR.HH. y el recibo imprimible.
 - La barra de Nómina y el histórico cuentan las firmas de los PDF del período; la pestaña Recibos de la ficha del
   organigrama lista los PDF con su estado.

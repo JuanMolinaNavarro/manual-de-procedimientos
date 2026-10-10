@@ -26,8 +26,8 @@ export interface EmpleadoOpt {
   foto_archivo: string | null;
 }
 
-/** `dia` y `mes` son lo que revisa RR.HH.; el resto son herramientas (calendario, marcas crudas, legajos, relojes). */
-export const TABS = ['dia', 'mes', 'calendario', 'fichadas', 'personas', 'relojes'] as const;
+/** `dia`, `mes` y `justificativos` son lo que revisa RR.HH.; el resto son herramientas (calendario, marcas crudas, legajos, relojes). */
+export const TABS = ['dia', 'mes', 'justificativos', 'calendario', 'fichadas', 'personas', 'relojes'] as const;
 export type TabAsistencia = (typeof TABS)[number];
 type VistaFichadas = 'detalle' | 'dia';
 

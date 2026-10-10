@@ -3,7 +3,7 @@ import { getSessionUsername } from '@/lib/admin-auth';
 import { handle, parseId, readJson } from '@/lib/nomina-api';
 import { actualizarCaso } from '@/lib/recibos-finnegans';
 
-/** Anota o resuelve un caso de disconformidad. Body: { notas?, resolver? }. */
+/** Anota o resuelve un caso de observaciones. Body: { notas?, resolver? }. */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return handle('PATCH /api/admin/nomina/firma/casos/[id]', async () => {
     const { id } = await params;

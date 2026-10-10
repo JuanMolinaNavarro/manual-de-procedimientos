@@ -5,7 +5,7 @@
  * el mes y dos filtros que no se mezclan: el EMPLEADOR (la empresa que liquida, de Finnegans) y
  * el LUGAR de trabajo (organigrama de la ficha). El ciclo del mes en tres pasos — importar de
  * Finnegans, avisar por mail (a todos los del mes), seguir las firmas — y abajo las pestañas
- * Recibos / Adhesiones / Disconformidades. La firma la hace cada trabajador desde Mis recibos, en
+ * Recibos / Adhesiones / Observaciones. La firma la hace cada trabajador desde Mis recibos, en
  * su celular, con su PIN.
  */
 
@@ -22,7 +22,7 @@ import type { CasoView, EmpleadorOpcion, PanelRecibos } from '@/lib/recibos-finn
 import { cn } from '@/lib/utils';
 import AdhesionesTabla from './AdhesionesTabla';
 import PasoAviso from './AvisoRecibos';
-import CasosDisconformidad from './CasosDisconformidad';
+import CasosObservaciones from './CasosObservaciones';
 import { useNomina, useNominaData } from './NominaContext';
 import { PasoCard, type EstadoPaso } from './PasoCard';
 import PasoImportar from './RecibosFinnegans';
@@ -92,8 +92,8 @@ function Ayuda() {
           <li><b className="text-foreground">Adhesión (una vez, en persona):</b> el trabajador declara su email y elige su PIN. Se imprime el acta, que nombra a la empresa que le paga el sueldo; la firman él y la empresa, y se sube escaneada. Si pasa a liquidarlo otra empresa, se renueva.</li>
           <li><b className="text-foreground">Importar:</b> se traen de Finnegans los PDF oficiales del mes.</li>
           <li><b className="text-foreground">Avisar:</b> un mail sin adjuntos ni importes avisa que están disponibles.</li>
-          <li><b className="text-foreground">Firmar:</b> cada uno entra al portal desde el celular, lo lee y lo firma con su PIN, en conformidad o disconformidad.</li>
-          <li><b className="text-foreground">Papel:</b> quien no adhirió o no firmó en 15 días lo recibe impreso y se sube el escaneo.</li>
+          <li><b className="text-foreground">Firmar:</b> cada uno entra al portal desde el celular, lo lee y lo firma con su PIN. La firma es constancia de que lo recibió, no de conformidad; si algo no le cierra, deja una observación y te llega como caso.</li>
+          <li><b className="text-foreground">Sin firmar:</b> a los 15 días del aviso queda «notificado sin firmar». El silencio no es conformidad (art. 58 LCT): pedile la firma por otro medio; quien no adhirió firma en papel y se sube el escaneo.</li>
         </ol>
         <p className="text-xs text-muted-foreground">
           Cada firma guarda el SHA-256 del PDF y se encadena con la anterior del mismo empleador. Cinco PIN incorrectos bloquean 15 minutos. El PIN lo
@@ -130,7 +130,7 @@ function PasoFirmas({ panel, error, onReintentar, onVer }: {
   const r = panel?.resumen;
   const cerrados = r ? r.firmados + r.papel : 0;
   const pct = r && r.total ? Math.round((cerrados / r.total) * 100) : 0;
-  const estado: EstadoPaso = !r || !r.total ? 'bloqueado' : r.noRetirados > 0 ? 'atencion' : cerrados === r.total ? 'hecho' : 'pendiente';
+  const estado: EstadoPaso = !r || !r.total ? 'bloqueado' : r.sinFirmar > 0 ? 'atencion' : cerrados === r.total ? 'hecho' : 'pendiente';
   return (
     <PasoCard
       n={3}
@@ -150,7 +150,7 @@ function PasoFirmas({ panel, error, onReintentar, onVer }: {
           </div>
           <p>
             {r.pendientes} pendiente(s){r.papel ? ` · ${r.papel} en papel` : ''}
-            {r.noRetirados > 0 && <span className="text-amber-700 dark:text-amber-300"> · {r.noRetirados} no retirado(s)</span>}
+            {r.sinFirmar > 0 && <span className="text-amber-700 dark:text-amber-300"> · {r.sinFirmar} notificado(s) sin firmar</span>}
           </p>
         </>
       )}
@@ -199,7 +199,7 @@ export default function GestionRecibosPage() {
             Adhesiones{sinCompletar > 0 && <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 tabular-nums">{sinCompletar}</Badge>}
           </TabsTrigger>
           <TabsTrigger value="casos">
-            Disconformidades{abiertos > 0 && <Badge variant="destructive" className="ml-1.5 h-5 px-1.5 tabular-nums">{abiertos}</Badge>}
+            Observaciones{abiertos > 0 && <Badge variant="destructive" className="ml-1.5 h-5 px-1.5 tabular-nums">{abiertos}</Badge>}
           </TabsTrigger>
         </TabsList>
         <TabsContent value="recibos">
@@ -207,7 +207,7 @@ export default function GestionRecibosPage() {
         </TabsContent>
         <TabsContent value="adhesiones"><AdhesionesTabla adhesiones={d.adhesiones} onCambio={refrescar} /></TabsContent>
         <TabsContent value="casos">
-          {casos.error && !casos.data ? <ErrorCarga error={casos.error} onReintentar={casos.reload} /> : <CasosDisconformidad casos={casos.data} filtros={q} onCambio={refrescar} />}
+          {casos.error && !casos.data ? <ErrorCarga error={casos.error} onReintentar={casos.reload} /> : <CasosObservaciones casos={casos.data} filtros={q} onCambio={refrescar} />}
         </TabsContent>
       </Tabs>
     </div>

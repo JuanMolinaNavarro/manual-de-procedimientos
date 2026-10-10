@@ -97,6 +97,7 @@ export default function DiaTab() {
               <>Entra <span className="font-mono">{p.celda.jornada?.entrada}</span></>
             )} etiqueta={(p) => {
               const g = grupoDelDia(p.celda, ahoraMin);
+              if (p.celda.estado === 'justificado') return <Etiqueta tono="comp">Justificada</Etiqueta>;
               return g === 'entra_mas_tarde' ? <Etiqueta tono="neutro">Entra más tarde</Etiqueta> : <Etiqueta tono="bad">{g === 'falto' ? 'Faltó' : 'Sin marcas'}</Etiqueta>;
             }} />
           </div>

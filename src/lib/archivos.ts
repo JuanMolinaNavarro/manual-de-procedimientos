@@ -85,3 +85,16 @@ export function headersArchivo(
   }
   return h;
 }
+
+/**
+ * Extensión de un documento escaneado o fotografiado (PDF, PNG, JPG, WEBP) según sus primeros
+ * bytes, o null si no es ninguno: el nombre y el `file.type` del navegador no se creen.
+ */
+export function extensionDocumento(b: Uint8Array): '.pdf' | '.png' | '.jpg' | '.webp' | null {
+  const ascii = (desde: number, hasta: number) => String.fromCharCode(...b.subarray(desde, hasta));
+  if (ascii(0, 4) === '%PDF') return '.pdf';
+  if (b[0] === 0x89 && ascii(1, 4) === 'PNG') return '.png';
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return '.jpg';
+  if (ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') return '.webp';
+  return null;
+}

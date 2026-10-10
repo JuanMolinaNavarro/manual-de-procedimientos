@@ -62,7 +62,7 @@ export const REGLAS_API: readonly Regla[] = [
 /**
  * PDF de un recibo: además de Gestión de recibos, lo abre la pestaña Recibos de la ficha del
  * organigrama (solo lectura). Solo el PDF: el resto de `/firma` (panel con netos, IPs y
- * constancias, disconformidades, emails del aviso, escaneos en papel) es de RR.HH.
+ * constancias, observaciones, emails del aviso, escaneos en papel) es de RR.HH.
  */
 const PDF_RECIBO_RE = /^\/api\/admin\/nomina\/firma\/recibos\/[0-9a-f-]{36}\/pdf$/i;
 

@@ -17,6 +17,7 @@ import { fmtMes } from '@/lib/fechas';
 import type { MiAdhesionView } from '@/lib/nomina';
 import { money } from '@/lib/nomina-calc';
 import type { MiReciboView } from '@/lib/recibos-finnegans';
+import { tieneObservaciones } from '@/lib/recibos-finnegans-calc';
 import { cn } from '@/lib/utils';
 import { apiFetch, mensajeError } from '@/components/comunes/api';
 import MiPinFirma from './MiPinFirma';
@@ -25,11 +26,11 @@ type Respuesta =
   | { vinculado: false; usuario: string }
   | { vinculado: true; empleado: { id: number; nombre: string }; recibos: MiReciboView[]; adhesion: MiAdhesionView };
 
-const pendiente = (r: MiReciboView) => r.entrega === 'pendiente' || r.entrega === 'no_retirado';
+const pendiente = (r: MiReciboView) => r.entrega === 'pendiente' || r.entrega === 'sin_firmar';
 
 function Estado({ r }: { r: MiReciboView }) {
   const [texto, clase] = r.entrega === 'firmado'
-    ? [r.firma?.conformidad === 'disconforme' ? 'Firmado disconforme' : 'Firmado', 'text-emerald-600 dark:text-emerald-400']
+    ? [r.firma && tieneObservaciones(r.firma.conformidad) ? 'Firmado con observaciones' : 'Firmado', 'text-emerald-600 dark:text-emerald-400']
     : r.entrega === 'papel' ? ['En papel', 'text-sky-700 dark:text-sky-400']
     : ['Para firmar', 'text-amber-600 dark:text-amber-400'];
   return <span className={cn('text-xs font-semibold', clase)}>{texto}</span>;
