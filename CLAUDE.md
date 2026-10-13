@@ -242,6 +242,14 @@ las lecturas (`GET /api/admin/organigrama`, `.../empleados`, `.../empleados/[id]
 (`ocultarConvenio`) y `FichaModal` muestra el campo solo con `canEdit`. La carga de Finnegans lo llena con convenio +
 categoría; como Finnegans no trae el puesto, una ficha nueva queda `Sin rol` y una existente conserva el suyo.
 
+### Organigrama: fecha de ingreso
+
+La ficha muestra y edita la **fecha de ingreso**, pero no es columna de `OrgEmpleado`: es `NominaEmpleado.fecha_ingreso`
+(Nómina › Maestro), la misma que cargan Finnegans y usan Asistencia y Vacaciones, así no hay dos fechas que se
+desincronicen. `organigrama.ts` la trae con `CON_INGRESO` y `mapEmpleado` la expone como `fecha_ingreso`; guardarla
+desde la ficha crea la fila del Maestro si no existía (con `incluir` según el estado, el mismo criterio que usa Nómina
+cuando falta la fila) y borrarla no crea una fila vacía. Las rutas validan un día real (`fechaIngresoValida`, 400).
+
 ### Organigrama: licencias de software (pestaña "Licencias" de la ficha)
 
 `OrgLicencia` (ícono + título + cuenta, con contraseña, costo/moneda/periodicidad opcionales). Es el

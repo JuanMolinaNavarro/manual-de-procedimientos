@@ -47,6 +47,7 @@ import RecibosDelEmpleado from './RecibosDelEmpleado';
 import LicenciasDelEmpleado from './LicenciasDelEmpleado';
 import { HorarioDelEmpleado } from './HorarioDelEmpleado';
 import { useDeEmpleado } from './useDeEmpleado';
+import { fechaCorta } from '@/lib/fechas';
 
 interface FichaModalProps {
   empleado: OrgEmpleado | null;
@@ -98,6 +99,7 @@ function blankEmpleado(areaDefault: string): OrgEmpleado {
     especialidad: null,
     convenio: null,
     fecha_nacimiento: null,
+    fecha_ingreso: null,
     experiencia: [],
     resp_primarias: [],
     resp_secundarias: [],
@@ -281,6 +283,7 @@ export default function FichaModal({
         especialidad: form.especialidad,
         convenio: form.convenio,
         fecha_nacimiento: form.fecha_nacimiento || null,
+        fecha_ingreso: form.fecha_ingreso || null,
         experiencia: form.experiencia ?? [],
         resp_primarias: form.resp_primarias ?? [],
         resp_secundarias: form.resp_secundarias ?? [],
@@ -407,23 +410,9 @@ export default function FichaModal({
               {/* El convenio no es el puesto y solo lo ve quien puede editar el organigrama (la API ya no se lo manda al resto). */}
               {canEdit && <Field label="Convenio" value={emp.convenio} edit={edit} onChange={(v) => set('convenio', v)} />}
 
-              <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Fecha de nacimiento</Label>
-                {edit ? (
-                  <input
-                    type="date"
-                    value={emp.fecha_nacimiento ?? ''}
-                    onChange={(e) => set('fecha_nacimiento', e.target.value || null)}
-                    className="neu-field h-8 w-full rounded-lg px-2 text-xs text-foreground focus-visible:outline-none"
-                  />
-                ) : (
-                  <p className="text-foreground">
-                    {emp.fecha_nacimiento
-                      ? emp.fecha_nacimiento.split('-').reverse().join('/')
-                      : '—'}
-                  </p>
-                )}
-              </div>
+              <CampoFecha label="Fecha de nacimiento" value={emp.fecha_nacimiento} edit={edit} onChange={(v) => set('fecha_nacimiento', v)} />
+              {/* Se guarda en Nómina › Maestro: es la misma fecha que usan Asistencia y Vacaciones. */}
+              <CampoFecha label="Fecha de ingreso" value={emp.fecha_ingreso} edit={edit} onChange={(v) => set('fecha_ingreso', v)} />
 
               <div className="space-y-1">
                 <Label className="text-[11px] text-muted-foreground">Área</Label>
@@ -837,6 +826,29 @@ function Field({
   );
 }
 
+/** Fecha (yyyy-mm-dd) con el selector nativo en edición y dd/mm/aaaa en lectura. */
+function CampoFecha({ label, value, edit, onChange }: {
+  label: string;
+  value: string | null;
+  edit: boolean;
+  onChange: (v: string | null) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-[11px] text-muted-foreground">{label}</Label>
+      {edit ? (
+        <input
+          type="date"
+          value={value ?? ''}
+          onChange={(e) => onChange(e.target.value || null)}
+          className="neu-field h-8 w-full rounded-lg px-2 text-xs text-foreground focus-visible:outline-none"
+        />
+      ) : (
+        <p className="text-foreground">{fechaCorta(value)}</p>
+      )}
+    </div>
+  );
+}
 
 function StringList({
   title,

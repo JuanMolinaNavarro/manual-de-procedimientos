@@ -3,6 +3,7 @@ import { isAdmin, getSessionUsername, canEditModule } from '@/lib/admin-auth';
 import {
   getAllEmpleados,
   createEmpleado,
+  fechaIngresoValida,
   ocultarConvenio,
   type CreateOrgEmpleadoData,
 } from '@/lib/organigrama';
@@ -29,6 +30,9 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as CreateOrgEmpleadoData;
     if (!body.nombre?.trim()) {
       return NextResponse.json({ error: 'El campo "nombre" es requerido' }, { status: 400 });
+    }
+    if (!fechaIngresoValida(body.fecha_ingreso)) {
+      return NextResponse.json({ error: 'Fecha de ingreso inválida' }, { status: 400 });
     }
     // En creación el id aún no existe, así que el ciclo solo puede darse si el manager
     // es inválido; igual lo validamos defensivamente cuando haya manager_id.

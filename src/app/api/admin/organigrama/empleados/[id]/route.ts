@@ -8,6 +8,7 @@ import {
   transferirEmpleado,
   ocultarConvenio,
   validateNoCycle,
+  fechaIngresoValida,
   type UpdateOrgEmpleadoData,
 } from '@/lib/organigrama';
 
@@ -36,6 +37,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
     const empleadoId = Number(id);
     const body = (await request.json()) as UpdateOrgEmpleadoData;
+    if (!fechaIngresoValida(body.fecha_ingreso)) {
+      return NextResponse.json({ error: 'Fecha de ingreso inválida' }, { status: 400 });
+    }
 
     // Validación anti-ciclos al (re)asignar jefe.
     if (body.manager_id !== undefined && body.manager_id !== null) {

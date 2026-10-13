@@ -1,4 +1,5 @@
 import { prisma } from './prisma';
+import { aIso, aMs } from './fechas';
 
 // ─── Sub-tipos del CV (columnas Json) ──────────────────────────────────────────
 
@@ -47,6 +48,8 @@ export interface OrgEmpleado {
   /** Convenio colectivo + categoría. Solo para quien puede editar el organigrama (`ocultarConvenio`). */
   convenio: string | null;
   fecha_nacimiento: string | null; // ISO yyyy-mm-dd
+  /** Fecha de ingreso (ISO). No es columna de la ficha: vive en Nómina › Maestro (`NominaEmpleado`), la misma que usan Asistencia y Vacaciones. */
+  fecha_ingreso: string | null;
   experiencia: Experiencia[] | null;
   resp_primarias: string[] | null;
   resp_secundarias: string[] | null;
@@ -84,6 +87,7 @@ export interface CreateOrgEmpleadoData {
   especialidad?: string | null;
   convenio?: string | null;
   fecha_nacimiento?: string | null;
+  fecha_ingreso?: string | null;
   experiencia?: Experiencia[] | null;
   resp_primarias?: string[] | null;
   resp_secundarias?: string[] | null;
@@ -255,9 +259,10 @@ export interface Organigrama {
 
 // Las columnas Json llegan como JsonValue; las casteamos a sus tipos concretos.
 /* eslint-disable @typescript-eslint/no-explicit-any */
-function mapEmpleado(row: any): OrgEmpleado {
+function mapEmpleado({ nomina, ...row }: any): OrgEmpleado {
   return {
     ...row,
+    fecha_ingreso: nomina?.fecha_ingreso || null,
     experiencia: row.experiencia as Experiencia[] | null,
     resp_primarias: row.resp_primarias as string[] | null,
     resp_secundarias: row.resp_secundarias as string[] | null,
@@ -281,13 +286,22 @@ export function ocultarConvenio<T extends { convenio: string | null }>(e: T, pue
 
 // ─── Empleado CRUD ──────────────────────────────────────────────────────────
 
+/** La fecha de ingreso se lee del Maestro de Nómina (ver `OrgEmpleado.fecha_ingreso`). */
+const CON_INGRESO = { nomina: { select: { fecha_ingreso: true } } } as const;
+
+/** `null`/'' (sin fecha) o un día real en formato yyyy-mm-dd. */
+export function fechaIngresoValida(v: unknown): boolean {
+  if (v == null || v === '') return true;
+  return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && aIso(aMs(v)) === v;
+}
+
 export async function getAllEmpleados(): Promise<OrgEmpleado[]> {
-  const rows = await prisma.orgEmpleado.findMany({ orderBy: { id: 'asc' } });
+  const rows = await prisma.orgEmpleado.findMany({ orderBy: { id: 'asc' }, include: CON_INGRESO });
   return rows.map(mapEmpleado);
 }
 
 export async function getEmpleadoById(id: number): Promise<OrgEmpleado | null> {
-  const row = await prisma.orgEmpleado.findUnique({ where: { id } });
+  const row = await prisma.orgEmpleado.findUnique({ where: { id }, include: CON_INGRESO });
   return row ? mapEmpleado(row) : null;
 }
 
@@ -327,7 +341,12 @@ export async function createEmpleado(data: CreateOrgEmpleadoData): Promise<OrgEm
       free_y: data.free_y ?? null,
       created_by: data.created_by ?? null,
       updated_by: data.updated_by ?? null,
+      // Sin fila en el Maestro, Nómina toma `incluir` del estado: se crea con el mismo criterio.
+      nomina: data.fecha_ingreso
+        ? { create: { fecha_ingreso: data.fecha_ingreso, incluir: (data.estado ?? 'active') === 'active', updated_by: data.updated_by ?? null } }
+        : undefined,
     },
+    include: CON_INGRESO,
   });
   return mapEmpleado(row);
 }
@@ -336,9 +355,19 @@ export async function updateEmpleado(
   id: number,
   data: UpdateOrgEmpleadoData,
 ): Promise<OrgEmpleado | null> {
-  const existing = await prisma.orgEmpleado.findUnique({ where: { id } });
+  const existing = await prisma.orgEmpleado.findUnique({ where: { id }, include: CON_INGRESO });
   if (!existing) return null;
   const json = (v: unknown) => (v === undefined ? undefined : (v as any));
+  const ingreso = data.fecha_ingreso === undefined ? undefined : data.fecha_ingreso || '';
+  // Cargar la fecha crea la fila del Maestro si no existía; borrarla no crea una fila vacía.
+  const nomina = ingreso === undefined || (!ingreso && !existing.nomina)
+    ? undefined
+    : {
+        upsert: {
+          create: { fecha_ingreso: ingreso, incluir: existing.estado === 'active', updated_by: data.updated_by ?? null },
+          update: { fecha_ingreso: ingreso, updated_by: data.updated_by ?? null },
+        },
+      };
   const row = await prisma.orgEmpleado.update({
     where: { id },
     data: {
@@ -372,7 +401,9 @@ export async function updateEmpleado(
       free_x: data.free_x,
       free_y: data.free_y,
       updated_by: data.updated_by,
+      nomina,
     },
+    include: CON_INGRESO,
   });
   return mapEmpleado(row);
 }
@@ -685,7 +716,7 @@ export async function deleteLinea(id: number): Promise<boolean> {
 
 export async function getOrganigramaCompleto(organigramaId: number): Promise<OrganigramaCompleto> {
   const [todos, areas, lineas] = await Promise.all([
-    prisma.orgEmpleado.findMany({ where: { organigrama_id: organigramaId }, orderBy: { id: 'asc' } }),
+    prisma.orgEmpleado.findMany({ where: { organigrama_id: organigramaId }, orderBy: { id: 'asc' }, include: CON_INGRESO }),
     prisma.orgArea.findMany({ where: { organigrama_id: organigramaId }, orderBy: { id: 'asc' } }),
     prisma.orgLinea.findMany({ where: { organigrama_id: organigramaId }, orderBy: { id: 'asc' } }),
   ]);
