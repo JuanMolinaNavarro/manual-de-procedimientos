@@ -8,11 +8,10 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { fmtMes } from '@/lib/fechas';
 import { useNomina } from './NominaContext';
+import { SelectorMes } from '@/components/comunes/ui';
 
 export default function NominaBar() {
   const { organigramas, organigramaId, setOrganigramaId, periodo, setPeriodo, estado, links } = useNomina();
@@ -36,8 +35,7 @@ export default function NominaBar() {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Período</span>
-          <Input type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} className="h-9 w-40" aria-label="Período" />
-          <span className="hidden text-sm text-muted-foreground sm:inline">{fmtMes(periodo)}</span>
+          <SelectorMes mes={periodo} onCambio={setPeriodo} className="w-52" />
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2 text-xs">
           {estado && (

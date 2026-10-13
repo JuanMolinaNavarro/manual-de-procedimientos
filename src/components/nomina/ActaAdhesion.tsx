@@ -82,7 +82,7 @@ export default function ActaAdhesion() {
               </h1>
               <div className="shrink-0 text-right text-[11px] text-[#555]">
                 <div className="font-mono text-[13px] font-bold text-[#111]">{d.adhesion?.codigo ?? 'ADH-__________'}</div>
-                <div>{d.adhesion ? `Adhesión registrada ${fechaHora(d.adhesion.creadaEn)}` : 'Sin adhesión registrada'}</div>
+                <div>{d.adhesion ? `Adhesión registrada ${fechaHora(d.adhesion.creadaEn)} por ${d.adhesion.creadaPor ?? '—'}` : 'Sin adhesión registrada'}</div>
                 <div>{copia} · {ACTA_VERSION}</div>
               </div>
             </div>

@@ -31,8 +31,6 @@ interface NominaCtx {
   links: NominaLink[];
   /** true una vez hidratado (la persistencia ya se leyó). */
   listo: boolean;
-  /** Puede adherir / cambiar PINs (admin de RR.HH.; nunca el superadmin). */
-  puedeGestionarPin: boolean;
 }
 
 const Ctx = createContext<NominaCtx | null>(null);
@@ -64,7 +62,7 @@ const no = () => false;
  * `barra = false`: sin la barra de Nómina (empresa/período/pestañas). La usa Gestión de
  * recibos, que es un módulo aparte con su propio encabezado pero comparte empresa y período.
  */
-export function NominaProvider({ organigramas, links, puedeGestionarPin = false, barra = true, children }: { organigramas: OrganigramaOpcion[]; links: NominaLink[]; puedeGestionarPin?: boolean; barra?: boolean; children: ReactNode }) {
+export function NominaProvider({ organigramas, links, barra = true, children }: { organigramas: OrganigramaOpcion[]; links: NominaLink[]; barra?: boolean; children: ReactNode }) {
   const listo = useSyncExternalStore(() => () => {}, si, no);
   const orgStored = useSyncExternalStore(suscribir, () => leer(LS_ORG), nulo);
   const perStored = useSyncExternalStore(suscribir, () => leer(LS_PER), nulo);
@@ -96,8 +94,8 @@ export function NominaProvider({ organigramas, links, puedeGestionarPin = false,
   const estado = estadoCache && estadoCache.key === keyEstado ? estadoCache.estado : null;
 
   const value = useMemo<NominaCtx>(() => ({
-    organigramas, organigramaId, setOrganigramaId, periodo, setPeriodo, estado, version, refrescar, links, listo, puedeGestionarPin,
-  }), [organigramas, organigramaId, setOrganigramaId, periodo, setPeriodo, estado, version, refrescar, links, listo, puedeGestionarPin]);
+    organigramas, organigramaId, setOrganigramaId, periodo, setPeriodo, estado, version, refrescar, links, listo,
+  }), [organigramas, organigramaId, setOrganigramaId, periodo, setPeriodo, estado, version, refrescar, links, listo]);
 
   return (
     <Ctx.Provider value={value}>

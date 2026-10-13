@@ -30,11 +30,11 @@ export function appUrlConfigurada(): boolean {
 
 /** URL pública de la app para los enlaces (sin barra final). */
 export function appUrl(): string {
-  return (process.env.APP_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
+  return (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
 }
 
 function remitente(): string {
-  return process.env.MAIL_FROM ?? process.env.SMTP_USER ?? 'Aurelius <no-reply@localhost>';
+  return process.env.MAIL_FROM || process.env.SMTP_USER || 'Aurelius <no-reply@localhost>';
 }
 
 let transporte: Transporter | null = null;

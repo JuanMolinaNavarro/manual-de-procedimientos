@@ -800,7 +800,8 @@ model NominaAdhesion {
   acta_tamano          Int?
   acta_sha256          String? // hash del escaneo del acta firmada en papel
   acta_subida_en       DateTime?
-  created_by           String?
+  acta_subida_por      String?
+  created_by           String? // quién la registró (también en `auditoria`)
   created_at           DateTime  @default(now())
 
   empleado OrgEmpleado @relation(fields: [empleado_id], references: [id], onDelete: Restrict)
@@ -921,6 +922,7 @@ model NominaAdhesionRevocada {
   acta_archivo         String?
   acta_nombre_original String?
   acta_sha256          String?
+  acta_subida_por      String?
   adherida_por         String?
   adherida_en          DateTime
   revocada_en          DateTime @default(now())
@@ -1262,4 +1264,23 @@ model VacacionesAuditoria {
   @@index([ejercicio])
   @@index([empleado_id])
   @@map("vacaciones_auditoria")
+}
+
+// Quién hizo qué sobre accesos y firmas (decisión del usuario 2026-10-13: el superadmin puede todo,
+// pero siempre queda registrado quién adhirió y quién cambió un PIN o una contraseña). Solo se
+// agregan filas; nada la edita ni la borra. `actor` = usuario de la sesión que hizo el cambio.
+model Auditoria {
+  id          Int      @id @default(autoincrement())
+  fecha       DateTime @default(now())
+  actor       String
+  accion      String // ver AccionAuditoria en src/lib/auditoria.ts
+  usuario_id  Int? // usuario afectado (alta / cambio de usuario)
+  empleado_id Int? // ficha afectada (adhesión, acta, PIN)
+  detalle     String   @default("")
+  ip          String
+
+  @@index([fecha])
+  @@index([usuario_id])
+  @@index([empleado_id])
+  @@map("auditoria")
 }

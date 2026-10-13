@@ -1,5 +1,3 @@
-import { getSesion } from '@/lib/admin-auth';
-import { puedeGestionarPin } from '@/lib/roles';
 import { getAllOrganigramas } from '@/lib/organigrama';
 import { NominaProvider } from '@/components/nomina/NominaContext';
 
@@ -12,11 +10,10 @@ export const dynamic = 'force-dynamic';
  * organigrama elegido en Nómina: los recibos son de la persona.
  */
 export default async function GestionRecibosLayout({ children }: { children: React.ReactNode }) {
-  const usuarioRecord = await getSesion();
   const organigramas = (await getAllOrganigramas()).map((o) => ({ id: o.id, nombre: o.nombre }));
 
   return (
-    <NominaProvider organigramas={organigramas} links={[]} barra={false} puedeGestionarPin={puedeGestionarPin(usuarioRecord?.rol)}>
+    <NominaProvider organigramas={organigramas} links={[]} barra={false}>
       {children}
     </NominaProvider>
   );

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUsuarioSesion } from '@/lib/admin-auth';
 import { cambiarPinPropio, NominaError } from '@/lib/nomina';
 import { handleSesion, readJson } from '@/lib/nomina-api';
+import { ipCliente } from '@/lib/login-limite';
 
 /**
  * Cambio de PIN por autogestión (portal del trabajador). Body: { pinActual, pin, pin2 }.
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
     await cambiarPinPropio(
       usuario.empleado_id,
       { pinActual: body.pinActual, pin: body.pin, pin2: body.pin2 },
-      { dispositivo: request.headers.get('user-agent') ?? '', usuario: usuario.usuario },
+      { dispositivo: request.headers.get('user-agent') ?? '', actor: { usuario: usuario.usuario, ip: ipCliente(request.headers) } },
     );
     return NextResponse.json({ ok: true });
   });

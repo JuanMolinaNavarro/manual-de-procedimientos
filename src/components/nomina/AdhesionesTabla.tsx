@@ -26,10 +26,9 @@ import { fechaHora, type EmpleadoNomina } from '@/lib/nomina-calc';
 import type { AdhesionRow, AdhesionView } from '@/lib/nomina';
 import { apiFetch, mensajeError } from '@/components/comunes/api';
 import AdhesionDialog from './AdhesionDialog';
-import { useNomina } from './NominaContext';
 import { BarraFiltros } from './PasoCard';
 import { coincide } from '@/lib/utils';
-import { Banner, EmpleadoCell } from '@/components/comunes/ui';
+import { EmpleadoCell } from '@/components/comunes/ui';
 
 type Filtro = 'todas' | 'sin' | 'pendiente' | 'completa' | 'renovar';
 
@@ -45,7 +44,6 @@ function BadgeAdhesion({ a }: { a: AdhesionView | null }) {
 }
 
 export default function AdhesionesTabla({ adhesiones, onCambio }: { adhesiones: AdhesionRow[]; onCambio: () => void }) {
-  const { puedeGestionarPin } = useNomina();
   const [buscar, setBuscar] = useState('');
   const [filtro, setFiltro] = useState<Filtro>('todas');
   const [adherir, setAdherir] = useState<EmpleadoNomina | null>(null);
@@ -108,9 +106,6 @@ export default function AdhesionesTabla({ adhesiones, onCambio }: { adhesiones: 
 
   return (
     <div className="space-y-3">
-      {!puedeGestionarPin && (
-        <Banner>Como superadmin no podés adherir, revocar ni cargar actas: lo hace un admin de RR.HH. (quien gestiona usuarios no interviene en los PIN de firma).</Banner>
-      )}
       <BarraFiltros buscar={buscar} onBuscar={setBuscar} filtros={filtros} activo={activo} onFiltro={setFiltro} />
       <ul className="divide-y divide-border rounded-xl border border-border bg-card">
         {visibles.map((x) => {
@@ -133,7 +128,7 @@ export default function AdhesionesTabla({ adhesiones, onCambio }: { adhesiones: 
               {a?.bloqueadaHasta && <Badge variant="destructive" title={`Hasta ${fechaHora(a.bloqueadaHasta)}`}>PIN bloqueado</Badge>}
             </div>
             <div className="flex w-full items-center justify-end gap-1 sm:w-44">
-              {!a && puedeGestionarPin && (
+              {!a && (
                 <Button
                   size="sm"
                   variant="secondary"
@@ -144,7 +139,7 @@ export default function AdhesionesTabla({ adhesiones, onCambio }: { adhesiones: 
                   Adherir
                 </Button>
               )}
-              {a && !a.acta && puedeGestionarPin && (
+              {a && !a.acta && (
                 <Button size="sm" disabled={subiendo === e.id} onClick={() => elegirActa(e.id)}>
                   <Upload className="mr-1 h-3.5 w-3.5" /> {subiendo === e.id ? 'Subiendo…' : 'Subir acta'}
                 </Button>
@@ -157,6 +152,7 @@ export default function AdhesionesTabla({ adhesiones, onCambio }: { adhesiones: 
                   <DropdownMenuContent align="end" className="w-56">
                     <div className="px-2 py-1.5 text-[11px] text-muted-foreground">
                       <span className="font-mono">{a.codigo ?? '—'}</span> · acta con {a.empleador.nombre}
+                      <br />Adhirió: {a.adheridaPor ?? '—'}{a.acta && <> · acta subida por {a.acta.subidaPor ?? '—'}</>}
                     </div>
                     <DropdownMenuItem asChild>
                       <a href={imprimirActa(e.id)} target="_blank" rel="noopener"><Printer className="h-4 w-4" /> Imprimir acta</a>
@@ -166,17 +162,11 @@ export default function AdhesionesTabla({ adhesiones, onCambio }: { adhesiones: 
                         <DropdownMenuItem asChild>
                           <a href={actaUrl(e.id)} target="_blank" rel="noopener"><FileText className="h-4 w-4" /> Ver acta escaneada</a>
                         </DropdownMenuItem>
-                        {puedeGestionarPin && (
-                          <DropdownMenuItem onSelect={() => setQuitar(e)}><Trash2 className="h-4 w-4" /> Quitar acta…</DropdownMenuItem>
-                        )}
+                        <DropdownMenuItem onSelect={() => setQuitar(e)}><Trash2 className="h-4 w-4" /> Quitar acta…</DropdownMenuItem>
                       </>
                     )}
-                    {puedeGestionarPin && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem variant="destructive" onSelect={() => setRevocar(e)}><UserX className="h-4 w-4" /> Revocar adhesión…</DropdownMenuItem>
-                      </>
-                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem variant="destructive" onSelect={() => setRevocar(e)}><UserX className="h-4 w-4" /> Revocar adhesión…</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}

@@ -6,11 +6,12 @@
  */
 
 import type { ReactNode } from 'react';
-import { Info, Lock, AlertTriangle } from 'lucide-react';
+import { Info, Lock, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { fmtMes, mesAnterior, mesSiguiente } from '@/lib/fechas';
 import { fotoUrl, iniciales } from '@/components/organigrama/foto';
 
 /** Lo mínimo que necesita `EmpleadoCell`: cualquier ficha con foto sirve. */
@@ -60,6 +61,24 @@ export function StatCard({ label, value, detail, tone, children }: { label: stri
         {detail && <p className="text-xs text-muted-foreground">{detail}</p>}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Mes con flechas (`yyyy-mm`). Reemplaza a `<input type="month">`, que Safari de escritorio no
+ * soporta (muestra un campo de texto libre).
+ */
+export function SelectorMes({ mes, onCambio, className }: { mes: string; onCambio: (mes: string) => void; className?: string }) {
+  return (
+    <div className={cn('flex h-9 items-center rounded-md border border-input', className)}>
+      <Button variant="ghost" size="icon" className="h-full w-9 shrink-0 rounded-r-none" aria-label="Mes anterior" onClick={() => onCambio(mesAnterior(mes))}>
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <span className="flex-1 whitespace-nowrap px-1 text-center text-sm font-medium" aria-live="polite">{fmtMes(mes)}</span>
+      <Button variant="ghost" size="icon" className="h-full w-9 shrink-0 rounded-l-none" aria-label="Mes siguiente" onClick={() => onCambio(mesSiguiente(mes))}>
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
   );
 }
 

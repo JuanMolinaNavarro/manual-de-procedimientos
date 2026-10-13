@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
-import { puedeGestionarPinSesion } from '@/lib/admin-auth';
+import { actorDe } from '@/lib/auditoria';
 import { handle, parseId } from '@/lib/nomina-api';
 import { NominaError, clearActa, getAdhesion, setActa } from '@/lib/nomina';
 import { headersArchivo } from '@/lib/archivos';
@@ -18,13 +18,6 @@ const ACTAS_DIR = join(process.cwd(), 'uploads', 'nomina', 'actas');
 const ACTA_MAX_BYTES = 15 * 1024 * 1024;
 
 type Ctx = { params: Promise<{ empleadoId: string }> };
-
-/** Subir o quitar el acta completa/anula una adhesión: mismo permiso que adherir. */
-async function exigirRrhh() {
-  if (!(await puedeGestionarPinSesion())) {
-    throw new NominaError('Las adhesiones las gestiona RR.HH. (un admin): el superadmin no puede adherir, revocar ni cargar actas', 403);
-  }
-}
 
 function borrar(archivo: string | null) {
   if (!archivo) return;
@@ -51,7 +44,6 @@ export async function GET(_request: NextRequest, { params }: Ctx) {
 
 export async function POST(request: NextRequest, { params }: Ctx) {
   return handle('POST /api/admin/nomina/adhesiones/[empleadoId]/acta', async () => {
-    await exigirRrhh();
     const { empleadoId } = await params;
     const formData = await request.formData();
     const file = formData.get('archivo');
@@ -68,7 +60,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       const { anterior, view } = await setActa(parseId(empleadoId, 'empleadoId'), {
         archivo: storedName, nombreOriginal: file.name, tamano: buffer.length,
         sha256: sha256(buffer),
-      });
+      }, await actorDe(request));
       borrar(anterior);
       return NextResponse.json(view, { status: 201 });
     } catch (e) {
@@ -78,11 +70,10 @@ export async function POST(request: NextRequest, { params }: Ctx) {
   });
 }
 
-export async function DELETE(_request: NextRequest, { params }: Ctx) {
+export async function DELETE(request: NextRequest, { params }: Ctx) {
   return handle('DELETE /api/admin/nomina/adhesiones/[empleadoId]/acta', async () => {
-    await exigirRrhh();
     const { empleadoId } = await params;
-    const { anterior } = await clearActa(parseId(empleadoId, 'empleadoId'));
+    const { anterior } = await clearActa(parseId(empleadoId, 'empleadoId'), await actorDe(request));
     borrar(anterior);
     return NextResponse.json({ ok: true });
   });

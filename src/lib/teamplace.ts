@@ -36,12 +36,12 @@ function cfg() {
   return {
     clientId,
     clientSecret,
-    tokenUrl: process.env.TEAMPLACE_TOKEN_URL ?? 'https://api.teamplace.finneg.com/api/oauth/token',
+    tokenUrl: process.env.TEAMPLACE_TOKEN_URL || 'https://api.teamplace.finneg.com/api/oauth/token',
     // Reportes: host del spec. report/execute: host de Teamplace (verificado ahí).
-    reportsUrl: process.env.TEAMPLACE_BASE_URL ?? 'https://api.finneg.com/api',
-    execUrl: process.env.TEAMPLACE_EXEC_URL ?? 'https://api.teamplace.finneg.com/api',
-    reciboXml: process.env.FINNEGANS_RECIBO_XML ?? 'ReciboSueldosOficial.jrxml',
-    reciboDatasource: process.env.FINNEGANS_RECIBO_DATASOURCE ?? 'F_GA_LIQ_0065',
+    reportsUrl: process.env.TEAMPLACE_BASE_URL || 'https://api.finneg.com/api',
+    execUrl: process.env.TEAMPLACE_EXEC_URL || 'https://api.teamplace.finneg.com/api',
+    reciboXml: process.env.FINNEGANS_RECIBO_XML || 'ReciboSueldosOficial.jrxml',
+    reciboDatasource: process.env.FINNEGANS_RECIBO_DATASOURCE || 'F_GA_LIQ_0065',
   };
 }
 

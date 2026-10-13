@@ -61,6 +61,7 @@ import {
 } from './nomina-pin';
 import { emailValido, normalizarEmail } from './recibos-aviso';
 import { formatoCuit } from './recibos-finnegans-calc';
+import { auditar, type Actor } from './auditoria';
 
 export class NominaError extends ApiError {}
 
@@ -101,10 +102,12 @@ export interface AdhesionView {
   /** Empleador que nombra el acta (el que le liquidaba al adherir). Solo firma recibos de esa empresa. */
   empleador: { cuit: string; nombre: string };
   pinCambiado: string | null;
+  /** Usuario del panel que registró la adhesión. */
+  adheridaPor: string | null;
   /** Completa = con acta firmada subida. Sin acta la adhesión NO habilita firmas. */
   completa: boolean;
   bloqueadaHasta: string | null;
-  acta: { nombreOriginal: string; tamano: number | null; subidaEn: string | null; sha256: string | null } | null;
+  acta: { nombreOriginal: string; tamano: number | null; subidaEn: string | null; subidaPor: string | null; sha256: string | null } | null;
 }
 
 /** Liquidación como la ve la UI: con foto, hash y estado de firma (si está cerrada). */
@@ -217,7 +220,7 @@ export interface ReciboDeEmpleado {
 export interface ActaDatos {
   empresa: { razonSocial: string; cuit: string; domicilio: string };
   trabajador: { id: number; nombre: string; cuil: string; categoria: string };
-  adhesion: { codigo: string | null; fecha: string; creadaEn: string; email: string | null } | null;
+  adhesion: { codigo: string | null; fecha: string; creadaEn: string; creadaPor: string | null; email: string | null } | null;
 }
 
 // ─── Helpers internos ────────────────────────────────────────────────────────
@@ -285,19 +288,19 @@ type AdhesionDb = {
   empleado_id: number; codigo: string | null; email: string | null; fecha: string; modo: string; cuil: string; pin_cambiado: string | null;
   empleador_cuit: string; empleador_nombre: string;
   pin_bloqueado_hasta: Date | null; acta_archivo: string | null; acta_nombre_original: string | null; acta_tamano: number | null;
-  acta_sha256: string | null; acta_subida_en: Date | null;
+  acta_sha256: string | null; acta_subida_en: Date | null; acta_subida_por: string | null; created_by: string | null;
 };
 
 function toAdhesion(a: AdhesionDb): AdhesionView {
   const bloqueo = a.pin_bloqueado_hasta && a.pin_bloqueado_hasta.getTime() > Date.now() ? a.pin_bloqueado_hasta.toISOString() : null;
   return {
-    empleadoId: a.empleado_id, codigo: a.codigo, email: a.email, fecha: a.fecha, modo: a.modo, cuil: a.cuil, pinCambiado: a.pin_cambiado,
+    empleadoId: a.empleado_id, codigo: a.codigo, email: a.email, fecha: a.fecha, modo: a.modo, cuil: a.cuil, pinCambiado: a.pin_cambiado, adheridaPor: a.created_by,
     empleador: { cuit: a.empleador_cuit, nombre: a.empleador_nombre },
     completa: !!a.acta_archivo, bloqueadaHasta: bloqueo,
     acta: a.acta_archivo
       ? {
           nombreOriginal: a.acta_nombre_original ?? 'acta.pdf', tamano: a.acta_tamano,
-          subidaEn: a.acta_subida_en?.toISOString() ?? null, sha256: a.acta_sha256,
+          subidaEn: a.acta_subida_en?.toISOString() ?? null, subidaPor: a.acta_subida_por, sha256: a.acta_sha256,
         }
       : null,
   };
@@ -857,7 +860,7 @@ async function empleadoPorId(empleadoId: number): Promise<EmpleadoNomina> {
  * El acta nombra al EMPLEADOR, que sale de Finnegans (la última liquidación con su CUIL): si la
  * persona todavía no aparece en ninguna liquidación, no se puede adherir (decisión del usuario).
  */
-export async function adherir(empleadoId: number, email: unknown, pin: unknown, pin2: unknown, username: string | null): Promise<AdhesionView> {
+export async function adherir(empleadoId: number, email: unknown, pin: unknown, pin2: unknown, actor: Actor): Promise<AdhesionView> {
   const empleado = await empleadoPorId(empleadoId);
   const m = toMaestro(await prisma.nominaEmpleado.findUnique({ where: { empleado_id: empleadoId } }), empleado.estado);
   if (!m.cuil) throw new NominaError('Cargá el CUIL en el Maestro antes de adherir');
@@ -879,9 +882,10 @@ export async function adherir(empleadoId: number, email: unknown, pin: unknown, 
     const creada = await tx.nominaAdhesion.create({
       data: {
         empleado_id: empleadoId, empleador_cuit: empleador.cuit, empleador_nombre: empleador.nombre, fecha: hoyLocal(), modo: 'papel',
-        cuil: m.cuil, email: mail, pin_hash: pinHash, created_by: username,
+        cuil: m.cuil, email: mail, pin_hash: pinHash, created_by: actor.usuario,
       },
     });
+    await auditar(actor, 'adhesion.alta', { empleadoId, detalle: `con ${empleador.nombre}, email ${mail}` }, tx);
     // La ficha del organigrama toma el email si no tenía uno cargado.
     await tx.orgEmpleado.updateMany({ where: { id: empleadoId, OR: [{ email: null }, { email: '' }] }, data: { email: mail } });
     return tx.nominaAdhesion.update({ where: { id: creada.id }, data: { codigo: codigoAdhesion(creada) } });
@@ -948,7 +952,7 @@ export async function miAdhesion(empleadoId: number): Promise<MiAdhesionView> {
 export async function cambiarPinPropio(
   empleadoId: number,
   input: { pinActual: unknown; pin: unknown; pin2: unknown },
-  meta: { dispositivo: string; usuario: string | null },
+  meta: { dispositivo: string; actor: Actor },
 ): Promise<void> {
   const a = await prisma.nominaAdhesion.findUnique({ where: { empleado_id: empleadoId } });
   if (!a) throw new NominaError('No tenés una adhesión al recibo digital: la hace RR.HH. en persona', 409);
@@ -974,9 +978,10 @@ export async function cambiarPinPropio(
     prisma.nominaPinCambio.create({
       data: {
         empleado_id: empleadoId, codigo_adhesion: a.codigo, canal: 'portal',
-        dispositivo: meta.dispositivo.slice(0, 200), usuario: meta.usuario,
+        dispositivo: meta.dispositivo.slice(0, 200), usuario: meta.actor.usuario,
       },
     }),
+    auditar(meta.actor, 'pin.cambio', { empleadoId, detalle: 'autogestión desde el portal' }),
   ]);
 }
 
@@ -985,7 +990,7 @@ export async function cambiarPinPropio(
  * nada: la archiva en `NominaAdhesionRevocada` con su código y su acta escaneada (respaldo de
  * las firmas ya hechas). Después se puede adherir de nuevo (presencial, acta nueva).
  */
-export async function revocarAdhesion(empleadoId: number, username: string | null, motivo: unknown): Promise<void> {
+export async function revocarAdhesion(empleadoId: number, actor: Actor, motivo: unknown): Promise<void> {
   const m = typeof motivo === 'string' ? motivo.trim().slice(0, 500) : '';
   await prisma.$transaction(async (tx) => {
     const a = await adhesionBloqueada(tx, empleadoId);
@@ -993,10 +998,11 @@ export async function revocarAdhesion(empleadoId: number, username: string | nul
       data: {
         empleado_id: a.empleado_id, empleador_cuit: a.empleador_cuit, empleador_nombre: a.empleador_nombre,
         codigo: a.codigo, fecha: a.fecha, cuil: a.cuil,
-        acta_archivo: a.acta_archivo, acta_nombre_original: a.acta_nombre_original, acta_sha256: a.acta_sha256,
-        adherida_por: a.created_by, adherida_en: a.created_at, revocada_por: username, motivo: m,
+        acta_archivo: a.acta_archivo, acta_nombre_original: a.acta_nombre_original, acta_sha256: a.acta_sha256, acta_subida_por: a.acta_subida_por,
+        adherida_por: a.created_by, adherida_en: a.created_at, revocada_por: actor.usuario, motivo: m,
       },
     });
+    await auditar(actor, 'adhesion.revocada', { empleadoId, detalle: `${a.codigo ?? ''}${m ? ` · ${m}` : ''}` }, tx);
     await tx.nominaAdhesion.delete({ where: { id: a.id } }); // las constancias se conservan
   });
 }
@@ -1008,7 +1014,7 @@ export async function getAdhesion(empleadoId: number): Promise<{ view: AdhesionV
 }
 
 /** Registra el acta escaneada; devuelve el archivo anterior (para borrarlo). */
-export async function setActa(empleadoId: number, acta: { archivo: string; nombreOriginal: string; tamano: number; sha256: string }): Promise<{ anterior: string | null; view: AdhesionView }> {
+export async function setActa(empleadoId: number, acta: { archivo: string; nombreOriginal: string; tamano: number; sha256: string }, actor: Actor): Promise<{ anterior: string | null; view: AdhesionView }> {
   return prisma.$transaction(async (tx) => {
     const a = await adhesionBloqueada(tx, empleadoId);
     if (a.acta_archivo && (await firmasConAdhesion(a, tx)) > 0) {
@@ -1018,14 +1024,15 @@ export async function setActa(empleadoId: number, acta: { archivo: string; nombr
       where: { empleado_id: empleadoId },
       data: {
         acta_archivo: acta.archivo, acta_nombre_original: acta.nombreOriginal, acta_tamano: acta.tamano,
-        acta_sha256: acta.sha256, acta_subida_en: new Date(),
+        acta_sha256: acta.sha256, acta_subida_en: new Date(), acta_subida_por: actor.usuario,
       },
     });
+    await auditar(actor, 'acta.subida', { empleadoId, detalle: `${a.codigo ?? ''} · sha256 ${acta.sha256}${a.acta_archivo ? ' · reemplaza la anterior' : ''}` }, tx);
     return { anterior: a.acta_archivo, view: toAdhesion(row) };
   });
 }
 
-export async function clearActa(empleadoId: number): Promise<{ anterior: string | null }> {
+export async function clearActa(empleadoId: number, actor: Actor): Promise<{ anterior: string | null }> {
   return prisma.$transaction(async (tx) => {
     const a = await adhesionBloqueada(tx, empleadoId);
     if ((await firmasConAdhesion(a, tx)) > 0) {
@@ -1033,8 +1040,9 @@ export async function clearActa(empleadoId: number): Promise<{ anterior: string 
     }
     await tx.nominaAdhesion.update({
       where: { empleado_id: empleadoId },
-      data: { acta_archivo: null, acta_nombre_original: null, acta_tamano: null, acta_sha256: null, acta_subida_en: null },
+      data: { acta_archivo: null, acta_nombre_original: null, acta_tamano: null, acta_sha256: null, acta_subida_en: null, acta_subida_por: null },
     });
+    await auditar(actor, 'acta.quitada', { empleadoId, detalle: `${a.codigo ?? ''} · sha256 ${a.acta_sha256 ?? ''}` }, tx);
     return { anterior: a.acta_archivo };
   });
 }
@@ -1101,7 +1109,7 @@ export async function getActaDatos(empleadoId: number): Promise<ActaDatos> {
   return {
     empresa: { razonSocial: empleador.nombre, cuit: formatoCuit(empleador.cuit), domicilio: await domicilioEmpleador(empleador.cuit) },
     trabajador: { id: empleado.id, nombre: empleado.nombre, cuil, categoria: m.categoria },
-    adhesion: a ? { codigo: a.codigo, fecha: a.fecha, creadaEn: a.created_at.toISOString(), email: a.email } : null,
+    adhesion: a ? { codigo: a.codigo, fecha: a.fecha, creadaEn: a.created_at.toISOString(), creadaPor: a.created_by, email: a.email } : null,
   };
 }
 

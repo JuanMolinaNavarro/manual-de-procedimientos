@@ -22,7 +22,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { fmtMes } from '@/lib/fechas';
+import { fmtMes, mesAnterior } from '@/lib/fechas';
 import type { LiquidacionFinnView, ConsumoMes, ResultadoBusqueda, ResultadoImportacion } from '@/lib/recibos-finnegans';
 import { apiFetch, mensajeError } from '@/components/comunes/api';
 import { useNomina, useNominaData } from './NominaContext';
@@ -70,7 +70,16 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
         method: 'POST',
         body: JSON.stringify({ periodo }),
       });
-      toast.success(`${r.liquidaciones} liquidación(es) en Finnegans para ${fmtMes(periodo)} (${r.nuevas} nueva(s))`);
+      if (r.liquidaciones === 0 && r.conProblemas.length === 0) {
+        // El mes es el período liquidado, no el de pago: el sueldo de septiembre se paga en octubre.
+        toast.warning(
+          `Finnegans no tiene liquidaciones del período ${fmtMes(periodo)}. El mes es el del sueldo liquidado, ` +
+            `no el del pago: los recibos que se pagan en ${fmtMes(periodo)} están en ${fmtMes(mesAnterior(periodo))}.`,
+          { duration: 15000 },
+        );
+      } else {
+        toast.success(`${r.liquidaciones} liquidación(es) en Finnegans para ${fmtMes(periodo)} (${r.nuevas} nueva(s))`);
+      }
       if (r.conProblemas.length > 0) {
         toast.warning(
           `Finnegans devolvió datos incompletos en ${r.conProblemas.length} liquidación(es); no se indexaron: ` +
@@ -142,7 +151,7 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
       </PasoCard>
 
       <Dialog open={abierto} onOpenChange={setAbierto}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Liquidaciones de {fmtMes(periodo)} en Finnegans</DialogTitle>
             <DialogDescription>
@@ -151,7 +160,7 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
               una persona sin ficha) no se publica nada.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
             {diferencias && (
               <Banner variant="warn">
                 <b>Liquidación {diferencias.nro}: no se publicó nada.</b>
@@ -160,11 +169,11 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
                 </ul>
               </Banner>
             )}
-            <ul className="divide-y divide-border rounded-lg border border-border">
+            <ul className="min-h-0 flex-1 divide-y divide-border overflow-y-auto rounded-lg border border-border">
               {liqs.map((l) => {
                 const e = ESTADO[l.estado] ?? { label: l.estado, variant: 'outline' as const };
                 return (
-                  <li key={l.transaccionId} className="flex flex-wrap items-center gap-3 p-3">
+                  <li key={l.transaccionId} className="flex flex-wrap items-center gap-2 px-3 py-2">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-foreground">{l.empresa} · {l.tipoLiquidacion}</p>
                       <p className="text-xs text-muted-foreground">
@@ -188,7 +197,7 @@ export default function PasoImportar({ onCambio }: { onCambio: () => void }) {
                 );
               })}
             </ul>
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
               {consumo && (
                 <span className={`text-xs ${consumo.usadas >= consumo.tope ? 'text-destructive' : 'text-muted-foreground'}`}>
                   {consumo.usadas} de {consumo.tope} consultas pagas a Finnegans este mes

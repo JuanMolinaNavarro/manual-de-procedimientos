@@ -110,13 +110,15 @@ El **proxy** (`src/proxy.ts`, ex `middleware.ts`; en Next 16 corre en Node y pue
 - `modulosEfectivos` nunca devuelve `[]` para un admin restringido (`[]` = todos): si solo tenía `usuarios`, queda con
   la marca `__ninguno__`.
 
-- **Separación de funciones** (decisión del usuario, `roles.ts`): la **gestión de usuarios** (módulo `usuarios`,
-  `/admin/usuarios/**` y `/api/admin/usuarios/**`) es **solo del superadmin** (`puedeGestionarUsuarios`; layout de
-  servidor + 403 en la API; `modulosEfectivos` saca `usuarios` a todo no-superadmin). Y el **superadmin nunca define
-  ni cambia PINs de firma** (`puedeGestionarPin`: adherir y cambiar PIN son del admin de RR.HH.): quien puede
-  resetear la contraseña del portal de alguien no debe poder, además, ponerle un PIN. Ambas reglas se evalúan con
-  el **rol de la base** (`puedeGestionarUsuariosSesion` / `puedeGestionarPinSesion` en `admin-auth.ts`), no con el
-  de la cookie. El primer usuario de una instalación nueva (`SITE_USER`) se crea **superadmin**.
+- **Gestión de usuarios** (decisión del usuario, `roles.ts`): el módulo `usuarios` (`/admin/usuarios/**` y
+  `/api/admin/usuarios/**`) es **solo del superadmin** (`puedeGestionarUsuarios`; layout de servidor + 403 en la API;
+  `modulosEfectivos` saca `usuarios` a todo no-superadmin), evaluado con el **rol de la base**
+  (`puedeGestionarUsuariosSesion` en `admin-auth.ts`). **El superadmin puede todo lo demás**, también adherir y revocar
+  adhesiones y subir o quitar actas (decisión del usuario 2026-10-13: hasta entonces no podía, por separación de
+  funciones). A cambio, **todo queda en la tabla `auditoria`** (`src/lib/auditoria.ts`, `auditar` dentro de la misma
+  transacción; solo se agregan filas): alta de usuario, cambio de contraseña/usuario/rol/estado, adhesión, revocación,
+  acta subida/quitada y cambio de PIN, con actor, IP y detalle (nunca la contraseña ni el PIN). El acta impresa dice
+  quién registró la adhesión. El primer usuario de una instalación nueva (`SITE_USER`) se crea **superadmin**.
 
 **Contraseñas** (`src/lib/password.ts`): PBKDF2-SHA256 async (`pbkdf2$600000$sal$hash`, `hashSecreto`, el mismo que el
 PIN; decisión del usuario 2026-10-09: scrypt pedía ~32 MB por login), mínimo 8 caracteres. Las filas viejas en texto plano
@@ -125,8 +127,8 @@ devuelve `password` (`SELECT_USUARIO` en `usuarios-select.ts`); en la edición, 
 **Freno de fuerza bruta** (`login-limite.ts`): 10 fallos seguidos bloquean al usuario 15 min (en la base,
 `login_fallos` / `login_bloqueado_hasta`) y 30 fallos por IP en 15 min dan 429 (en memoria). La IP sale de
 `x-real-ip` o de la **última** de `x-forwarded-for` (`ipCliente`, también usada en la constancia de firma).
-**Adhesiones**: adherir, revocar y subir/quitar el acta son solo de RR.HH. (`puedeGestionarPinSesion`), nunca del
-superadmin. **Archivos subidos** (`src/lib/archivos.ts`, `headersArchivo`): el tipo sale de la extensión guardada
+**Adhesiones**: adherir, revocar y subir/quitar el acta: admin con Gestión de recibos o superadmin, registrado en
+`auditoria`. **Archivos subidos** (`src/lib/archivos.ts`, `headersArchivo`): el tipo sale de la extensión guardada
 (nunca del `file.type` del navegador), la extensión de imágenes la decide el servidor (`EXT_POR_MIME_IMAGEN`), se
 sirven con `nosniff` y CSP `sandbox` (salvo PDF) y solo PDF/imágenes/texto van inline. `next.config.ts` agrega
 headers de seguridad y `poweredByHeader: false`.
@@ -157,6 +159,7 @@ All DB access goes through `src/lib/` helpers that wrap Prisma:
 - `Bonificacion` — `id, empresa, titulo, descripcion, mensaje_sugerido, condiciones, activa, vigencia_desde, vigencia_hasta`
 - `Usuario` — `id, usuario (unique), password (PBKDF2), nombre, apellido, rol, isActive, modulos, modulos_edit, empleado_id, login_fallos, login_bloqueado_hasta`
 - `Sesion` — `id (sha256 del token de la cookie), usuario_id, expira, revocada, ip, user_agent`
+- `Auditoria` — `id, fecha, actor, accion, usuario_id, empleado_id, detalle, ip` (quién cambió accesos, adhesiones y PINs)
 - `Proyecto` — `id, nombre, descripcion, responsable, responsable_id (→ OrgEmpleado), estado, fecha_inicio, notas, ingreso_estimado, otros_ingresos, moneda_ingreso, anio_ingreso`
 - `ProyectoCosto` — `id, proyecto_id, categoria, concepto, unidad, cantidad, costo_unitario, moneda, etapa_id, orden`
 - `ProyectoEtapa` — `id, proyecto_id, nombre, responsable, responsable_id (→ OrgEmpleado), fecha_inicio, duracion_dias, dep_id (self-rel), estado, avance, orden`
@@ -619,8 +622,8 @@ incorrectos → 15 min** persistente. Base legal: LCT 138/139 (Ley 27.802)/12/58
 (firma electrónica: si se desconoce, el empleador prueba), CCyCN 287/288/314/319 (el valor probatorio sale de la cadena
 de evidencia), Ley 25.326 art. 6.
 
-- **Adhesión** (`NominaAdhesion`, una por persona, sin organigrama): **presencial**, la hace un admin de RR.HH. (el
-  superadmin recibe 403, `NominaContext.puedeGestionarPin`). **Nombra al empleador** (`empleador_cuit`/`empleador_nombre`,
+- **Adhesión** (`NominaAdhesion`, una por persona, sin organigrama): **presencial**, la registra RR.HH. o el superadmin (queda
+  en `created_by` y en `auditoria`). **Nombra al empleador** (`empleador_cuit`/`empleador_nombre`,
   congelados al adherir = el de su última liquidación de Finnegans): **sin ninguna liquidación con su CUIL no se puede
   adherir** (409) y **solo firma recibos de esa empresa** (`errorEmpleadorAdhesion`); si Finnegans pasa a liquidarlo otra,
   Adhesiones lo marca «Renovar: ahora le paga X» y se revoca y renueva (acta nueva). El acta toma el empleador de la

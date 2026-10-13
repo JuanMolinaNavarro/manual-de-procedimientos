@@ -4,7 +4,8 @@
  * GET - Lista usuarios (solo superadmin)
  * POST - Crea usuario (solo superadmin). Solo un superadmin puede crear superadmins.
  *        Opcionalmente vincula la ficha del organigrama: `empleado_id` (existente)
- *        o `area_id` (crea una ficha nueva en esa área, en transacción).
+ *        o `area_id` (crea una ficha nueva en esa área, en transacción). El alta queda en
+ *        `auditoria` (quién la hizo y desde qué IP).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -14,6 +15,7 @@ import { isSuperadmin, ROLES } from '@/lib/roles';
 import { getUsuarioSesion, puedeGestionarUsuariosSesion } from '@/lib/admin-auth';
 import { hashSecreto, validarPasswordNueva } from '@/lib/password';
 import { SELECT_USUARIO } from '@/lib/usuarios-select';
+import { actorDe, auditar } from '@/lib/auditoria';
 
 /** Gestión de usuarios: solo superadmin (rol de la base). Ver roles.ts › puedeGestionarUsuarios. */
 async function isAdmin(): Promise<boolean> {
@@ -106,41 +108,35 @@ export async function POST(request: NextRequest) {
       isActive: true,
     };
 
-    let created;
-    if (empleadoId) {
-      const empleado = await prisma.orgEmpleado.findUnique({ where: { id: empleadoId } });
-      if (!empleado) {
-        return NextResponse.json({ error: 'La ficha del organigrama no existe' }, { status: 400 });
-      }
-      created = await prisma.usuario.create({
-        data: { ...baseData, empleado_id: empleadoId },
+    if (empleadoId && !(await prisma.orgEmpleado.findUnique({ where: { id: empleadoId } }))) {
+      return NextResponse.json({ error: 'La ficha del organigrama no existe' }, { status: 400 });
+    }
+    const area = areaId ? await prisma.orgArea.findUnique({ where: { id: areaId } }) : null;
+    if (areaId && !area) {
+      return NextResponse.json({ error: 'El area no existe' }, { status: 400 });
+    }
+    const actor = await actorDe(request);
+    // Ficha nueva (si va por área) + usuario + auditoría en una transacción: si algo falla no
+    // quedan huérfanos ni un alta sin registrar.
+    const created = await prisma.$transaction(async (tx) => {
+      const ficha = area
+        ? await tx.orgEmpleado.create({
+            data: {
+              organigrama_id: area.organigrama_id,
+              nombre: [nombre, apellido].filter(Boolean).join(' ') || usuario,
+              rol: 'Sin definir',
+              area: area.nombre,
+              created_by: actor.usuario,
+            },
+          })
+        : null;
+      const u = await tx.usuario.create({
+        data: { ...baseData, empleado_id: ficha?.id ?? empleadoId },
         select: SELECT_USUARIO,
       });
-    } else if (areaId) {
-      const area = await prisma.orgArea.findUnique({ where: { id: areaId } });
-      if (!area) {
-        return NextResponse.json({ error: 'El area no existe' }, { status: 400 });
-      }
-      const sesion = await getUsuarioSesion();
-      // Ficha nueva + usuario en una transacción: si algo falla no quedan huérfanos.
-      created = await prisma.$transaction(async (tx) => {
-        const ficha = await tx.orgEmpleado.create({
-          data: {
-            organigrama_id: area.organigrama_id,
-            nombre: [nombre, apellido].filter(Boolean).join(' ') || usuario,
-            rol: 'Sin definir',
-            area: area.nombre,
-            created_by: sesion?.usuario ?? null,
-          },
-        });
-        return tx.usuario.create({
-          data: { ...baseData, empleado_id: ficha.id },
-          select: SELECT_USUARIO,
-        });
-      });
-    } else {
-      created = await prisma.usuario.create({ data: baseData, select: SELECT_USUARIO });
-    }
+      await auditar(actor, 'usuario.alta', { usuarioId: u.id, detalle: `${usuario} · rol ${rol}` }, tx);
+      return u;
+    });
 
     return NextResponse.json(created, { status: 201 });
   } catch (error) {

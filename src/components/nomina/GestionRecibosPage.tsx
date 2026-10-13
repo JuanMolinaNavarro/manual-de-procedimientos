@@ -13,7 +13,6 @@ import { useState, type ReactNode } from 'react';
 import { HelpCircle, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -27,7 +26,7 @@ import { useNomina, useNominaData } from './NominaContext';
 import { PasoCard, type EstadoPaso } from './PasoCard';
 import PasoImportar from './RecibosFinnegans';
 import RecibosPeriodo from './RecibosPeriodo';
-import { ErrorCarga } from '@/components/comunes/ui';
+import { ErrorCarga, SelectorMes } from '@/components/comunes/ui';
 
 /** Filtros de la página: empleador (CUIT) y lugar de trabajo (organigrama). '' = todos. */
 interface Filtros { empleador: string; lugar: string }
@@ -56,7 +55,7 @@ function Encabezado({ extra, filtros, onFiltros, empleadores }: {
         {extra}
       </div>
       <div className="flex flex-wrap gap-2">
-        <Input type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} className="h-9 w-full sm:w-44" aria-label="Mes" />
+        <SelectorMes mes={periodo} onCambio={setPeriodo} className="w-full sm:w-52" />
         <Select value={filtros.empleador || TODOS} onValueChange={(v) => onFiltros({ ...filtros, empleador: v === TODOS ? '' : v })}>
           <SelectTrigger className="h-9 w-full sm:w-64" aria-label="Empleador">
             <SelectValue />

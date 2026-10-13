@@ -1,7 +1,7 @@
 import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { modulosEfectivos, type AdminModuloSlug } from './modulos';
-import { isAdminRole, isSuperadmin, isVentasRole, puedeGestionarPin, puedeGestionarUsuarios } from './roles';
+import { isAdminRole, isSuperadmin, isVentasRole, puedeGestionarUsuarios } from './roles';
 import { COOKIE_SESION, usuarioDeToken } from './sesion';
 
 /**
@@ -73,13 +73,4 @@ export async function getScopeProyectos(): Promise<ScopeProyectos> {
 export async function puedeGestionarUsuariosSesion(): Promise<boolean> {
   const u = await getSesion();
   return !!u && puedeGestionarUsuarios(u.rol);
-}
-
-/**
- * Definir o cambiar PINs de firma (adhesión / revocación / acta): admin de RR.HH., nunca el
- * superadmin (separación de funciones).
- */
-export async function puedeGestionarPinSesion(): Promise<boolean> {
-  const u = await getSesion();
-  return !!u && puedeGestionarPin(u.rol);
 }

@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionUsername, puedeGestionarPinSesion } from '@/lib/admin-auth';
+import { actorDe } from '@/lib/auditoria';
 import { handle, parseId, readJson } from '@/lib/nomina-api';
-import { NominaError, adherir } from '@/lib/nomina';
+import { adherir } from '@/lib/nomina';
 
 export async function POST(request: NextRequest) {
   return handle('POST /api/admin/nomina/adhesiones', async () => {
-    if (!(await puedeGestionarPinSesion())) {
-      throw new NominaError('Las adhesiones las gestiona RR.HH. (un admin): el superadmin no puede adherir, revocar ni cargar actas', 403);
-    }
     const body = await readJson(request);
-    const res = await adherir(parseId(body.empleadoId, 'empleadoId'), body.email, body.pin, body.pin2, await getSessionUsername());
+    const res = await adherir(parseId(body.empleadoId, 'empleadoId'), body.email, body.pin, body.pin2, await actorDe(request));
     return NextResponse.json(res, { status: 201 });
   });
 }

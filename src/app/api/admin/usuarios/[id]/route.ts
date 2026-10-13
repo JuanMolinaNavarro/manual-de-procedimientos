@@ -6,7 +6,7 @@
  *       superadmin o editar a un usuario superadmin. `empleado_id` vincula la
  *       ficha del organigrama (null = desvincular). `password` vacía = no cambiarla (se
  *       guarda hasheada; nunca se devuelve). Cambiar usuario, contraseña, rol o estado
- *       cierra todas sus sesiones abiertas.
+ *       cierra todas sus sesiones abiertas y queda en `auditoria` (quién, qué y desde qué IP).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -18,6 +18,7 @@ import { getUsuarioSesion, puedeGestionarUsuariosSesion } from '@/lib/admin-auth
 import { hashSecreto, validarPasswordNueva } from '@/lib/password';
 import { revocarSesionesDeUsuario } from '@/lib/sesion';
 import { SELECT_USUARIO } from '@/lib/usuarios-select';
+import { actorDe, auditar } from '@/lib/auditoria';
 
 /** Gestión de usuarios: solo superadmin (rol de la base). Ver roles.ts › puedeGestionarUsuarios. */
 async function isAdmin(): Promise<boolean> {
@@ -154,28 +155,35 @@ export async function PUT(
       }
     }
 
-    const updated = await prisma.usuario.update({
-      where: { id: usuarioId },
-      data: {
-        usuario: data.usuario ?? undefined,
-        password: data.password ?? undefined,
-        rol: data.rol ?? undefined,
-        nombre: data.nombre ?? undefined,
-        apellido: data.apellido ?? undefined,
-        isActive: data.isActive ?? undefined,
-        modulos: data.modulos ?? undefined,
-        modulos_edit: data.modulos_edit ?? undefined,
-        empleado_id: empleadoId,
-      },
-      select: SELECT_USUARIO,
-    });
+    // Cambios de acceso: cierran las sesiones y quedan en la auditoría (nunca la contraseña).
+    const cambios = [
+      data.password !== undefined && 'contraseña',
+      data.usuario !== undefined && data.usuario !== target.usuario && `usuario ${target.usuario} → ${data.usuario}`,
+      data.rol !== undefined && data.rol !== target.rol && `rol ${target.rol} → ${data.rol}`,
+      data.isActive !== undefined && data.isActive !== target.isActive && (data.isActive ? 'activado' : 'desactivado'),
+    ].filter((c): c is string => !!c);
+    const actor = await actorDe(request);
 
-    const cambioAcceso =
-      data.password !== undefined ||
-      (data.usuario !== undefined && data.usuario !== target.usuario) ||
-      (data.rol !== undefined && data.rol !== target.rol) ||
-      (data.isActive !== undefined && data.isActive !== target.isActive);
-    if (cambioAcceso) await revocarSesionesDeUsuario(usuarioId);
+    const [updated] = await prisma.$transaction([
+      prisma.usuario.update({
+        where: { id: usuarioId },
+        data: {
+          usuario: data.usuario ?? undefined,
+          password: data.password ?? undefined,
+          rol: data.rol ?? undefined,
+          nombre: data.nombre ?? undefined,
+          apellido: data.apellido ?? undefined,
+          isActive: data.isActive ?? undefined,
+          modulos: data.modulos ?? undefined,
+          modulos_edit: data.modulos_edit ?? undefined,
+          empleado_id: empleadoId,
+        },
+        select: SELECT_USUARIO,
+      }),
+      ...(cambios.length ? [auditar(actor, 'usuario.cambio', { usuarioId, detalle: `${target.usuario}: ${cambios.join(', ')}` })] : []),
+    ]);
+
+    if (cambios.length) await revocarSesionesDeUsuario(usuarioId);
 
     return NextResponse.json(updated);
   } catch (error) {

@@ -1,6 +1,5 @@
 import { getSesion } from '@/lib/admin-auth';
 import { ADMIN_MODULOS, NOMINA_SLUGS, getModulosForUser, modulosEfectivos } from '@/lib/modulos';
-import { puedeGestionarPin } from '@/lib/roles';
 import { getAllOrganigramas } from '@/lib/organigrama';
 import { NominaProvider } from '@/components/nomina/NominaContext';
 
@@ -17,7 +16,7 @@ export default async function NominaLayout({ children }: { children: React.React
   const organigramas = (await getAllOrganigramas()).map((o) => ({ id: o.id, nombre: o.nombre }));
 
   return (
-    <NominaProvider organigramas={organigramas} links={links} puedeGestionarPin={puedeGestionarPin(usuarioRecord?.rol)}>
+    <NominaProvider organigramas={organigramas} links={links}>
       {children}
     </NominaProvider>
   );

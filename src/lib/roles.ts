@@ -58,18 +58,12 @@ export function rutaPermitidaEmpleado(pathname: string): boolean {
 }
 
 /**
- * Separación de funciones (decisión del usuario):
- * - Solo el superadmin gestiona usuarios (alta, roles, contraseñas del portal, módulos).
- * - El superadmin NUNCA define ni cambia PINs de firma (adhesión / cambio de PIN): quien puede
- *   resetear la contraseña del portal de alguien no debe poder, además, ponerle un PIN, porque
- *   juntas esas dos cosas permiten firmar un recibo en su nombre.
+ * Solo el superadmin gestiona usuarios (alta, roles, contraseñas del portal, módulos), y además
+ * puede todo lo demás (decisión del usuario 2026-10-13). Quién adhirió, cambió un PIN o una
+ * contraseña queda en `auditoria` (src/lib/auditoria.ts).
  * Siempre evaluar con el rol de la BASE (`getUsuarioSesion`), no con el de la cookie: un cambio
  * de rol no se refleja en la cookie hasta el próximo login.
  */
 export function puedeGestionarUsuarios(rol: string | null | undefined): boolean {
   return rol === 'superadmin';
-}
-
-export function puedeGestionarPin(rol: string | null | undefined): boolean {
-  return rol === 'admin';
 }

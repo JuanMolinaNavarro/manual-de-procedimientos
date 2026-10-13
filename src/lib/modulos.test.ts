@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { EMPLEADO_MODULOS, VENTAS_MODULOS, canAccessPath, getModulosForUser, getModulosParaMenu, modulosEfectivos } from './modulos';
-import { isAdminRole, puedeGestionarPin, puedeGestionarUsuarios, rolValido, rutaPermitidaEmpleado } from './roles';
+import { isAdminRole, puedeGestionarUsuarios, rolValido, rutaPermitidaEmpleado } from './roles';
 
 describe('modulosEfectivos', () => {
   it('empleado: siempre sus módulos personales, aunque tenga [] (que sería "todos")', () => {
@@ -97,11 +97,6 @@ describe('separación de funciones', () => {
   it('solo el superadmin gestiona usuarios', () => {
     expect(puedeGestionarUsuarios('superadmin')).toBe(true);
     for (const r of ['admin', 'empleado', 'agente', null]) expect(puedeGestionarUsuarios(r)).toBe(false);
-  });
-  it('el superadmin nunca define ni cambia PINs; el admin (RR.HH.) sí', () => {
-    expect(puedeGestionarPin('superadmin')).toBe(false);
-    expect(puedeGestionarPin('admin')).toBe(true);
-    for (const r of ['empleado', 'agente', undefined]) expect(puedeGestionarPin(r)).toBe(false);
   });
   it('el rol agente (del manual separado) ya no existe', () => {
     expect(rolValido('admin')).toBe(true);
