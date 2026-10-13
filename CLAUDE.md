@@ -474,7 +474,8 @@ de la columna Horario, `HorarioDialog`); la ficha del organigrama los muestra en
 - **Perfil de la persona** (`/admin/asistencia/personas/[id]?mes=`, `PerfilPersonaPage`; el nombre es link en todo el
   módulo vía `LinkPerfil`, que lleva el mes; `GET personas/[id]/perfil?mes=`, que trae también las `marcas` crudas del
   mes): los mismos cuatro números de Mes (`resumenMesPersona`: horas trabajadas contra esperadas, llegadas tarde y
-  compensadas, horas extra 50/100, faltas y días con marca faltante) y el **día por día** («Todos» / «Con novedad»);
+  compensadas, horas extra 50/100, faltas y días con marca faltante) y el **día por día** («Todos» / «Con novedad»), una
+  tabla Día / Entrada / Salida / Tarde / Extra (minutos después de hora, `minutosDespues`) / Diferencia (extra − tarde);
   cada día se despliega con las marcas del reloj y `explicarDia`. Si el legajo no tiene ficha, ofrece vincularla
   **solo con las fichas que ninguna persona del reloj tiene** (mismo `EmpleadoPicker` y `PATCH personas/[id]`);
   cambiar o desvincular se hace desde Personas. `minutosTrabajados` = salida − entrada bruto, sin descontar
@@ -484,8 +485,9 @@ de la columna Horario, `HorarioDialog`); la ficha del organigrama los muestra en
   llegar antes no suma) y toda la jornada en un día no laborable trabajado. **La salida tardía primero compensa la
   llegada tarde del mismo día** (`compensado = min(minutosTarde, exceso)`): llegar 1 h tarde e irse 1 h tarde es
   compensación, no hora extra; solo el exceso neto se parte en 50/100. Partición: L–V 50 %; sábado 50 % hasta
-  `HE_SABADO_CORTE` (13:00) y 100 % después; domingo 100 %. Feriados no modelados (salen como día común). **Solo horas
-  enteras por día y por tipo** (`HE_BLOQUE_MIN` = 60, `Math.floor`): 1 h 45 = 1 h. Sin marca de salida no hay extra.
+  `HE_SABADO_CORTE` (13:00) y 100 % después; domingo 100 %. Feriados no modelados (salen como día común). **Se cuenta de a
+  media hora completa por día y por tipo** (`HE_BLOQUE_MIN` = 30, decisión del usuario 2026-10-13; antes eran horas
+  enteras): 1 h 45 = 1,5 h, 29 min = nada; `horas50`/`horas100` van en múltiplos de 0,5 y se muestran con `fmtHorasExtra`. Sin marca de salida no hay extra.
 - Etapa 2 prevista (no modelada aún): `AsistenciaNovedadDia` (vacaciones / licencia / sin goce / justificado /
   marcación manual / por verificar) y `AsistenciaFeriado`; `evaluarDia` los recibiría como inputs opcionales.
   Ojo: «licencia» ya significa licencia de software en el organigrama (`OrgLicencia`).
@@ -523,7 +525,7 @@ la de la ficha del organigrama vinculada a su cuenta (`Usuario.empleado_id`, se 
   `tardanza` vive en `asistencia-tablero-calc.ts`.
 - **Qué no se muestra** (decisión del usuario, vale para el perfil de Asistencia y para Mi asistencia): la
   **tolerancia** (solo se ve/edita en `HorarioDialog`), el **historial de versiones** en la tarjeta Horario, y en la
-  columna Extra el desglose "compensa X min": sin horas enteras se muestra el tiempo total después de la hora de
+  columna Extra el desglose "compensa X min": sin bloques de media hora se muestra el tiempo total después de la hora de
   salida (`compensado + minutos50 + minutos100`). El cálculo de horas extra no cambió, solo la lectura. La respuesta
   de Mi asistencia tampoco trae la tolerancia (`config` no viaja y `versiones[].toleranciaMin` va en null).
 

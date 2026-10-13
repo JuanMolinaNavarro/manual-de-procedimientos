@@ -10,7 +10,7 @@
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import { AlertTriangle, ArrowLeft, CalendarClock, Check, ChevronDown, Info, ListChecks } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CalendarClock, ChevronDown, Info, ListChecks } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -20,17 +20,17 @@ import { fmtHoraCorta, hoyLocal, tipoMarcaLabel } from '@/lib/asistencia-datos';
 import {
   DIAS_SEMANA_LARGO,
   describirHorario,
-  fmtHorasMin,
   versionVigente,
   type CeldaDia,
   type DiaCalendario,
 } from '@/lib/asistencia-calendario';
 import { fmtMes, mesAnterior, mesSiguiente } from '@/lib/fechas';
 import {
-  compensada,
   explicarDia,
+  fmtHorasExtra,
   fmtMinutos,
   horasExtraDia,
+  minutosDespues,
   plural,
   resumenMesPersona,
   tardanza,
@@ -203,9 +203,9 @@ function Numeros({ r }: { r: ResumenMesPersona }) {
           {r.tardes > 0 && <span className="text-sm text-muted-foreground">{fmtMinutos(r.minutosTarde)} en total</span>}
         </Tarjeta>
         <Tarjeta label="Horas extra">
-          <span className={cn(grande, r.extra50 + r.extra100 > 0 && 'text-sky-700 dark:text-sky-300')}><span className="font-mono">{r.extra50 + r.extra100}</span> h</span>
-          <span className="text-sm">{r.extra50} h al 50 %</span>
-          <span className="text-sm text-muted-foreground">{r.extra100} h al 100 %</span>
+          <span className={cn(grande, r.extra50 + r.extra100 > 0 && 'text-sky-700 dark:text-sky-300')}>{fmtHorasExtra(r.extra50 + r.extra100)}</span>
+          <span className="text-sm">{fmtHorasExtra(r.extra50)} al 50 %</span>
+          <span className="text-sm text-muted-foreground">{fmtHorasExtra(r.extra100)} al 100 %</span>
         </Tarjeta>
         <Tarjeta label="Faltas">
           <span className={cn(grande, 'font-mono', r.faltas && 'text-red-700 dark:text-red-400')}>{r.faltas}</span>
@@ -226,33 +226,22 @@ function Numeros({ r }: { r: ResumenMesPersona }) {
 const conNovedad = (c: CeldaDia) =>
   tardanza(c) > 0 || c.sinSalida || horasExtraDia(c) > 0 || c.estado === 'ausente' || c.estado === 'justificado' || c.estado === 'sin_entrada' || c.estado === 'trabajo_no_laborable';
 
-/** Etiquetas de un día: siempre con palabra, el color acompaña. */
-function Etiquetas({ c }: { c: CeldaDia }) {
-  const t = tardanza(c);
-  const h = horasExtraDia(c);
-  const estado: Partial<Record<CeldaDia['estado'], React.ReactNode>> = {
-    a_horario: <Etiqueta tono="ok">A horario</Etiqueta>,
-    ausente: <Etiqueta tono="bad">Faltó</Etiqueta>,
-    justificado: <Etiqueta tono="comp">Inasistencia justificada</Etiqueta>,
-    sin_entrada: <Etiqueta tono="warn">Sin entrada</Etiqueta>,
-    feriado: <Etiqueta tono="neutro">Feriado</Etiqueta>,
-    pendiente: <Etiqueta tono="neutro">Todavía no fichó</Etiqueta>,
-    trabajo_no_laborable: <Etiqueta tono="info">Vino en su franco</Etiqueta>,
-    sin_horario: <Etiqueta tono="neutro">Sin horario</Etiqueta>,
-  };
-  return (
-    <>
-      {t > 0 ? (
-        <Etiqueta tono={c.estado === 'tarde_grave' ? 'grave' : 'warn'}>
-          {c.estado === 'tarde_grave' && <AlertTriangle aria-hidden />}Tarde {fmtMinutos(t)}
-        </Etiqueta>
-      ) : estado[c.estado]}
-      {compensada(c) && <Etiqueta tono="comp"><Check aria-hidden />Compensada</Etiqueta>}
-      {c.sinSalida && <Etiqueta tono="warn">Sin salida</Etiqueta>}
-      {h > 0 && <Etiqueta tono="info">Extra <span className="font-mono">{h}</span> h</Etiqueta>}
-    </>
-  );
-}
+/** Estado de un día sin marcas (va en lugar de entrada…diferencia): siempre con palabra. */
+const ESTADO_SIN_MARCAS: Partial<Record<CeldaDia['estado'], React.ReactNode>> = {
+  ausente: <Etiqueta tono="bad">Faltó</Etiqueta>,
+  justificado: <Etiqueta tono="comp">Inasistencia justificada</Etiqueta>,
+  feriado: <Etiqueta tono="neutro">Feriado</Etiqueta>,
+  pendiente: <Etiqueta tono="neutro">Todavía no fichó</Etiqueta>,
+  sin_horario: <Etiqueta tono="neutro">Sin horario</Etiqueta>,
+};
+
+const nada = <span className="text-muted-foreground">—</span>;
+
+/** Minutos que se quedó después de hora menos los que llegó tarde (positivo = cubrió la tardanza). */
+const diferenciaDia = (c: CeldaDia) => minutosDespues(c) - tardanza(c);
+const fmtDiferencia = (min: number) => `${min > 0 ? '+' : min < 0 ? '−' : ''}${fmtMinutos(Math.abs(min))}`;
+const tonoDiferencia = (min: number) =>
+  cn('whitespace-nowrap px-3 font-mono', min > 0 ? 'text-emerald-700 dark:text-emerald-400' : min < 0 && 'text-amber-700 dark:text-amber-400');
 
 function DiaPorDia({ celdas, dias, marcas }: { celdas: CeldaDia[]; dias: DiaCalendario[]; marcas: MarcaReloj[] }) {
   const [soloNovedad, setSoloNovedad] = useState(false);
@@ -263,6 +252,7 @@ function DiaPorDia({ celdas, dias, marcas }: { celdas: CeldaDia[]; dias: DiaCale
     .filter(({ c }) => c.estado !== 'futuro' && !((c.estado === 'no_laborable' || c.estado === 'sin_horario') && c.marcas === 0));
   const novedades = todos.filter(({ c }) => conNovedad(c)).length;
   const filas = soloNovedad ? todos.filter(({ c }) => conNovedad(c)) : todos;
+  const totalDiferencia = filas.reduce((suma, { c }) => suma + diferenciaDia(c), 0);
 
   return (
     <section aria-label="Día por día" className="space-y-3">
@@ -285,47 +275,91 @@ function DiaPorDia({ celdas, dias, marcas }: { celdas: CeldaDia[]; dias: DiaCale
       {filas.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border p-6 text-center text-muted-foreground">{soloNovedad ? 'Ningún día con novedad.' : 'Sin días para mostrar en este mes.'}</p>
       ) : (
-        <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-          {filas.map(({ c, d }) => (
-            <Dia
-              key={c.fecha}
-              c={c}
-              d={d}
-              marcas={marcas.filter((m) => m.fecha === c.fecha)}
-              abierto={abierto === c.fecha}
-              onAlternar={() => setAbierto(abierto === c.fecha ? null : c.fecha)}
-            />
-          ))}
-        </ul>
+        <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+          <table className="w-full min-w-[600px] border-collapse">
+            <thead>
+              <tr className="h-12 border-b border-border text-left text-sm text-muted-foreground">
+                {['Día', 'Entrada', 'Salida', 'Tarde', 'Extra', 'Diferencia'].map((h) => (
+                  <th key={h} scope="col" className="px-3 font-medium first:pl-4">{h}</th>
+                ))}
+                <th scope="col" className="w-14 pr-4"><span className="sr-only">Detalle</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filas.map(({ c, d }) => (
+                <Dia
+                  key={c.fecha}
+                  c={c}
+                  d={d}
+                  marcas={marcas.filter((m) => m.fecha === c.fecha)}
+                  abierto={abierto === c.fecha}
+                  onAlternar={() => setAbierto(abierto === c.fecha ? null : c.fecha)}
+                />
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="h-14 border-t-2 border-border font-semibold">
+                <th scope="row" colSpan={5} className="px-3 pl-4 text-left">Total</th>
+                <td className={tonoDiferencia(totalDiferencia)}>{fmtDiferencia(totalDiferencia)}</td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       )}
     </section>
   );
 }
 
+/**
+ * Una fila: entrada y salida, minutos que llegó tarde, minutos que se quedó después de hora y la
+ * diferencia entre las dos (positiva = cubrió la tardanza). Sin marcas, el estado ocupa esas columnas.
+ */
 function Dia({ c, d, marcas, abierto, onAlternar }: { c: CeldaDia; d: DiaCalendario; marcas: MarcaReloj[]; abierto: boolean; onAlternar: () => void }) {
   const idPanel = `dia-${c.fecha}`;
-  const horas = c.entrada || c.salida
-    ? `${c.entrada ? fmtHoraCorta(c.entrada) : '—'} → ${c.salida ? fmtHoraCorta(c.salida) : c.sinSalida ? 'sin salida' : '—'}`
-    : c.jornada ? `Debía entrar a las ${c.jornada.entrada}` : 'Sin marcas';
-  const sub = c.minutosTrabajados != null ? `Trabajó ${fmtHorasMin(c.minutosTrabajados)}` : c.sinSalida ? 'No se cuentan las horas' : c.jornada ? `Horario de ${c.jornada.entrada} a ${c.jornada.salida}` : '';
+  const t = tardanza(c);
+  const despues = minutosDespues(c);
+  const diferencia = diferenciaDia(c);
   return (
-    <li className={cn(abierto && 'bg-muted/40')}>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
-        <div className="w-11 shrink-0 text-center leading-tight">
-          <div className="text-sm text-muted-foreground">{DIAS_SEMANA_LARGO[d.diaSemana].slice(0, 3)}</div>
-          <div className="text-2xl font-semibold">{d.dia}</div>
-        </div>
-        <div className="min-w-36 flex-1">
-          <div className="font-mono">{horas}</div>
-          {sub && <div className="text-sm text-muted-foreground">{sub}</div>}
-        </div>
-        <div className="flex flex-wrap gap-1.5"><Etiquetas c={c} /></div>
-        <Button variant="outline" className="h-11 text-base" aria-expanded={abierto} aria-controls={idPanel} onClick={onAlternar}>
-          Detalle <ChevronDown className={cn('size-4 transition-transform', abierto && 'rotate-180')} />
-        </Button>
-      </div>
+    <>
+      <tr className={cn('border-b border-border last:border-0', abierto && 'bg-muted/40')}>
+        <td className="py-2 pl-4 pr-3">
+          <div className="w-11 text-center leading-tight">
+            <div className="text-sm text-muted-foreground">{DIAS_SEMANA_LARGO[d.diaSemana].slice(0, 3)}</div>
+            <div className="text-2xl font-semibold">{d.dia}</div>
+          </div>
+        </td>
+        {c.marcas === 0 ? (
+          <td colSpan={5} className="px-3">
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {ESTADO_SIN_MARCAS[c.estado] ?? nada}
+              {c.jornada && <span className="text-sm text-muted-foreground">Horario de {c.jornada.entrada} a {c.jornada.salida}</span>}
+            </span>
+          </td>
+        ) : (
+          <>
+            <td className="px-3 font-mono">{c.entrada ? fmtHoraCorta(c.entrada) : <Etiqueta tono="warn">Sin entrada</Etiqueta>}</td>
+            <td className="px-3 font-mono">{c.salida ? fmtHoraCorta(c.salida) : c.sinSalida ? <Etiqueta tono="warn">Sin salida</Etiqueta> : nada}</td>
+            <td className="px-3">
+              {t > 0 ? (
+                <Etiqueta tono={c.estado === 'tarde_grave' ? 'grave' : 'warn'}>
+                  {c.estado === 'tarde_grave' && <AlertTriangle aria-hidden />}{fmtMinutos(t)}
+                </Etiqueta>
+              ) : c.estado === 'trabajo_no_laborable' ? <Etiqueta tono="info">Franco</Etiqueta> : nada}
+            </td>
+            <td className="whitespace-nowrap px-3 font-mono text-sky-700 dark:text-sky-300">{despues > 0 ? fmtMinutos(despues) : nada}</td>
+            <td className={tonoDiferencia(diferencia)}>{t > 0 || despues > 0 ? fmtDiferencia(diferencia) : nada}</td>
+          </>
+        )}
+        <td className="py-2 pr-4">
+          <Button variant="outline" size="icon" className="size-11" aria-label={`Detalle del ${d.dia}`} aria-expanded={abierto} aria-controls={idPanel} onClick={onAlternar}>
+            <ChevronDown className={cn('size-4 transition-transform', abierto && 'rotate-180')} />
+          </Button>
+        </td>
+      </tr>
       {abierto && (
-        <div id={idPanel} className="grid grid-cols-1 gap-5 border-t border-border px-4 py-4 sm:grid-cols-2 sm:pl-[76px]">
+        <tr className="border-b border-border bg-muted/40 last:border-0"><td colSpan={7}>
+        <div id={idPanel} className="grid grid-cols-1 gap-5 px-4 py-4 sm:grid-cols-2 sm:pl-[76px]">
           <div className="space-y-2">
             <p className="text-sm font-medium text-muted-foreground">Registros del reloj</p>
             {marcas.length === 0 ? (
@@ -349,7 +383,8 @@ function Dia({ c, d, marcas, abierto, onAlternar }: { c: CeldaDia; d: DiaCalenda
             </ul>
           </div>
         </div>
+        </td></tr>
       )}
-    </li>
+    </>
   );
 }

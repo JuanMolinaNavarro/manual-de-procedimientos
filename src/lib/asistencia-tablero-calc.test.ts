@@ -29,7 +29,7 @@ describe('compensada', () => {
       'Llegó 22 min tarde: tenía que entrar a las 08:00.',
       'Se quedó 30 min después de las 16:00.',
       'Eso cubre la llegada tarde: queda compensada.',
-      'Los 8 min que quedan no suman hora extra: se cuentan solo horas enteras.',
+      'Los 8 min que quedan no suman hora extra: se cuenta de a media hora completa.',
       'Trabajó 8 h 8 min, de 08:22 a 16:30.',
     ]);
   });
@@ -41,10 +41,10 @@ describe('compensada', () => {
     expect(explicarDia(c)).toContain('La llegada tarde no se compensó.');
   });
 
-  it('a horario con una hora y media de más: suma 1 h al 50 %', () => {
+  it('a horario con 1 h 40 de más: suma 1 h 30 min al 50 %', () => {
     const c = dia('2026-09-04', [['08:03', 0], ['17:40', 1]]);
     expect(compensada(c)).toBe(false);
-    expect(explicarDia(c)).toContain('Suma 1 h al 50 % de hora extra.');
+    expect(explicarDia(c)).toContain('Suma 1 h 30 min al 50 % de hora extra.');
   });
 });
 

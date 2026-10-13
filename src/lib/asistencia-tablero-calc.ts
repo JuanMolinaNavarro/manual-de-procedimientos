@@ -17,11 +17,20 @@ export const tardanza = (c: CeldaDia): number => (c.estado === 'tarde' || c.esta
 /** Llegó tarde, pero ese mismo día se quedó después de hora al menos el mismo tiempo. */
 export const compensada = (c: CeldaDia): boolean => tardanza(c) > 0 && (c.extra?.compensado ?? 0) >= tardanza(c);
 
-/** Horas extra enteras del día (50 % + 100 %). */
+/** Horas extra del día (50 % + 100 %), en bloques de media hora: 1.5 = 1 h 30 min. */
 export const horasExtraDia = (c: CeldaDia): number => (c.extra ? c.extra.horas50 + c.extra.horas100 : 0);
+
+/**
+ * Minutos que se quedó después de la salida esperada (o todo lo trabajado en un día no laborable),
+ * antes de compensar la tardanza y de contar bloques.
+ */
+export const minutosDespues = (c: CeldaDia): number => (c.extra ? c.extra.compensado + c.extra.minutos50 + c.extra.minutos100 : 0);
 
 /** 45 → "45 min"; 90 → "1 h 30 min". */
 export const fmtMinutos = (min: number): string => (min >= 60 ? fmtHorasMin(min) : `${min} min`);
+
+/** Horas extra (de a media hora) para mostrar: 1.5 → "1 h 30 min"; 0.5 → "30 min"; 0 → "0 h". */
+export const fmtHorasExtra = (h: number): string => (h ? fmtMinutos(Math.round(h * 60)) : '0 h');
 
 /** `plural(3, 'vez', 'veces')` → "3 veces". */
 export const plural = (n: number, uno: string, varios: string): string => `${n} ${n === 1 ? uno : varios}`;
@@ -105,7 +114,7 @@ export function resumenMesPersona(r: ResumenLiquidacion, hoyEnMes: boolean): Res
 /**
  * El cálculo de un día en frases cortas, para que RR.HH. pueda contestarle a la persona sin
  * leer reglas. No menciona la tolerancia (decisión del usuario: se ve solo en el editor de
- * horarios) y cuenta la hora extra como se liquida: solo horas enteras.
+ * horarios) y cuenta la hora extra como se liquida: de a media hora completa.
  */
 export function explicarDia(c: CeldaDia): string[] {
   const j = c.jornada;
@@ -125,7 +134,7 @@ export function explicarDia(c: CeldaDia): string[] {
   if (c.sinSalida) out.push('No hay marca de salida: las horas de ese día no se cuentan.');
 
   if (c.extra && j && c.estado !== 'trabajo_no_laborable') {
-    const despues = c.extra.compensado + c.extra.minutos50 + c.extra.minutos100;
+    const despues = minutosDespues(c);
     if (despues > 0) out.push(`Se quedó ${fmtMinutos(despues)} después de las ${j.salida}.`);
     if (t) {
       if (compensada(c)) out.push('Eso cubre la llegada tarde: queda compensada.');
@@ -134,10 +143,10 @@ export function explicarDia(c: CeldaDia): string[] {
     }
   }
   if (c.extra) {
-    const partes = [c.extra.horas50 && `${c.extra.horas50} h al 50 %`, c.extra.horas100 && `${c.extra.horas100} h al 100 %`].filter(Boolean);
+    const partes = [c.extra.horas50 && `${fmtHorasExtra(c.extra.horas50)} al 50 %`, c.extra.horas100 && `${fmtHorasExtra(c.extra.horas100)} al 100 %`].filter(Boolean);
     const restante = c.extra.minutos50 + c.extra.minutos100;
     if (partes.length) out.push(`Suma ${partes.join(' y ')} de hora extra.`);
-    else if (restante > 0) out.push(`Los ${fmtMinutos(restante)} que quedan no suman hora extra: se cuentan solo horas enteras.`);
+    else if (restante > 0) out.push(`Los ${fmtMinutos(restante)} que quedan no suman hora extra: se cuenta de a media hora completa.`);
   }
   if (c.minutosTrabajados != null && c.entrada && c.salida) {
     out.push(`Trabajó ${fmtHorasMin(c.minutosTrabajados)}, de ${fmtHoraCorta(c.entrada)} a ${fmtHoraCorta(c.salida)}.`);

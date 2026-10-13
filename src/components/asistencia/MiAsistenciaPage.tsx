@@ -23,6 +23,9 @@ import { fmtDiaLargo, fmtHoraCorta, hoyLocal } from '@/lib/asistencia-datos';
 import { DIAS_SEMANA_LARGO, type CeldaDia, type ResumenLiquidacion } from '@/lib/asistencia-calendario';
 import { MES_RE, fmtMes, mesAnterior, mesSiguiente } from '@/lib/fechas';
 import { compensada, horasExtraDia, plural, tardanza, tardesCompensadas } from '@/lib/asistencia-tablero-calc';
+
+/** Horas extra (de a media hora) en el cuadradito del calendario: 1.5 → "+1½", 0.5 → "+½". */
+const masHoras = (h: number) => `+${Math.floor(h) || ''}${h % 1 ? '½' : ''}`;
 import type { MiAsistencia, MiAsistenciaRespuesta } from './api';
 import { apiFetch, mensajeError } from '@/components/comunes/api';
 
@@ -60,7 +63,7 @@ function tipoDia(c: CeldaDia): Tipo {
 function Simbolo({ c }: { c: CeldaDia }) {
   const t = tipoDia(c);
   if (t === 'recuperada') return <Check className="size-4" strokeWidth={3.5} aria-hidden />;
-  return <>{t === 'tarde' ? 'T' : t === 'revisar' ? '!' : t === 'justificada' ? 'J' : t === 'extra' ? `+${horasExtraDia(c)}` : ''}</>;
+  return <>{t === 'tarde' ? 'T' : t === 'revisar' ? '!' : t === 'justificada' ? 'J' : t === 'extra' ? masHoras(horasExtraDia(c)) : ''}</>;
 }
 
 /** "2026-09-22" → "Martes 22 de septiembre". */
@@ -85,11 +88,11 @@ function fraseDia(c: CeldaDia): string {
   if (c.sinSalida) return 'Falta tu marca de salida. Si fichaste al salir, avisale a RR.HH.';
   if (c.estado === 'sin_entrada') return 'Falta tu marca de entrada. Avisale a RR.HH.';
   // Un día tarde también puede sumar horas extra (el calendario muestra un solo símbolo: lo dice la frase).
-  if (compensada(c) && horasExtraDia(c)) return `Llegaste ${plural(t, 'minuto', 'minutos')} tarde, lo recuperaste y además hiciste ${plural(horasExtraDia(c), 'hora extra', 'horas extra')}.`;
+  if (compensada(c) && horasExtraDia(c)) return `Llegaste ${plural(t, 'minuto', 'minutos')} tarde, lo recuperaste y además hiciste ${horasLargo(horasExtraDia(c) * 60)} extra.`;
   if (compensada(c)) return `Llegaste ${plural(t, 'minuto', 'minutos')} tarde, pero lo recuperaste quedándote después de hora.`;
   if (t && rec > 0) return `Llegaste ${plural(t, 'minuto', 'minutos')} tarde y recuperaste ${plural(rec, 'minuto', 'minutos')}.`;
   if (t) return `Llegaste ${plural(t, 'minuto', 'minutos')} tarde.`;
-  if (horasExtraDia(c)) return `Hiciste ${plural(horasExtraDia(c), 'hora extra', 'horas extra')}.`;
+  if (horasExtraDia(c)) return `Hiciste ${horasLargo(horasExtraDia(c) * 60)} extra.`;
   if (c.estado === 'pendiente') return 'Todavía no hay marcas tuyas hoy.';
   if (c.estado === 'feriado' && !c.marcas) return 'Feriado.';
   // Sin horario no hay "a horario" ni "día libre": solo se sabe si fichó.
@@ -247,7 +250,7 @@ function Resumen({ r, enCurso }: { r: ResumenLiquidacion; enCurso: boolean }) {
       )}
       {extra > 0 && (
         <Linea muestra={<Muestra tipo="extra">+</Muestra>}>
-          Hiciste <strong>{plural(extra, 'hora extra', 'horas extra')}</strong>
+          Hiciste <strong>{horasLargo(extra * 60)}</strong> extra
         </Linea>
       )}
       {r.justificados.length > 0 && (

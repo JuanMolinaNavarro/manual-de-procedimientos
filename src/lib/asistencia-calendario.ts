@@ -157,13 +157,14 @@ export interface HorasExtraDia {
   compensado: number;
   minutos50: number;
   minutos100: number;
-  /** `Math.floor(minutos / HE_BLOQUE_MIN)`: una hora extra cuenta solo si está completa. */
+  /** Horas en bloques completos de `HE_BLOQUE_MIN` (media hora): 50 min = 0,5 h; 1 h 45 = 1,5 h. */
   horas50: number;
   horas100: number;
 }
 
-/** Tamaño del bloque de hora extra: solo se cuentan bloques completos (60 = horas enteras). */
-export const HE_BLOQUE_MIN = 60;
+/** Tamaño del bloque de hora extra: solo se cuentan bloques completos (30 = de a media hora). */
+export const HE_BLOQUE_MIN = 30;
+const enBloques = (min: number) => (Math.floor(min / HE_BLOQUE_MIN) * HE_BLOQUE_MIN) / 60;
 /** Sábado: hasta esta hora el exceso paga 50 %, después 100 %. Domingo paga 100 % todo el día. */
 export const HE_SABADO_CORTE = '13:00';
 
@@ -393,7 +394,7 @@ export function diaJustificable(c: Pick<CeldaDia, 'estado' | 'jornada' | 'marcas
  * entrada real en día no laborable; `hasta` = salida real), partido en 50 % /
  * 100 % según el día: lunes a viernes 50 %; sábado 50 % hasta `HE_SABADO_CORTE`
  * y 100 % después; domingo y feriado (`todo100`) 100 %. Las horas se cuentan
- * enteras por tipo.
+ * en bloques completos de media hora por tipo.
  */
 export function horasExtraDe(fecha: string, desde: number, hasta: number, todo100 = false): HorasExtraDia {
   const out: HorasExtraDia = { compensado: 0, minutos50: 0, minutos100: 0, horas50: 0, horas100: 0 };
@@ -405,8 +406,8 @@ export function horasExtraDe(fecha: string, desde: number, hasta: number, todo10
     out.minutos50 = Math.max(0, Math.min(hasta, corte) - desde);
     out.minutos100 = Math.max(0, hasta - Math.max(desde, corte));
   } else out.minutos50 = hasta - desde;
-  out.horas50 = Math.floor(out.minutos50 / HE_BLOQUE_MIN);
-  out.horas100 = Math.floor(out.minutos100 / HE_BLOQUE_MIN);
+  out.horas50 = enBloques(out.minutos50);
+  out.horas100 = enBloques(out.minutos100);
   return out;
 }
 
