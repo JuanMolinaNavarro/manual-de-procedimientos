@@ -149,6 +149,9 @@ export default function FichaModal({
   );
   const fileRef = useRef<HTMLInputElement>(null);
   const [transferir, setTransferir] = useState(false);
+  // Alto del modal en lectura: al pasar a edición se mantiene (los campos editables son más altos) y lo que no entra scrollea.
+  const cuerpoRef = useRef<HTMLDivElement>(null);
+  const [altoLectura, setAltoLectura] = useState<number | null>(null);
 
   // Proyectos del módulo Proyectos y finanzas en los que participa la persona.
   // Se pide acá (y no en la pestaña) porque el resultado define si la pestaña
@@ -182,6 +185,7 @@ export default function FichaModal({
     setErr(null);
     setPendingFoto(null);
     setTab('resumen');
+    setAltoLectura(null);
   }, [empleado, creating, startInEdit, open, defaultArea, canEdit]);
 
   // Descendientes del empleado actual: no pueden ser su jefe (anti-ciclos en cliente).
@@ -330,9 +334,13 @@ export default function FichaModal({
         showCloseButton={false}
         className="neu-surface w-[95vw] max-w-5xl gap-0 overflow-hidden rounded-3xl p-0 sm:max-w-5xl"
       >
-        <div className="grid md:grid-cols-[260px_1fr]">
+        <div
+          ref={cuerpoRef}
+          style={edit && altoLectura ? { height: altoLectura } : undefined}
+          className="grid max-h-[90vh] overflow-y-auto md:grid-cols-[260px_1fr] md:grid-rows-[minmax(0,1fr)] md:overflow-hidden"
+        >
           {/* Panel lateral */}
-          <aside className="flex flex-col gap-3 p-5">
+          <aside className="flex min-h-0 min-w-0 flex-col gap-3 p-5 md:overflow-y-auto md:overflow-x-hidden">
             <div className="relative mx-auto">
               {url ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -421,7 +429,7 @@ export default function FichaModal({
                     value={emp.area || 'none'}
                     onValueChange={(v) => set('area', v === 'none' ? '' : v)}
                   >
-                    <SelectTrigger className="neu-field h-8 rounded-lg">
+                    <SelectTrigger className="neu-field h-8 w-full rounded-lg">
                       <SelectValue placeholder="Sin área" />
                     </SelectTrigger>
                     <SelectContent>
@@ -445,7 +453,7 @@ export default function FichaModal({
                     value={emp.manager_id != null ? String(emp.manager_id) : 'none'}
                     onValueChange={(v) => set('manager_id', v === 'none' ? null : Number(v))}
                   >
-                    <SelectTrigger className="neu-field h-8 rounded-lg">
+                    <SelectTrigger className="neu-field h-8 w-full rounded-lg">
                       <SelectValue placeholder="Sin jefe" />
                     </SelectTrigger>
                     <SelectContent>
@@ -470,7 +478,7 @@ export default function FichaModal({
                 <Label className="text-[11px] text-muted-foreground">Estado</Label>
                 {edit ? (
                   <Select value={emp.estado} onValueChange={(v) => set('estado', v)}>
-                    <SelectTrigger className="neu-field h-8 rounded-lg">
+                    <SelectTrigger className="neu-field h-8 w-full rounded-lg">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -486,7 +494,7 @@ export default function FichaModal({
           </aside>
 
           {/* Panel principal */}
-          <div className="flex flex-col">
+          <div className="flex min-h-0 flex-col">
             <div className="flex items-center justify-between gap-2 px-4 py-3">
               <span className="truncate text-sm font-medium text-muted-foreground">
                 {err ? (
@@ -540,7 +548,7 @@ export default function FichaModal({
                     </Button>
                   </>
                 ) : canEdit ? (
-                  <Button size="sm" variant="outline" onClick={() => setEdit(true)}>
+                  <Button size="sm" variant="outline" onClick={() => { setAltoLectura(cuerpoRef.current?.offsetHeight ?? null); setEdit(true); }}>
                     <Pencil className="mr-1 h-3.5 w-3.5" /> Editar
                   </Button>
                 ) : null}
@@ -570,7 +578,7 @@ export default function FichaModal({
                 ))}
               </TabsList>
 
-              <div className="flex-1 p-5">
+              <div className="min-h-0 flex-1 p-5 md:overflow-y-auto">
                 {visibleTabs.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Sin información cargada. Usá “Editar” para agregar datos.
