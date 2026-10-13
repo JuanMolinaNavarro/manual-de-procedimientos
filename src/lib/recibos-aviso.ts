@@ -36,8 +36,8 @@ export function armarMailAviso(d: DatosAviso): { subject: string; text: string; 
   const primerNombre = d.nombre.split(/\s+/)[0] || d.nombre;
   const cuantos = d.recibos === 1 ? 'tu recibo de sueldo' : `tus ${d.recibos} recibos de sueldo`;
   const instruccion = d.recibos === 1
-    ? 'Para verlo y firmarlo entrá a Aurelius con tu usuario, andá a "Recibos" y firmalo con tu PIN personal.'
-    : 'Para verlos y firmarlos entrá a Aurelius con tu usuario, andá a "Recibos" y firmá cada uno con tu PIN personal.';
+    ? 'Para verlo y firmarlo entrá a Aurelius con tu usuario, andá a "Mis recibos" y firmalo con tu PIN personal.'
+    : 'Para verlos y firmarlos entrá a Aurelius con tu usuario, andá a "Mis recibos" y firmá cada uno con tu PIN personal.';
   const subject = `${mesCap}: ${d.recibos === 1 ? 'tu recibo de sueldo está disponible' : 'tus recibos de sueldo están disponibles'}`;
   const text = [
     `Hola ${primerNombre}:`,
