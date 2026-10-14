@@ -632,7 +632,7 @@ de evidencia), Ley 25.326 art. 6.
   (`src/lib/nomina-pin.ts` → `hashSecreto`, CUIL mezclado en la entrada; nunca el PIN). Los PIN de antes de 2026-10 quedan
   en scrypt y **no se re-hashean**: `pin_hash` entra en `codigoAdhesion`, impreso en el acta firmada. `codigo` =
   `ADH-<id>-<8 hex>` (`codigoAdhesion`) se imprime en el acta y ata papel ↔ registro. **Sin acta subida la adhesión
-  queda PENDIENTE y no firma** (`AdhesionView.completa`). El acta (`ActaAdhesion.tsx`, `acta-v5`; dos copias) se escanea y
+  queda PENDIENTE y no firma** (`AdhesionView.completa`). El acta (`ActaAdhesion.tsx`, `acta-v6`; dos copias) se escanea y
   se sube: se guarda `acta_sha256`. Decisiones del usuario 2026-10 para la v5: firma en el portal con usuario + PIN desde
   cualquier dispositivo; email declarado (si es la casilla laboral, el trabajador acepta que queda en manos del empleador
   y que pierde el acceso al desvincularse); **la firma es constancia de recepción, no de conformidad** (arts. 138 a 140,

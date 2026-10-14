@@ -219,7 +219,7 @@ export interface ReciboDeEmpleado {
 
 export interface ActaDatos {
   empresa: { razonSocial: string; cuit: string; domicilio: string };
-  trabajador: { id: number; nombre: string; cuil: string; categoria: string };
+  trabajador: { id: number; nombre: string; cuil: string; legajo: string; categoria: string };
   adhesion: { codigo: string | null; fecha: string; creadaEn: string; creadaPor: string | null; email: string | null } | null;
 }
 
@@ -1093,6 +1093,18 @@ async function domicilioEmpleador(cuit: string): Promise<string> {
   return (l?.domicilio ?? '').trim();
 }
 
+/** Número de legajo de la persona en su última liquidación de Finnegans con ese empleador. */
+async function legajoFinnegans(cuil: string, cuit: string): Promise<string> {
+  const [r] = await prisma.$queryRaw<{ legajo: string | null }[]>`
+    SELECT f->>'NUMEROLEGAJO' AS legajo
+    FROM nomina_finn_liquidaciones l, jsonb_array_elements(l.filas) f
+    WHERE regexp_replace(l.empresa_cuit, '\\D', '', 'g') = ${cuit}
+      AND regexp_replace(f->>'IDENTIFICACIONTRIBUTARIANUMERO', '\\D', '', 'g') = ${cuil.replace(/\D/g, '')}
+    ORDER BY l.periodo DESC, l.id DESC
+    LIMIT 1`;
+  return (r?.legajo ?? '').trim();
+}
+
 /**
  * Datos del acta. El empleador es el congelado en la adhesión (el que nombra el acta firmada);
  * antes de adherir, el actual de Finnegans. Sin ninguno de los dos no hay acta: 409.
@@ -1108,7 +1120,7 @@ export async function getActaDatos(empleadoId: number): Promise<ActaDatos> {
   }
   return {
     empresa: { razonSocial: empleador.nombre, cuit: formatoCuit(empleador.cuit), domicilio: await domicilioEmpleador(empleador.cuit) },
-    trabajador: { id: empleado.id, nombre: empleado.nombre, cuil, categoria: m.categoria },
+    trabajador: { id: empleado.id, nombre: empleado.nombre, cuil, legajo: await legajoFinnegans(cuil, empleador.cuit), categoria: m.categoria },
     adhesion: a ? { codigo: a.codigo, fecha: a.fecha, creadaEn: a.created_at.toISOString(), creadaPor: a.created_by, email: a.email } : null,
   };
 }
