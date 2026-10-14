@@ -249,7 +249,7 @@ function DiaPorDia({ celdas, dias, marcas }: { celdas: CeldaDia[]; dias: DiaCale
   // Los francos sin marcas no dicen nada; los feriados sí (explican por qué no hay falta).
   const todos = celdas
     .map((c, i) => ({ c, d: dias[i] }))
-    .filter(({ c }) => c.estado !== 'futuro' && !((c.estado === 'no_laborable' || c.estado === 'sin_horario') && c.marcas === 0));
+    .filter(({ c }) => c.estado !== 'futuro' && !((c.estado === 'no_laborable' || c.estado === 'sin_horario') && c.marcas === 0 && !c.libreElegido));
   const novedades = todos.filter(({ c }) => conNovedad(c)).length;
   const filas = soloNovedad ? todos.filter(({ c }) => conNovedad(c)) : todos;
   const totalDiferencia = filas.reduce((suma, { c }) => suma + diferenciaDia(c), 0);
@@ -332,7 +332,7 @@ function Dia({ c, d, marcas, abierto, onAlternar }: { c: CeldaDia; d: DiaCalenda
         {c.marcas === 0 ? (
           <td colSpan={5} className="px-3">
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              {ESTADO_SIN_MARCAS[c.estado] ?? nada}
+              {c.libreElegido ? <Etiqueta tono="neutro">Sábado libre elegido</Etiqueta> : ESTADO_SIN_MARCAS[c.estado] ?? nada}
               {c.jornada && <span className="text-sm text-muted-foreground">Horario de {c.jornada.entrada} a {c.jornada.salida}</span>}
             </span>
           </td>

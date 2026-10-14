@@ -532,6 +532,18 @@ la de la ficha del organigrama vinculada a su cuenta (`Usuario.empleado_id`, se 
   salida (`compensado + minutos50 + minutos100`). El cálculo de horas extra no cambió, solo la lectura. La respuesta
   de Mi asistencia tampoco trae la tolerancia (`config` no viaja y `versiones[].toleranciaMin` va en null).
 
+### Asistencia: sábado libre elegido (gerentes)
+
+Decisión del usuario 2026-10-14: quien trabaja casi todos los sábados (gerentes) elige **uno por mes** para no venir,
+desde **Mi asistencia**, **sin aprobación**. Se habilita con la casilla «Elige un sábado libre por mes» del horario
+(`AsistenciaHorario.sabado_libre` / `HorarioVersion.sabadoLibre`, solo si el sábado es laborable en esa versión).
+Plazo: cualquier sábado **del mes en curso**, también los ya pasados; elegir otro lo reemplaza y se puede quitar. No se
+puede elegir un sábado en el que fichó ni uno que no le tocaba. Se guarda solo la elección (`AsistenciaSabadoLibre`,
+`@@unique([empleado_id, mes])`); `calendarioRango` la pasa como `libres` y `evaluarDia` anula la jornada como un feriado
+→ `no_laborable` con `CeldaDia.libreElegido` (sin estado nuevo: no cuenta falta ni horas esperadas; si igual vino,
+`trabajo_no_laborable`). Servidor en `src/lib/asistencia-sabado-libre.ts`; ruta `POST|DELETE /api/admin/mi-asistencia/sabado-libre`
+(ficha SOLO de la sesión). `miAsistencia` devuelve `sabadoLibre: { puede, fecha }`.
+
 ### Asistencia: justificación de inasistencias
 
 Decisiones del usuario 2026-10-10. El empleado, en **Mi asistencia**, toca un día `ausente` y sube un documento

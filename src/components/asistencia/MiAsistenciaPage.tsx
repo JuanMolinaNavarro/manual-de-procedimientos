@@ -20,7 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Banner, Empty } from '@/components/comunes/ui';
 import { cn } from '@/lib/utils';
 import { fmtDiaLargo, fmtHoraCorta, hoyLocal } from '@/lib/asistencia-datos';
-import { DIAS_SEMANA_LARGO, type CeldaDia, type ResumenLiquidacion } from '@/lib/asistencia-calendario';
+import { DIAS_SEMANA_LARGO, diaSemanaDe, type CeldaDia, type ResumenLiquidacion } from '@/lib/asistencia-calendario';
 import { MES_RE, fmtMes, mesAnterior, mesSiguiente } from '@/lib/fechas';
 import { compensada, horasExtraDia, plural, tardanza, tardesCompensadas } from '@/lib/asistencia-tablero-calc';
 
@@ -31,6 +31,12 @@ import { apiFetch, mensajeError } from '@/components/comunes/api';
 
 type Marca = MiAsistencia['marcas'][number];
 type Justificacion = MiAsistencia['justificaciones'][number];
+type SabadoLibre = MiAsistencia['sabadoLibre'];
+
+/** Sábado que puede elegir (o dejar de tener) como libre: le toca trabajar y no fichó, o ya es el elegido. */
+function sabadoElegible(c: CeldaDia, s: SabadoLibre): boolean {
+  return s.puede && diaSemanaDe(c.fecha) === 5 && (!!c.libreElegido || (!!c.jornada && c.marcas === 0));
+}
 
 /** Lo único que el calendario distingue de un día. */
 type Tipo = 'presente' | 'tarde' | 'recuperada' | 'extra' | 'revisar' | 'justificada' | 'libre' | 'hoy' | 'futuro';
@@ -61,6 +67,7 @@ function tipoDia(c: CeldaDia): Tipo {
 }
 
 function Simbolo({ c }: { c: CeldaDia }) {
+  if (c.libreElegido && !c.marcas) return <>L</>;
   const t = tipoDia(c);
   if (t === 'recuperada') return <Check className="size-4" strokeWidth={3.5} aria-hidden />;
   return <>{t === 'tarde' ? 'T' : t === 'revisar' ? '!' : t === 'justificada' ? 'J' : t === 'extra' ? masHoras(horasExtraDia(c)) : ''}</>;
@@ -83,6 +90,8 @@ function horasLargo(min: number): string {
 function fraseDia(c: CeldaDia): string {
   const t = tardanza(c);
   const rec = c.extra?.compensado ?? 0;
+  if (c.libreElegido && !c.marcas) return 'Es tu sábado libre del mes.';
+  if (c.estado === 'futuro') return c.jornada ? 'Te toca trabajar.' : 'Día libre.';
   if (c.estado === 'ausente') return 'No hay marcas tuyas este día. Si viniste, avisale a RR.HH.';
   if (c.estado === 'justificado') return 'Faltaste con justificativo: RR.HH. lo aprobó y el día se te paga.';
   if (c.sinSalida) return 'Falta tu marca de salida. Si fichaste al salir, avisale a RR.HH.';
@@ -176,11 +185,11 @@ export default function MiAsistenciaPage() {
             <Banner variant="info">Tu ficha no tiene legajo en ningún reloj, así que no hay marcas para mostrar. Avisale a RR.HH.</Banner>
           )}
           {d.mes.tieneHorario ? (
-            <Resumen r={d.mes.resumen} enCurso={mes === mesActual} />
+            <Resumen r={d.mes.resumen} enCurso={mes === mesActual} sabado={d.sabadoLibre} />
           ) : (
             <Banner variant="info">No tenés horario cargado este mes: solo se muestran los días que fichaste. Si creés que es un error, hablá con RR.HH.</Banner>
           )}
-          <Calendario celdas={d.celdas} onAbrir={setAbierto} />
+          <Calendario celdas={d.celdas} sabado={d.sabadoLibre} onAbrir={setAbierto} />
         </div>
       )}
 
@@ -197,6 +206,9 @@ export default function MiAsistenciaPage() {
                 enPlazo={celdaAbierta.fecha >= d!.justificarDesde}
                 onEnviado={() => setRecarga((n) => n + 1)}
               />
+              {sabadoElegible(celdaAbierta, d!.sabadoLibre) && (
+                <ElegirSabadoLibre c={celdaAbierta} actual={d!.sabadoLibre.fecha} onCambio={() => setRecarga((n) => n + 1)} />
+              )}
             </DetalleDia>
           )}
           <DialogClose asChild>
@@ -226,7 +238,7 @@ function Linea({ muestra, children }: { muestra: ReactNode; children: ReactNode 
 }
 
 /** El mes en frases cortas. Una frase aparece solo si tiene algo que decir. */
-function Resumen({ r, enCurso }: { r: ResumenLiquidacion; enCurso: boolean }) {
+function Resumen({ r, enCurso, sabado }: { r: ResumenLiquidacion; enCurso: boolean; sabado: SabadoLibre }) {
   const esperadas = Math.round((enCurso ? r.minutosEsperadosHastaHoy : r.minutosEsperadosMes) / 60);
   const recuperadas = tardesCompensadas(r);
   const extra = r.horasExtra50 + r.horasExtra100;
@@ -258,6 +270,13 @@ function Resumen({ r, enCurso }: { r: ResumenLiquidacion; enCurso: boolean }) {
           <strong>{plural(r.justificados.length, 'falta justificada', 'faltas justificadas')}</strong>
         </Linea>
       )}
+      {(sabado.puede || sabado.fecha) && (
+        <Linea muestra={<Muestra tipo="libre">L</Muestra>}>
+          {sabado.fecha
+            ? <>Tu sábado libre: <strong>{diaTitulo(sabado.fecha).toLowerCase()}</strong></>
+            : 'Todavía no elegiste tu sábado libre. Tocá un sábado del calendario.'}
+        </Linea>
+      )}
       {revisar > 0 && (
         <Linea muestra={<Muestra tipo="revisar">!</Muestra>}>
           <strong>{plural(revisar, 'día', 'días')}</strong> para revisar con RR.HH.
@@ -267,7 +286,7 @@ function Resumen({ r, enCurso }: { r: ResumenLiquidacion; enCurso: boolean }) {
   );
 }
 
-function Calendario({ celdas, onAbrir }: { celdas: CeldaDia[]; onAbrir: (fecha: string) => void }) {
+function Calendario({ celdas, sabado, onAbrir }: { celdas: CeldaDia[]; sabado: SabadoLibre; onAbrir: (fecha: string) => void }) {
   // 0 = lunes: huecos antes del día 1.
   const huecos = (new Date(`${celdas[0]?.fecha}T12:00:00Z`).getUTCDay() + 6) % 7;
   return (
@@ -286,7 +305,7 @@ function Calendario({ celdas, onAbrir }: { celdas: CeldaDia[]; onAbrir: (fecha: 
             <button
               key={c.fecha}
               type="button"
-              disabled={tipo === 'futuro'}
+              disabled={tipo === 'futuro' && !sabadoElegible(c, sabado)}
               onClick={() => onAbrir(c.fecha)}
               aria-label={`${diaTitulo(c.fecha)}. ${fraseDia(c)}`}
               className={cn(
@@ -376,5 +395,44 @@ function JustificarDia({ c, justificacion: j, enPlazo, onEnviado }: { c: CeldaDi
       {error && <Banner variant="warn">{error}</Banner>}
       <Button type="submit" className="h-14 w-full text-lg" disabled={!archivo || enviando}>{enviando ? 'Enviando…' : 'Enviar justificativo'}</Button>
     </form>
+  );
+}
+
+/** Elegir este sábado como el libre del mes (reemplaza al que tenía) o dejar de tenerlo libre. Sin aprobación. */
+function ElegirSabadoLibre({ c, actual, onCambio }: { c: CeldaDia; actual: string | null; onCambio: () => void }) {
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function guardar(init: RequestInit) {
+    setGuardando(true);
+    setError(null);
+    try {
+      await apiFetch('/api/admin/mi-asistencia/sabado-libre', init);
+      onCambio();
+    } catch (err) {
+      setError(mensajeError(err));
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4 rounded-xl border border-border p-4">
+      {c.libreElegido ? (
+        <Button variant="outline" className="h-14 w-full text-lg" disabled={guardando} onClick={() => guardar({ method: 'DELETE' })}>
+          Ya no lo quiero libre
+        </Button>
+      ) : (
+        <>
+          <p className="text-base text-muted-foreground">
+            {actual ? `Tu sábado libre de este mes es el ${Number(actual.slice(8))}. Podés cambiarlo por este.` : 'Una vez por mes podés elegir un sábado para no venir.'}
+          </p>
+          <Button className="h-14 w-full text-lg" disabled={guardando} onClick={() => guardar({ method: 'POST', body: JSON.stringify({ fecha: c.fecha }) })}>
+            {actual ? 'Cambiar mi sábado libre a este' : 'Elegir este sábado como libre'}
+          </Button>
+        </>
+      )}
+      {error && <Banner variant="warn">{error}</Banner>}
+    </div>
   );
 }

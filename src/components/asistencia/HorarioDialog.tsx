@@ -60,6 +60,7 @@ interface Form {
   cicloSemanas: number;
   cicloAncla: string;
   toleranciaMin: string;
+  sabadoLibre: boolean;
   aplicarDesde: string;
   dias: Record<DiaSemana, DiaForm>;
 }
@@ -80,6 +81,7 @@ function formDesde(v: HorarioVersion | null, hoy: string): Form {
     cicloSemanas: v?.cicloSemanas ?? 1,
     cicloAncla: v?.cicloAncla ?? lunesDe(hoy),
     toleranciaMin: v?.toleranciaMin == null ? '' : String(v.toleranciaMin),
+    sabadoLibre: v?.sabadoLibre ?? false,
     aplicarDesde: hoy,
     dias,
   };
@@ -156,7 +158,7 @@ function Editor({ empleado, versiones, onCerrar }: { empleado: { id: number; nom
 
   // Versión "borrador" para el preview de fechas.
   const borrador = useMemo<HorarioVersion>(
-    () => ({ id: 0, empleadoId: empleado.id, vigenteDesde: f.aplicarDesde, vigenteHasta: null, incluir: f.incluir, cicloSemanas: f.cicloSemanas, cicloAncla: lunesDe(f.cicloAncla || hoy), toleranciaMin: null, dias: diasDelForm(f) }),
+    () => ({ id: 0, empleadoId: empleado.id, vigenteDesde: f.aplicarDesde, vigenteHasta: null, incluir: f.incluir, cicloSemanas: f.cicloSemanas, cicloAncla: lunesDe(f.cicloAncla || hoy), toleranciaMin: null, sabadoLibre: f.sabadoLibre, dias: diasDelForm(f) }),
     [f, empleado.id, hoy],
   );
 
@@ -186,6 +188,7 @@ function Editor({ empleado, versiones, onCerrar }: { empleado: { id: number; nom
         cicloSemanas: f.cicloSemanas,
         cicloAncla: f.cicloAncla,
         toleranciaMin: f.toleranciaMin,
+        sabadoLibre: f.sabadoLibre,
         dias: diasDelForm(f),
         versionEsperadaId: ultima?.id ?? null,
       });
@@ -338,6 +341,21 @@ function Editor({ empleado, versiones, onCerrar }: { empleado: { id: number; nom
             );
           })}
         </div>
+
+        {f.dias[5].activo && (
+          <label className={cn('flex items-start gap-2 text-sm', !f.incluir && 'opacity-50')}>
+            <Checkbox
+              checked={f.sabadoLibre}
+              disabled={!f.incluir}
+              onCheckedChange={(v) => setF((p) => ({ ...p, sabadoLibre: v === true }))}
+              className="mt-0.5"
+            />
+            <span>
+              Elige un sábado libre por mes
+              <span className="block text-xs text-muted-foreground">Lo marca desde Mi asistencia (cualquier sábado del mes en curso) y ese día no cuenta como falta.</span>
+            </span>
+          </label>
+        )}
 
         {diasParciales.length > 0 && (
           <div className="rounded-lg border border-dashed border-border bg-muted/30 p-3 text-xs">

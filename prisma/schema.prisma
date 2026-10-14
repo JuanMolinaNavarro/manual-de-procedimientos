@@ -405,6 +405,7 @@ model OrgEmpleado {
   asistencia_personas AsistenciaPersona[]
   asistencia_horarios AsistenciaHorario[]
   asistencia_justificaciones AsistenciaJustificacion[]
+  asistencia_sabados_libres AsistenciaSabadoLibre[]
 
   // Vacaciones: ficha (saldos, convenio, historial de veranos) y una solicitud por ejercicio.
   vacaciones_perfil      VacacionesPerfil?
@@ -1108,6 +1109,7 @@ model AsistenciaHorario {
   ciclo_semanas  Int      @default(1) // 1..4
   ciclo_ancla    String // lunes yyyy-mm-dd: "semana 1" del ciclo
   tolerancia_min Int? // null = usa AsistenciaConfig
+  sabado_libre   Boolean  @default(false) // elige un sábado libre por mes desde Mi asistencia
   dias           Json
   created_by     String?
   updated_by     String?
@@ -1161,6 +1163,25 @@ model AsistenciaJustificacion {
   @@unique([empleado_id, fecha])
   @@index([estado])
   @@map("asistencia_justificaciones")
+}
+
+// Sábado libre que eligió un gerente desde Mi asistencia (su horario tiene
+// `sabado_libre`): uno por mes, sin aprobación. Ese día se deriva como no
+// laborable. Elegir otro del mismo mes pisa la fila.
+model AsistenciaSabadoLibre {
+  id          Int      @id @default(autoincrement())
+  empleado_id Int
+  mes         String // yyyy-mm
+  fecha       String // yyyy-mm-dd, un sábado de `mes`
+  created_by  String?
+  updated_by  String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  empleado OrgEmpleado @relation(fields: [empleado_id], references: [id], onDelete: Restrict)
+
+  @@unique([empleado_id, mes])
+  @@map("asistencia_sabados_libres")
 }
 
 // ─── Vacaciones ─────────────────────────────────────────────────────────────

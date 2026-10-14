@@ -214,7 +214,7 @@ function Celda({ celda, onAbrir }: { celda: CeldaDia; onAbrir: (el: HTMLButtonEl
   const inerte = celda.estado === 'futuro' || ((celda.estado === 'sin_horario' || celda.estado === 'feriado') && celda.marcas === 0);
   // Día futuro con jornada: un contorno tenue muestra el plan (qué sábados le tocan).
   const futuroLaborable = celda.estado === 'futuro' && celda.jornada != null;
-  const label = `${fechaCorta(celda.fecha)}: ${ESTADOS_DIA[celda.estado].label}${celda.jornada && celda.estado === 'futuro' ? ` (${celda.jornada.entrada}–${celda.jornada.salida})` : ''}${celda.minutosTarde && (celda.estado === 'tarde' || celda.estado === 'tarde_grave') ? `, ${celda.minutosTarde} min tarde` : ''}${celda.sinSalida ? ', sin salida' : ''}`;
+  const label = `${fechaCorta(celda.fecha)}: ${celda.libreElegido ? 'Sábado libre elegido' : ESTADOS_DIA[celda.estado].label}${celda.jornada && celda.estado === 'futuro' ? ` (${celda.jornada.entrada}–${celda.jornada.salida})` : ''}${celda.minutosTarde && (celda.estado === 'tarde' || celda.estado === 'tarde_grave') ? `, ${celda.minutosTarde} min tarde` : ''}${celda.sinSalida ? ', sin salida' : ''}`;
   return (
     <button
       type="button"
@@ -269,7 +269,7 @@ function DetalleCelda({ celda, fila }: { celda: CeldaDia; fila: FilaCalendarioMe
     <div className="space-y-2 text-sm">
       <div className="flex items-center justify-between gap-2">
         <span className="font-semibold">{fechaCorta(celda.fecha)}</span>
-        <Badge variant="secondary">{est.label}</Badge>
+        <Badge variant="secondary">{celda.libreElegido ? 'Sábado libre elegido' : est.label}</Badge>
       </div>
       <p className="text-xs text-muted-foreground">{est.desc}</p>
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">

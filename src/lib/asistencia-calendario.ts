@@ -57,6 +57,8 @@ export interface HorarioVersion {
   cicloSemanas: number; // 1..CICLO_MAX
   cicloAncla: string; // lunes yyyy-mm-dd: "semana 1" del ciclo
   toleranciaMin: number | null; // null = usa la config general
+  /** Elige un sábado libre por mes desde Mi asistencia (gerentes que trabajan casi todos los sábados). */
+  sabadoLibre: boolean;
   dias: DiasHorario;
 }
 
@@ -145,6 +147,8 @@ export interface CeldaDia {
   /** La entrada no vino de una marca de tipo Entrada (reloj sin tipos, etc.). */
   entradaInferida: boolean;
   marcas: number;
+  /** Es el sábado libre que eligió la persona: se muestra como tal (estado no laborable). */
+  libreElegido?: boolean;
 }
 
 /** Exceso de un día partido en 50 % / 100 %, en minutos crudos y en horas completas. */
@@ -317,6 +321,8 @@ export interface EntradaEvaluacion {
   feriado?: boolean;
   /** RR.HH. aprobó un justificativo que cubre este día: sin marcas no es ausente. */
   justificado?: boolean;
+  /** Es el sábado libre que eligió la persona (`AsistenciaSabadoLibre`): anula la jornada. */
+  libreElegido?: boolean;
 }
 
 export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDia {
@@ -332,13 +338,14 @@ export function evaluarDia(e: EntradaEvaluacion, cfg: ConfigAsistencia): CeldaDi
     sinSalida: false,
     entradaInferida: false,
     marcas: 0,
+    ...(e.libreElegido ? { libreElegido: true } : {}),
   };
   const antesDelIngreso = !!e.fechaIngreso && FECHA_RE.test(e.fechaIngreso) && e.fecha < e.fechaIngreso;
   const version = e.version != null && e.version.incluir && !antesDelIngreso ? e.version : null;
   // Un feriado detectado anula la jornada de ese día: nadie queda ausente y
   // quien fichó lo hizo en día no laborable (extra al 100 %).
   const esFeriado = !!e.feriado && e.fecha <= e.hoy;
-  const jornada = version && !esFeriado ? jornadaDelDia(version, e.fecha) : null;
+  const jornada = version && !esFeriado && !e.libreElegido ? jornadaDelDia(version, e.fecha) : null;
 
   // Futuro: sin estado, pero con la jornada planificada para que el calendario
   // muestre qué días le tocan (p. ej. qué sábados del ciclo).
@@ -537,6 +544,8 @@ export interface FilaEntrada {
   fichadasPorFecha: Record<string, FichadaDia[]>;
   /** Días con justificativo aprobado. */
   justificados?: ReadonlySet<string>;
+  /** Sábados libres elegidos. */
+  libres?: ReadonlySet<string>;
 }
 
 export interface FilaCalendario {
@@ -580,9 +589,9 @@ export function armarCalendario<T extends FilaEntrada>(
     return { fecha, dia: Number(fecha.slice(8, 10)), diaSemana: ds, esHoy: fecha === p.hoy, finDeSemana: ds >= 5, feriado: feriados.has(fecha) };
   });
   const filas = p.filas.map((fila) => {
-    const { versiones, fechaIngreso, fichadasPorFecha, justificados, ...resto } = fila;
+    const { versiones, fechaIngreso, fichadasPorFecha, justificados, libres, ...resto } = fila;
     const celdas = fechas.map((fecha) =>
-      evaluarDia({ fecha, hoy: p.hoy, version: versionVigente(versiones, fecha), fichadas: fichadasPorFecha[fecha] ?? [], fechaIngreso, feriado: feriados.has(fecha), justificado: justificados?.has(fecha) }, p.cfg),
+      evaluarDia({ fecha, hoy: p.hoy, version: versionVigente(versiones, fecha), fichadas: fichadasPorFecha[fecha] ?? [], fechaIngreso, feriado: feriados.has(fecha), justificado: justificados?.has(fecha), libreElegido: libres?.has(fecha) }, p.cfg),
     );
     const tieneHorario = versiones.some((v) => v.incluir && v.vigenteDesde <= p.hasta && (v.vigenteHasta == null || v.vigenteHasta >= p.desde));
     return { ...(resto as Omit<T, keyof FilaEntrada>), celdas, totales: totalesDe(celdas), tieneHorario };
@@ -599,6 +608,7 @@ export interface HorarioInput {
   cicloSemanas: number;
   cicloAncla: string;
   toleranciaMin: number | null;
+  sabadoLibre: boolean;
   dias: DiasHorario;
   /**
    * Última versión que vio el editor (null = "no había ninguna"); si cambió, el
@@ -676,8 +686,10 @@ export function validarHorarioInput(raw: unknown): HorarioInput {
     dias[ds] = porSemana ? { semanas, entrada, salida, porSemana } : { semanas, entrada, salida };
   }
   if (incluir && Object.keys(dias).length === 0) throw new Error('Marcá al menos un día laborable');
+  // Solo tiene sentido si trabaja algún sábado.
+  const sabadoLibre = raw.sabadoLibre === true && dias[5] != null;
 
-  return { empleadoId, aplicarDesde, incluir, cicloSemanas, cicloAncla, toleranciaMin, dias, versionEsperadaId };
+  return { empleadoId, aplicarDesde, incluir, cicloSemanas, cicloAncla, toleranciaMin, sabadoLibre, dias, versionEsperadaId };
 }
 
 /** Valida los parámetros generales. */
@@ -707,7 +719,7 @@ function etiquetaDias(dias: DiaSemana[]): string {
 }
 
 /** "L–V 08:00–17:00 · S 09:00–13:00 (S1) · semanas alternas". */
-export function describirHorario(v: Pick<HorarioVersion, 'incluir' | 'cicloSemanas' | 'dias'>): string {
+export function describirHorario(v: Pick<HorarioVersion, 'incluir' | 'cicloSemanas' | 'dias'> & { sabadoLibre?: boolean }): string {
   if (!v.incluir) return 'No incluido en el control';
   type Seg = { dias: DiaSemana[]; clave: string; d: DiaHorario };
   const segs: Seg[] = [];
@@ -735,6 +747,7 @@ export function describirHorario(v: Pick<HorarioVersion, 'incluir' | 'cicloSeman
     return `${etiquetaDias(s.dias)} ${s.d.entrada}–${s.d.salida}${sem}`;
   });
   if (v.cicloSemanas > 1) partes.push((CICLO_LABELS[v.cicloSemanas] ?? `ciclo de ${v.cicloSemanas} semanas`).toLowerCase());
+  if (v.sabadoLibre) partes.push('1 sábado libre al mes');
   return partes.join(' · ');
 }
 

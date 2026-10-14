@@ -119,6 +119,7 @@ export function resumenMesPersona(r: ResumenLiquidacion, hoyEnMes: boolean): Res
 export function explicarDia(c: CeldaDia): string[] {
   const j = c.jornada;
   if (c.estado === 'sin_horario') return ['No tiene horario cargado ese día: solo se muestran sus marcas.'];
+  if (c.libreElegido && !c.marcas) return ['Es el sábado libre que eligió en Mi asistencia: no cuenta como falta.'];
   if (c.estado === 'feriado') return ['Ese día casi nadie fichó: se toma como feriado y no cuenta como falta.'];
   if (c.estado === 'ausente' && j) return [`Tenía que entrar a las ${j.entrada} y no hay ninguna marca del reloj.`];
   if (c.estado === 'justificado') return ['No vino, pero tiene un justificativo aprobado por RR.HH.: se paga y no cuenta como falta.'];
@@ -126,6 +127,7 @@ export function explicarDia(c: CeldaDia): string[] {
 
   const out: string[] = [];
   const t = tardanza(c);
+  if (c.libreElegido) out.push('Era el sábado libre que había elegido.');
   if (c.estado === 'trabajo_no_laborable') out.push('Vino un día que no tenía asignado: todo lo que trabajó cuenta como hora extra.');
   if (c.estado === 'sin_entrada') out.push('Solo hay una marca de salida: no se sabe a qué hora entró, así que no cuenta como llegada tarde. Hay que verificarlo.');
   if (c.entradaInferida) out.push('No hubo marca de entrada: se tomó como entrada la primera marca del día.');

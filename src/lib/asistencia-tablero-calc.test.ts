@@ -13,6 +13,7 @@ const VERSION: HorarioVersion = {
   cicloSemanas: 1,
   cicloAncla: '2025-12-29',
   toleranciaMin: null,
+  sabadoLibre: false,
   dias: Object.fromEntries([0, 1, 2, 3, 4].map((d) => [d, { semanas: [0], entrada: '08:00', salida: '16:00' }])),
 };
 

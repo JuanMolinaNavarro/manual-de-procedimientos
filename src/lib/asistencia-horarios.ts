@@ -33,6 +33,7 @@ function aVersion(r: HorarioRow): HorarioVersion {
     cicloSemanas: r.ciclo_semanas,
     cicloAncla: r.ciclo_ancla,
     toleranciaMin: r.tolerancia_min,
+    sabadoLibre: r.sabado_libre,
     dias: (r.dias ?? {}) as DiasHorario,
   };
 }
@@ -94,6 +95,7 @@ export async function guardarVersionHorario(input: HorarioInput, username: strin
     ciclo_semanas: input.cicloSemanas,
     ciclo_ancla: input.cicloAncla,
     tolerancia_min: input.toleranciaMin,
+    sabado_libre: input.sabadoLibre,
     dias: input.dias as Prisma.InputJsonValue,
     updated_by: username,
   };
@@ -355,7 +357,7 @@ export async function calendarioRango(desde: string, hasta: string, incluirSinHo
 
   const userIds = [...new Set(visibles.flatMap((f) => f.userIds))];
   const empleadoIds = visibles.flatMap((f) => (f.empleadoId != null ? [f.empleadoId] : []));
-  const [fichadas, justificaciones] = await Promise.all([
+  const [fichadas, justificaciones, sabadosLibres] = await Promise.all([
     userIds.length
       ? prisma.asistenciaFichada.findMany({
           where: { user_id: { in: userIds }, fecha: { gte: desde, lte: hasta } },
@@ -370,6 +372,12 @@ export async function calendarioRango(desde: string, hasta: string, incluirSinHo
           select: { empleado_id: true, dias: true },
         })
       : [],
+    empleadoIds.length
+      ? prisma.asistenciaSabadoLibre.findMany({
+          where: { empleado_id: { in: empleadoIds }, fecha: { gte: desde, lte: hasta } },
+          select: { empleado_id: true, fecha: true },
+        })
+      : [],
   ]);
   const justificadosPor = new Map<number, Set<string>>();
   for (const j of justificaciones) {
@@ -377,6 +385,8 @@ export async function calendarioRango(desde: string, hasta: string, incluirSinHo
     for (const d of j.dias) dias.add(d);
     justificadosPor.set(j.empleado_id, dias);
   }
+  const libresPor = new Map<number, Set<string>>();
+  for (const l of sabadosLibres) libresPor.set(l.empleado_id, (libresPor.get(l.empleado_id) ?? new Set<string>()).add(l.fecha));
   const porUser = new Map<string, Record<string, FichadaDia[]>>();
   for (const f of fichadas) {
     let porFecha = porUser.get(f.user_id);
@@ -391,7 +401,8 @@ export async function calendarioRango(desde: string, hasta: string, incluirSinHo
     }
     const { activa: _a, ...resto } = f;
     void _a;
-    return { ...resto, fichadasPorFecha, justificados: f.empleadoId != null ? justificadosPor.get(f.empleadoId) : undefined };
+    if (f.empleadoId == null) return { ...resto, fichadasPorFecha };
+    return { ...resto, fichadasPorFecha, justificados: justificadosPor.get(f.empleadoId), libres: libresPor.get(f.empleadoId) };
   };
   const cal = armarCalendario({ desde, hasta, hoy, cfg, filas: visibles.map(conFichadas), feriados });
   const filasOrdenadas = [...cal.filas].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
@@ -487,6 +498,8 @@ export interface MiAsistencia {
   justificaciones: { id: number; fecha: string; estado: string; motivoRechazo: string | null }[];
   /** Primer día que todavía se puede justificar (el 1.º del mes anterior). */
   justificarDesde: string;
+  /** Sábado libre del mes: si puede elegirlo (horario con `sabadoLibre`, mes en curso) y cuál eligió. */
+  sabadoLibre: { puede: boolean; fecha: string | null };
 }
 
 /** Meses hacia atrás que se pueden pedir en Mi asistencia (además del actual). */
@@ -534,7 +547,7 @@ export async function miAsistencia(empleadoId: number, mes: string): Promise<MiA
     filas: [{ versiones: [], fichadasPorFecha: {} }],
     feriados: new Set(cal.feriados),
   }).filas[0];
-  const horarioEnMes = versiones.some((v) => v.incluir && v.vigenteDesde <= hasta && (v.vigenteHasta == null || v.vigenteHasta >= desde));
+  const enMes = versiones.filter((v) => v.incluir && v.vigenteDesde <= hasta && (v.vigenteHasta == null || v.vigenteHasta >= desde));
 
   return {
     empleado: { id: emp.id, nombre: emp.nombre, rol: emp.rol, area: emp.area, fotoArchivo: emp.foto_archivo, activo: emp.estado === ESTADO_EMPLEADO_ACTIVO },
@@ -542,12 +555,14 @@ export async function miAsistencia(empleadoId: number, mes: string): Promise<MiA
     hoy,
     dias: cal.dias,
     celdas: fila.celdas,
-    mes: { mes, desde, hasta, tieneHorario: horarioEnMes, resumen: resumenLiquidacion(fila.celdas) },
+    mes: { mes, desde, hasta, tieneHorario: enMes.length > 0, resumen: resumenLiquidacion(fila.celdas) },
     marcas,
     // La tolerancia no se le muestra al empleado (decisión del usuario): tampoco viaja.
     versiones: versiones.map((v) => ({ ...v, toleranciaMin: null })),
     justificaciones: justificaciones.map((j) => ({ id: j.id, fecha: j.fecha, estado: j.estado, motivoRechazo: j.motivo_rechazo })),
     justificarDesde: justificarDesde(),
+    // Solo se elige en el mes en curso (pasados incluidos) y si su horario lo prevé.
+    sabadoLibre: { puede: mes === actual && enMes.some((v) => v.sabadoLibre), fecha: fila.celdas.find((c) => c.libreElegido)?.fecha ?? null },
   };
 }
 

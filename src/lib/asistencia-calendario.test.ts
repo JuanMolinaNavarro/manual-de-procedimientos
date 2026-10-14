@@ -41,6 +41,7 @@ function version(over: Partial<HorarioVersion> = {}): HorarioVersion {
     cicloSemanas: 1,
     cicloAncla: '2025-12-29',
     toleranciaMin: null,
+    sabadoLibre: false,
     dias: {
       0: { semanas: [0], entrada: '08:00', salida: '17:00' },
       1: { semanas: [0], entrada: '08:00', salida: '17:00' },
@@ -527,3 +528,37 @@ describe('describirHorario', () => {
   });
 });
 
+
+describe('sábado libre elegido', () => {
+  // Gerente: L–V 08–17 y sábados 09–13, elige un sábado libre por mes.
+  const v = version({ sabadoLibre: true, dias: { ...version().dias, 5: { semanas: [0], entrada: '09:00', salida: '13:00' } } });
+  const fila = (libres: string[], fichadasPorFecha: Record<string, FichadaDia[]> = {}) =>
+    armarCalendario({ desde: '2026-09-01', hasta: '2026-09-30', hoy: HOY, cfg: CONFIG_DEFAULT, filas: [{ versiones: [v], fichadasPorFecha, libres: new Set(libres) }] }).filas[0];
+  const celda = (f: ReturnType<typeof fila>, fecha: string) => f.celdas.find((c) => c.fecha === fecha)!;
+
+  it('el sábado elegido es no laborable: no es falta ni horas esperadas', () => {
+    const sin = fila([]);
+    const con = fila(['2026-09-05']);
+    expect(celda(sin, '2026-09-05').estado).toBe('ausente');
+    expect(celda(con, '2026-09-05')).toMatchObject({ estado: 'no_laborable', jornada: null, libreElegido: true });
+    const rSin = resumenLiquidacion(sin.celdas);
+    const rCon = resumenLiquidacion(con.celdas);
+    expect(rCon.ausentes.length).toBe(rSin.ausentes.length - 1);
+    expect(rCon.laborables).toBe(rSin.laborables - 1);
+  });
+
+  it('un sábado elegido futuro no trae jornada planificada', () => {
+    expect(celda(fila(['2026-09-26']), '2026-09-26')).toMatchObject({ estado: 'futuro', jornada: null, libreElegido: true });
+  });
+
+  it('si igual vino, es trabajo en día no laborable', () => {
+    const f = fila(['2026-09-12'], { '2026-09-12': [marca('2026-09-12', '09:00'), marca('2026-09-12', '13:00', 1)] });
+    expect(celda(f, '2026-09-12').estado).toBe('trabajo_no_laborable');
+  });
+
+  it('validarHorarioInput lo guarda solo si trabaja algún sábado', () => {
+    const dias = { '0': { entrada: '08:00', salida: '17:00' } };
+    expect(validarHorarioInput({ empleadoId: 1, aplicarDesde: '2026-09-15', sabadoLibre: true, dias }).sabadoLibre).toBe(false);
+    expect(validarHorarioInput({ empleadoId: 1, aplicarDesde: '2026-09-15', sabadoLibre: true, dias: { ...dias, '5': { entrada: '09:00', salida: '13:00' } } }).sabadoLibre).toBe(true);
+  });
+});
