@@ -640,7 +640,8 @@ de evidencia), Ley 25.326 art. 6.
   adherir** (409) y **solo firma recibos de esa empresa** (`errorEmpleadorAdhesion`); si Finnegans pasa a liquidarlo otra,
   Adhesiones lo marca «Renovar: ahora le paga X» y se revoca y renueva (acta nueva). El acta toma el empleador de la
   adhesión y el domicilio de sus liquidaciones (`domicilioEmpleador`). El trabajador declara su **email** (obligatorio: ahí le llegan los avisos;
-  si la ficha no tenía email, la ficha lo toma) y tipea el PIN (4–8 dígitos) dos veces. `pin_hash` = **PBKDF2**
+  vive solo en la adhesión y **no toca la ficha**: el email del organigrama es el corporativo, decisión del usuario
+  2026-10-15) y tipea el PIN (4–8 dígitos) dos veces. `pin_hash` = **PBKDF2**
   (`src/lib/nomina-pin.ts` → `hashSecreto`, CUIL mezclado en la entrada; nunca el PIN). Los PIN de antes de 2026-10 quedan
   en scrypt y **no se re-hashean**: `pin_hash` entra en `codigoAdhesion`, impreso en el acta firmada. `codigo` =
   `ADH-<id>-<8 hex>` (`codigoAdhesion`) se imprime en el acta y ata papel ↔ registro. **Sin acta subida la adhesión

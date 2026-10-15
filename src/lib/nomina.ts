@@ -886,8 +886,6 @@ export async function adherir(empleadoId: number, email: unknown, pin: unknown, 
       },
     });
     await auditar(actor, 'adhesion.alta', { empleadoId, detalle: `con ${empleador.nombre}, email ${mail}` }, tx);
-    // La ficha del organigrama toma el email si no tenía uno cargado.
-    await tx.orgEmpleado.updateMany({ where: { id: empleadoId, OR: [{ email: null }, { email: '' }] }, data: { email: mail } });
     return tx.nominaAdhesion.update({ where: { id: creada.id }, data: { codigo: codigoAdhesion(creada) } });
   }).catch((e) => {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
