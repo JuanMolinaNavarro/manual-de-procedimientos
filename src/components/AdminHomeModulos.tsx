@@ -28,7 +28,7 @@ const DESCRIPCIONES: Record<SlugMenu, string> = {
   deposito: 'Gestión de stock y movimientos del depósito.',
 };
 
-const CATEGORIAS: {
+export const CATEGORIAS: {
   titulo: string;
   icon: React.ReactNode;
   description: string;

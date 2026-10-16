@@ -1,6 +1,6 @@
 export const ADMIN_MODULOS = [
   { slug: 'bonificaciones', label: 'Bonificaciones', href: '/admin/bonificaciones' },
-  { slug: 'usuarios',       label: 'Usuarios',       href: '/admin/usuarios' },
+  { slug: 'usuarios',       label: 'Gestión de Usuarios', href: '/admin/usuarios' },
   { slug: 'peliculas',      label: 'Películas',      href: '/admin/peliculas' },
   { slug: 'catalogo',       label: 'Catálogo',       href: '/admin/peliculas/catalogo' },
   { slug: 'deportes',       label: 'Deportes',       href: '/admin/deportes' },

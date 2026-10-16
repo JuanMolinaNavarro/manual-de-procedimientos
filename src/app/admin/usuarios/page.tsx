@@ -1,36 +1,25 @@
 /**
- * Pagina para crear y listar usuarios del sitio.
+ * Gestión de Usuarios: lista con búsqueda, filtros por rol y estado, y acceso al alta y la edición.
  * Las contraseñas se guardan hasheadas (PBKDF2) y nunca se devuelven: solo se asignan.
  */
 
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Search } from 'lucide-react';
+import Link from 'next/link';
+import { Pencil, Plus, Search } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { isSuperadmin } from '@/lib/roles';
-import { coincide } from '@/lib/utils';
-import { Paginacion } from '@/components/comunes/ui';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Avatar, Paginacion } from '@/components/comunes/ui';
+import { Chip } from '@/components/asistencia/piezas';
+import { ROLES_INFO, rolLabel, useFichas } from '@/components/usuarios/piezas';
 import { usePaginaLocal } from '@/hooks/usePaginaLocal';
-
-interface EmpleadoVinculado {
-  id: number;
-  nombre: string;
-  area: string;
-}
+import { coincide } from '@/lib/utils';
 
 interface Usuario {
   id: number;
@@ -41,367 +30,174 @@ interface Usuario {
   isActive: boolean;
   created_at: string;
   empleado_id: number | null;
-  empleado: EmpleadoVinculado | null;
-}
-
-interface EmpleadoOpcion {
-  id: number;
-  nombre: string;
-  area: string;
-}
-
-interface AreaOpcion {
-  id: number;
-  nombre: string;
+  empleado: { id: number; nombre: string; area: string } | null;
 }
 
 const PAGE_SIZE = 10;
-const SELECT_CLASS =
-  'h-10 w-full rounded-md border border-input bg-white px-3 text-sm text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+const TODOS = 'todos';
+
+const ESTADOS: { clave: string; label: string; filtro: (u: Usuario) => boolean }[] = [
+  { clave: 'todos', label: 'Todos', filtro: () => true },
+  { clave: 'activos', label: 'Activos', filtro: (u) => u.isActive },
+  { clave: 'inactivos', label: 'Inactivos', filtro: (u) => !u.isActive },
+  { clave: 'sin-ficha', label: 'Sin ficha', filtro: (u) => u.empleado_id == null },
+];
+
+const nombreCompleto = (u: Usuario) => [u.nombre, u.apellido].filter(Boolean).join(' ') || u.usuario;
 
 export default function UsuariosAdminPage() {
-  const router = useRouter();
-  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [usuario, setUsuario] = useState('');
-  const [password, setPassword] = useState('');
-  const [nombre, setNombre] = useState('');
-  const [apellido, setApellido] = useState('');
-  const [rol, setRol] = useState('admin');
-  const [loading, setLoading] = useState(false);
+  // `null` mientras carga.
+  const [usuarios, setUsuarios] = useState<Usuario[] | null>(null);
   const [error, setError] = useState('');
-
-  // Vinculo con el organigrama
-  const [modoVinculo, setModoVinculo] = useState<'ninguno' | 'existente' | 'area'>('ninguno');
-  const [empleadoId, setEmpleadoId] = useState('');
-  const [areaId, setAreaId] = useState('');
-  const [empleados, setEmpleados] = useState<EmpleadoOpcion[]>([]);
-  const [areas, setAreas] = useState<AreaOpcion[]>([]);
-
-  const [esSuperadmin, setEsSuperadmin] = useState(false);
-
-  // Busqueda + paginacion
   const [q, setQ] = useState('');
+  const [rol, setRol] = useState(TODOS);
+  const [estado, setEstado] = useState('todos');
+  const fichas = useFichas();
+  const lugarDe = useMemo(() => new Map((fichas ?? []).map((f) => [f.id, f.lugar])), [fichas]);
 
-  const fetchUsuarios = async () => {
-    try {
-      const response = await fetch('/api/admin/usuarios');
-      if (!response.ok) {
-        throw new Error('No se pudieron cargar los usuarios');
-      }
-      const data = await response.json();
-      setUsuarios(data);
-    } catch (err) {
-      console.error(err);
-      setError('No se pudieron cargar los usuarios');
-    }
-  };
+  const cargar = () =>
+    fetch('/api/admin/usuarios')
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then(setUsuarios)
+      .catch(() => setError('No se pudieron cargar los usuarios.'));
 
   useEffect(() => {
-    fetchUsuarios();
-    fetch('/api/me')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((me) => setEsSuperadmin(isSuperadmin(me?.rol)))
-      .catch(() => {});
-    fetch('/api/admin/organigrama/empleados')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: EmpleadoOpcion[]) =>
-        setEmpleados(data.map((e) => ({ id: e.id, nombre: e.nombre, area: e.area })))
-      )
-      .catch(() => {});
-    fetch('/api/admin/organigrama/areas')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: AreaOpcion[]) => setAreas(data.map((a) => ({ id: a.id, nombre: a.nombre }))))
-      .catch(() => {});
+    cargar();
   }, []);
 
-  // Fichas que todavia no tienen usuario vinculado.
-  const empleadosLibres = useMemo(() => {
-    const vinculados = new Set(usuarios.map((u) => u.empleado_id).filter(Boolean));
-    return empleados.filter((e) => !vinculados.has(e.id));
-  }, [empleados, usuarios]);
-
-  const filtrados = useMemo(
-    () => usuarios.filter((u) => coincide(q, u.usuario, u.nombre, u.apellido)),
-    [usuarios, q],
+  const base = useMemo(
+    () => (usuarios ?? []).filter((u) => (rol === TODOS || u.rol === rol) && coincide(q, u.usuario, nombreCompleto(u), u.empleado?.area)),
+    [usuarios, q, rol],
   );
+  const filtroEstado = ESTADOS.find((e) => e.clave === estado)!.filtro;
+  const filtrados = base.filter(filtroEstado);
+  // Buscar, filtrar o que se dé de alta/baja a alguien vuelve a la página 1.
+  const pag = usePaginaLocal(filtrados, `${q.trim()}|${rol}|${estado}|${usuarios?.length}`, PAGE_SIZE);
 
-  // Buscar, o que se dé de alta/baja a alguien, vuelve a la página 1.
-  const pag = usePaginaLocal(filtrados, `${q.trim()}|${usuarios.length}`, PAGE_SIZE);
-
-  const toggleActivo = async (id: number, isActive: boolean) => {
-    try {
-      await fetch(`/api/admin/usuarios/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: !isActive }),
-      });
-      fetchUsuarios();
-    } catch (err) {
-      console.error('Error al actualizar estado:', err);
-    }
-  };
-
-  const editarUsuario = (id: number) => {
-    router.push(`/admin/usuarios/${id}/editar`);
-  };
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setError('');
-
-    if (modoVinculo === 'existente' && !empleadoId) {
-      setError('Elegi la ficha del organigrama a vincular');
-      return;
-    }
-    if (modoVinculo === 'area' && !areaId) {
-      setError('Elegi el area donde crear la ficha');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const body: Record<string, unknown> = { usuario, password, rol, nombre, apellido };
-      if (modoVinculo === 'existente') body.empleado_id = Number(empleadoId);
-      if (modoVinculo === 'area') body.area_id = Number(areaId);
-
-      const response = await fetch('/api/admin/usuarios', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'No se pudo crear el usuario');
-      }
-
-      setUsuario('');
-      setPassword('');
-      setNombre('');
-      setApellido('');
-      setRol('admin');
-      setModoVinculo('ninguno');
-      setEmpleadoId('');
-      setAreaId('');
-      fetchUsuarios();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
-    } finally {
-      setLoading(false);
-    }
-  };
+  async function toggleActivo(u: Usuario) {
+    await fetch(`/api/admin/usuarios/${u.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isActive: !u.isActive }),
+    }).catch(() => {});
+    cargar();
+  }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Crear usuario</CardTitle>
-          <CardDescription>
-            Las contraseñas se guardan cifradas: no se pueden ver, solo asignar una nueva (mínimo 8 caracteres).
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="usuario">Usuario</Label>
+    <div className="mx-auto flex max-w-[1080px] flex-col gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="max-w-xl">
+          <h1 className="text-2xl font-bold text-foreground">Gestión de Usuarios</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Quién entra al panel, con qué rol y a qué ficha del organigrama corresponde cada cuenta.</p>
+        </div>
+        <Button asChild>
+          <Link href="/admin/usuarios/nuevo"><Plus className="h-4 w-4" /> Nuevo usuario</Link>
+        </Button>
+      </div>
+
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+
+      <Card className="gap-0 overflow-hidden py-0">
+        <div className="space-y-3 border-b border-border px-5 py-4">
+          <div className="flex flex-wrap gap-3">
+            <div className="relative min-w-0 flex-[1_1_280px]">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
               <Input
-                id="usuario"
-                value={usuario}
-                onChange={(event) => setUsuario(event.target.value)}
-                placeholder="Ej: jperez"
-                required
+                aria-label="Buscar usuario"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Buscar por nombre, usuario o área…"
+                className="pl-9"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Contrasena</Label>
-              <Input
-                id="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="Mínimo 8 caracteres"
-                autoComplete="new-password"
-                minLength={8}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="nombre">Nombre</Label>
-              <Input
-                id="nombre"
-                value={nombre}
-                onChange={(event) => setNombre(event.target.value)}
-                placeholder="Ej: Juan"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="apellido">Apellido</Label>
-              <Input
-                id="apellido"
-                value={apellido}
-                onChange={(event) => setApellido(event.target.value)}
-                placeholder="Ej: Perez"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="rol">Rol</Label>
-              <select
-                id="rol"
-                value={rol}
-                onChange={(event) => setRol(event.target.value)}
-                className={SELECT_CLASS}
-              >
-                <option value="admin">Admin</option>
-                <option value="empleado">Empleado (solo Mi asistencia y Recibos)</option>
-                <option value="ventas">Ventas (solo Leads y Padrón)</option>
-                {esSuperadmin && <option value="superadmin">Superadmin</option>}
-              </select>
-            </div>
-
-            <div className="space-y-2 rounded-md border border-border p-3">
-              <Label htmlFor="modo-vinculo">Organigrama</Label>
-              <select
-                id="modo-vinculo"
-                value={modoVinculo}
-                onChange={(event) => {
-                  setModoVinculo(event.target.value as typeof modoVinculo);
-                  setEmpleadoId('');
-                  setAreaId('');
-                }}
-                className={SELECT_CLASS}
-              >
-                <option value="ninguno">Sin vincular</option>
-                <option value="existente">Vincular a una ficha existente</option>
-                <option value="area">Crear ficha nueva en un area</option>
-              </select>
-
-              {modoVinculo === 'existente' && (
-                <select
-                  aria-label="Ficha del organigrama"
-                  value={empleadoId}
-                  onChange={(event) => setEmpleadoId(event.target.value)}
-                  className={SELECT_CLASS}
-                >
-                  <option value="">Elegir ficha…</option>
-                  {empleadosLibres.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.nombre} — {e.area}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {modoVinculo === 'area' && (
-                <>
-                  <select
-                    aria-label="Area"
-                    value={areaId}
-                    onChange={(event) => setAreaId(event.target.value)}
-                    className={SELECT_CLASS}
-                  >
-                    <option value="">Elegir area…</option>
-                    {areas.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.nombre}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground">
-                    Se crea una ficha nueva en el organigrama con el nombre y apellido del usuario.
-                  </p>
-                </>
-              )}
-            </div>
-
-            {error && (
-              <div className="rounded-md border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-300">
-                {error}
-              </div>
-            )}
-
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Guardando...' : 'Crear usuario'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Usuarios existentes</CardTitle>
-          <CardDescription>Listado de usuarios registrados</CardDescription>
-          <div className="relative mt-2">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={q}
-              onChange={(event) => setQ(event.target.value)}
-              placeholder="Buscar por usuario, nombre o apellido…"
-              className="pl-9"
-            />
+            <Select value={rol} onValueChange={setRol}>
+              <SelectTrigger className="w-full sm:w-44" aria-label="Rol"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TODOS}>Todos los roles</SelectItem>
+                {ROLES_INFO.map((r) => <SelectItem key={r.valor} value={r.valor}>{r.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Usuario</TableHead>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Apellido</TableHead>
-                <TableHead>Rol</TableHead>
-                <TableHead>Área</TableHead>
-                <TableHead>Activo</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-                <TableHead>Creado</TableHead>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por estado">
+            {ESTADOS.map((e) => (
+              <Chip key={e.clave} activo={estado === e.clave} onClick={() => setEstado(e.clave)}>
+                {e.label} <span className="font-mono opacity-75">{base.filter(e.filtro).length}</span>
+              </Chip>
+            ))}
+          </div>
+        </div>
+
+        <Table className="min-w-[760px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pl-5">Persona</TableHead>
+              <TableHead>Rol</TableHead>
+              <TableHead>Ficha del organigrama</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead>Alta</TableHead>
+              <TableHead className="pr-5"><span className="sr-only">Acciones</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pag.visibles.map((u) => (
+              <TableRow key={u.id}>
+                <TableCell className="pl-5">
+                  <div className="flex items-center gap-3">
+                    <Avatar nombre={nombreCompleto(u)} className="h-9 w-9 text-xs" />
+                    <div className="min-w-0">
+                      <p className="font-medium">{nombreCompleto(u)}</p>
+                      <p className="font-mono text-xs text-muted-foreground">{u.usuario}</p>
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={u.rol === 'superadmin' ? 'default' : 'outline'}>{rolLabel(u.rol)}</Badge>
+                </TableCell>
+                <TableCell>
+                  {u.empleado ? (
+                    <div>
+                      <p>{u.empleado.area || 'Sin área'}</p>
+                      <p className="text-xs text-muted-foreground">{lugarDe.get(u.empleado.id)}</p>
+                    </div>
+                  ) : (
+                    <Badge variant="outline" className="border-dashed text-muted-foreground">Sin vincular</Badge>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={u.isActive}
+                      onCheckedChange={() => toggleActivo(u)}
+                      aria-label={`${u.isActive ? 'Desactivar' : 'Activar'} a ${nombreCompleto(u)}`}
+                    />
+                    <span className={u.isActive ? undefined : 'text-muted-foreground'}>{u.isActive ? 'Activo' : 'Inactivo'}</span>
+                  </div>
+                </TableCell>
+                <TableCell className="font-mono text-xs text-muted-foreground">
+                  {new Date(u.created_at).toLocaleDateString('es-AR')}
+                </TableCell>
+                <TableCell className="pr-5 text-right">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/admin/usuarios/${u.id}/editar`} aria-label={`Editar a ${nombreCompleto(u)}`}>
+                      <Pencil className="h-3.5 w-3.5" /> Editar
+                    </Link>
+                  </Button>
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pag.visibles.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground">
-                    {usuarios.length === 0 ? 'No hay usuarios creados.' : 'Sin resultados para la busqueda.'}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                pag.visibles.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>{item.usuario}</TableCell>
-                    <TableCell>{item.nombre ?? "-"}</TableCell>
-                    <TableCell>{item.apellido ?? "-"}</TableCell>
-                    <TableCell>{item.rol}</TableCell>
-                    <TableCell>
-                      {item.empleado ? (
-                        item.empleado.area
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Sin vincular</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={item.isActive}
-                          onCheckedChange={() => toggleActivo(item.id, item.isActive)}
-                        />
-                        <span className="text-xs text-muted-foreground">{item.isActive ? "Activo" : "Inactivo"}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => editarUsuario(item.id)}>
-                        Editar
-                      </Button>
-                    </TableCell>
-                    <TableCell>
-                      {item.created_at ? new Date(item.created_at).toLocaleDateString('es-AR') : '-'}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          <div className="border-t border-border px-4 py-3">
-            <Paginacion {...pag} unidad="usuarios" />
+            ))}
+          </TableBody>
+        </Table>
+
+        {filtrados.length === 0 && (
+          <div className="px-6 py-12 text-center">
+            <p className="font-medium">{!usuarios ? 'Cargando…' : usuarios.length === 0 ? 'Todavía no hay usuarios' : 'Nadie coincide con la búsqueda'}</p>
+            {!!usuarios?.length && <p className="text-sm text-muted-foreground">Probá con el apellido, el usuario o el área, o quitá los filtros.</p>}
           </div>
-        </CardContent>
+        )}
+
+        <div className="border-t border-border px-5 py-3">
+          <Paginacion {...pag} unidad="usuarios" />
+        </div>
       </Card>
     </div>
   );

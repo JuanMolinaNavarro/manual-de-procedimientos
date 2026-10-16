@@ -143,7 +143,7 @@ export default function MiAsistenciaPage() {
         <VolverInicio />
         <h1 className="text-2xl font-bold sm:text-3xl">Mi asistencia</h1>
         <Empty title="Tu usuario no está vinculado a una ficha del organigrama">
-          Para ver tu asistencia, un administrador tiene que vincular la cuenta <span className="font-medium text-foreground">{data.usuario}</span> con tu ficha desde Usuarios («Ficha del organigrama»).
+          Para ver tu asistencia, un administrador tiene que vincular la cuenta <span className="font-medium text-foreground">{data.usuario}</span> con tu ficha desde Gestión de Usuarios («Ficha del organigrama»).
         </Empty>
       </div>
     );

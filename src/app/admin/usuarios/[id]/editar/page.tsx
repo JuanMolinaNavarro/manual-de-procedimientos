@@ -1,431 +1,229 @@
 'use client';
 
+/**
+ * Edición de un usuario: acceso, rol, ficha del organigrama, módulos (solo admin) y estado.
+ * Contraseña vacía = no cambiarla. Cambiar usuario, contraseña, rol o estado cierra sus sesiones.
+ */
+
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import EmpleadoPicker from '@/components/asistencia/EmpleadoPicker';
-import { ADMIN_MODULOS } from '@/lib/modulos';
-import { isSuperadmin } from '@/lib/roles';
-
-interface EmpleadoVinculado {
-  id: number;
-  nombre: string;
-  area: string;
-}
+import { Avatar } from '@/components/comunes/ui';
+import { CATEGORIAS } from '@/components/AdminHomeModulos';
+import FichaPicker from '@/components/usuarios/FichaPicker';
+import {
+  BarraGuardar, CamposAcceso, OpcionesTarjeta, ROLES_INFO, Seccion, VolverAUsuarios, rolLabel, useFichas, type DatosAcceso,
+} from '@/components/usuarios/piezas';
+import { ADMIN_MODULOS, NOMINA_SLUGS, type AdminModuloSlug } from '@/lib/modulos';
+import type { Rol } from '@/lib/roles';
 
 interface Usuario {
   id: number;
   usuario: string;
-  /** Solo para el formulario: nueva contraseña (vacía = no cambiarla). La API nunca la devuelve. */
-  password: string;
   nombre: string | null;
   apellido: string | null;
-  rol: string;
+  rol: Rol;
   isActive: boolean;
   modulos: string[];
   modulos_edit: string[];
   empleado_id: number | null;
-  empleado: EmpleadoVinculado | null;
+  created_at: string;
 }
 
-interface EmpleadoOpcion {
-  id: number;
-  nombre: string;
-  rol: string;
-  area: string;
-  foto_archivo: string | null;
-  organigrama_id: number | null;
-  oculto_en: string | null;
-}
+/** Los módulos que se le pueden habilitar a un admin, agrupados como en el inicio. Sin `usuarios`: es solo del superadmin. */
+const GRUPOS_MODULOS: { titulo: string; slugs: AdminModuloSlug[] }[] = [
+  ...CATEGORIAS.map((c) => ({ titulo: c.titulo, slugs: c.slugs.filter((s) => s !== 'usuarios') })),
+  { titulo: 'Nómina', slugs: [...NOMINA_SLUGS] },
+];
+const SLUGS_ADMIN = GRUPOS_MODULOS.flatMap((g) => g.slugs);
+const LABEL_MODULO = new Map<string, string>(ADMIN_MODULOS.map((m) => [m.slug, m.label]));
 
 export default function EditarUsuarioPage() {
   const router = useRouter();
-  const params = useParams<{ id: string }>();
-  const usuarioId = Number(params.id);
+  const usuarioId = Number(useParams<{ id: string }>().id);
+  const fichas = useFichas();
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [original, setOriginal] = useState<Usuario | null>(null);
+  const [errorCarga, setErrorCarga] = useState('');
+  const [acceso, setAcceso] = useState<DatosAcceso>({ usuario: '', password: '', nombre: '', apellido: '' });
+  const [rol, setRol] = useState<Rol>('admin');
+  const [activo, setActivo] = useState(true);
+  const [fichaId, setFichaId] = useState<number | null>(null);
+  // `modulos` vacío = todos. Restringir arranca con lo guardado.
+  const [restringido, setRestringido] = useState(false);
+  const [elegidos, setElegidos] = useState<Set<string>>(new Set());
+  const [editaOrg, setEditaOrg] = useState(false);
+  const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
-  const [formData, setFormData] = useState<Usuario | null>(null);
-  const [currentUsuario, setCurrentUsuario] = useState<string | null>(null);
-
-  // Tracks which module slugs are checked in the UI.
-  // Empty means all allowed (no restrictions).
-  const [selectedModulos, setSelectedModulos] = useState<Set<string>>(new Set());
-  const [modulosRestricted, setModulosRestricted] = useState(false);
-  // Permiso de edición del organigrama (parte de modulos_edit).
-  const [puedeEditarOrg, setPuedeEditarOrg] = useState(false);
-  // Vínculo con la ficha del organigrama ('' = sin vincular).
-  const [empleadoSel, setEmpleadoSel] = useState('');
-  const [empleados, setEmpleados] = useState<EmpleadoOpcion[]>([]);
-  const [organigramas, setOrganigramas] = useState<{ id: number; nombre: string }[]>([]);
-  // Empresa (organigrama) elegida para filtrar las fichas ('' = todas).
-  const [orgSel, setOrgSel] = useState('');
-  const [vinculados, setVinculados] = useState<Set<number>>(new Set());
-  const [soySuperadmin, setSoySuperadmin] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        if (Number.isNaN(usuarioId)) {
-          setError('ID invalido');
-          setLoading(false);
-          return;
-        }
-
-        const [usuarioRes, meRes] = await Promise.all([
-          fetch(`/api/admin/usuarios/${usuarioId}`),
-          fetch('/api/me'),
-        ]);
-
-        if (!usuarioRes.ok) throw new Error('Error al cargar el usuario');
-
-        const data = (await usuarioRes.json()) as Omit<Usuario, 'password'>;
-        setFormData({ ...data, password: '' });
-        setPuedeEditarOrg((data.modulos_edit ?? []).includes('organigrama'));
-        setEmpleadoSel(data.empleado_id ? String(data.empleado_id) : '');
-
-        // Initialise module state from saved modulos
-        if (data.modulos && data.modulos.length > 0) {
-          setModulosRestricted(true);
-          setSelectedModulos(new Set(data.modulos));
-        } else {
-          setModulosRestricted(false);
-          setSelectedModulos(new Set(ADMIN_MODULOS.map((m) => m.slug)));
-        }
-
-        if (meRes.ok) {
-          const me = (await meRes.json()) as { usuario: string; rol: string };
-          setCurrentUsuario(me.usuario);
-          setSoySuperadmin(isSuperadmin(me.rol));
-        }
-
-        // Fichas del organigrama y cuáles ya están vinculadas a otro usuario.
-        const [empRes, orgRes, usersRes] = await Promise.all([
-          fetch('/api/admin/organigrama/empleados'),
-          fetch('/api/admin/organigrama/organigramas'),
-          fetch('/api/admin/usuarios'),
-        ]);
-        if (empRes.ok) {
-          const emps = (await empRes.json()) as EmpleadoOpcion[];
-          setEmpleados(emps.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')));
-          // Arranca en la empresa de la ficha ya vinculada.
-          const actual = emps.find((e) => e.id === data.empleado_id);
-          if (actual?.organigrama_id != null) setOrgSel(String(actual.organigrama_id));
-        }
-        if (orgRes.ok) {
-          setOrganigramas((await orgRes.json()) as { id: number; nombre: string }[]);
-        }
-        if (usersRes.ok) {
-          const users = (await usersRes.json()) as { id: number; empleado_id: number | null }[];
-          setVinculados(
-            new Set(
-              users
-                .filter((u) => u.id !== usuarioId && u.empleado_id != null)
-                .map((u) => u.empleado_id as number)
-            )
-          );
-        }
-      } catch (err) {
-        console.error(err);
-        setError('No se pudo cargar el usuario');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
+    fetch(`/api/admin/usuarios/${usuarioId}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((u: Usuario) => {
+        setOriginal(u);
+        setAcceso({ usuario: u.usuario, password: '', nombre: u.nombre ?? '', apellido: u.apellido ?? '' });
+        setRol(u.rol);
+        setActivo(u.isActive);
+        setFichaId(u.empleado_id);
+        setRestringido(u.modulos.length > 0);
+        setElegidos(new Set(u.modulos.length ? u.modulos : SLUGS_ADMIN));
+        setEditaOrg(u.modulos_edit.includes('organigrama'));
+      })
+      .catch(() => setErrorCarga('No se pudo cargar el usuario.'));
   }, [usuarioId]);
 
-  const handleChange = (field: keyof Usuario, value: string | boolean) => {
-    setFormData((prev) => (prev ? { ...prev, [field]: value } : prev));
-  };
-
-  const toggleModulo = (slug: string, checked: boolean) => {
-    setSelectedModulos((prev) => {
+  function marcar(slugs: string[], si: boolean) {
+    setElegidos((prev) => {
       const next = new Set(prev);
-      if (checked) next.add(slug);
-      else next.delete(slug);
+      for (const s of slugs) {
+        if (si) next.add(s);
+        else next.delete(s);
+      }
       return next;
     });
-  };
+  }
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  async function guardar(event: React.FormEvent) {
     event.preventDefault();
-    if (!formData) return;
-
+    if (!original) return;
     setError('');
-    setSaving(true);
+    const esAdmin = rol === 'admin';
+    const marcados = SLUGS_ADMIN.filter((s) => elegidos.has(s));
+    // `[]` significaría "todos": restringir a nada no se puede guardar.
+    if (esAdmin && restringido && marcados.length === 0) return setError('Marcá al menos un módulo o apagá «Restringir».');
 
-    // Compute modulos to save: empty array = all allowed
-    let modulosToSave: string[] = [];
-    if (formData.rol === 'admin' && modulosRestricted) {
-      const all = ADMIN_MODULOS.map((m) => m.slug);
-      const allSelected = all.every((s) => selectedModulos.has(s));
-      modulosToSave = allSelected ? [] : Array.from(selectedModulos);
-    }
-
-    // Permisos de edición: preservamos otros slugs y seteamos/quitamos 'organigrama'.
-    let modulosEditToSave = (formData.modulos_edit ?? []).filter((s) => s !== 'organigrama');
-    if (formData.rol === 'admin' && puedeEditarOrg) {
-      modulosEditToSave = [...modulosEditToSave, 'organigrama'];
-    }
-
+    setGuardando(true);
     try {
-      const response = await fetch(`/api/admin/usuarios/${usuarioId}`, {
+      const res = await fetch(`/api/admin/usuarios/${usuarioId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          usuario: formData.usuario,
-          password: formData.password,
-          nombre: formData.nombre || null,
-          apellido: formData.apellido || null,
-          rol: formData.rol,
-          isActive: formData.isActive,
-          modulos: modulosToSave,
-          modulos_edit: modulosEditToSave,
-          empleado_id: empleadoSel ? Number(empleadoSel) : null,
+          usuario: acceso.usuario,
+          password: acceso.password,
+          nombre: acceso.nombre || null,
+          apellido: acceso.apellido || null,
+          rol,
+          isActive: activo,
+          modulos: esAdmin && restringido && marcados.length < SLUGS_ADMIN.length ? marcados : [],
+          // Se conservan los demás permisos de edición; acá solo se maneja el del organigrama.
+          modulos_edit: [...original.modulos_edit.filter((s) => s !== 'organigrama'), ...(esAdmin && editaOrg ? ['organigrama'] : [])],
+          empleado_id: fichaId,
         }),
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Error al actualizar el usuario');
-      }
-
+      if (!res.ok) throw new Error((await res.json()).error || 'No se pudo guardar el usuario');
       router.push('/admin/usuarios');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
-      setSaving(false);
+      setGuardando(false);
     }
-  };
-
-  const isSelf = formData?.usuario === currentUsuario;
-
-  if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center text-muted-foreground">
-        Cargando...
-      </div>
-    );
   }
 
-  if (error || !formData) {
-    return (
-      <div className="rounded-md border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-300">
-        {error || 'No se pudo cargar la informacion'}
-      </div>
-    );
-  }
+  if (errorCarga) return <p role="alert" className="mx-auto max-w-[760px] text-sm text-destructive">{errorCarga}</p>;
+  if (!original) return <p className="mx-auto max-w-[760px] py-16 text-center text-muted-foreground">Cargando…</p>;
+
+  const nombre = [original.nombre, original.apellido].filter(Boolean).join(' ') || original.usuario;
+  const cantidadElegidos = SLUGS_ADMIN.filter((s) => elegidos.has(s)).length;
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <Card>
-        <CardHeader>
-          <CardTitle>Editar usuario</CardTitle>
-          <CardDescription>Modifica los datos y guarda los cambios</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="usuario">Usuario</Label>
-              <Input
-                id="usuario"
-                value={formData.usuario}
-                onChange={(event) => handleChange('usuario', event.target.value)}
-                required
-              />
-            </div>
+    <form onSubmit={guardar} className="mx-auto flex max-w-[760px] flex-col gap-5">
+      <VolverAUsuarios />
+      <div className="flex flex-wrap items-center gap-4">
+        <Avatar nombre={nombre} className="h-14 w-14 text-lg" />
+        <div className="min-w-0 flex-1 space-y-1">
+          <h1 className="text-2xl font-bold text-foreground">{nombre}</h1>
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <span className="font-mono">{original.usuario}</span>
+            <Badge variant={original.rol === 'superadmin' ? 'default' : 'outline'}>{rolLabel(original.rol)}</Badge>
+            <span>{original.isActive ? 'Activo' : 'Inactivo'}</span>
+            <span>· alta {new Date(original.created_at).toLocaleDateString('es-AR')}</span>
+          </div>
+        </div>
+      </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Nueva contraseña</Label>
-              <Input
-                id="password"
-                value={formData.password}
-                onChange={(event) => handleChange('password', event.target.value)}
-                placeholder="Dejala vacía para no cambiarla"
-                autoComplete="new-password"
-                minLength={8}
-              />
-              <p className="text-xs text-muted-foreground">
-                Las contraseñas se guardan cifradas y no se pueden ver. Si alguien se olvida la suya,
-                asignale una nueva. Cambiarla cierra sus sesiones abiertas.
-              </p>
-            </div>
+      <Seccion titulo="Acceso" descripcion="Cambiar el usuario o la contraseña cierra sus sesiones abiertas.">
+        <CamposAcceso datos={acceso} onCambio={setAcceso} edicion />
+      </Seccion>
 
-            <div className="space-y-2">
-              <Label htmlFor="nombre">Nombre</Label>
-              <Input
-                id="nombre"
-                value={formData.nombre ?? ''}
-                onChange={(event) => handleChange('nombre', event.target.value)}
-              />
-            </div>
+      <Seccion titulo="Rol" descripcion="Define qué partes del panel puede usar.">
+        <OpcionesTarjeta nombre="Rol" opciones={ROLES_INFO} valor={rol} onCambio={setRol} />
+      </Seccion>
 
-            <div className="space-y-2">
-              <Label htmlFor="apellido">Apellido</Label>
-              <Input
-                id="apellido"
-                value={formData.apellido ?? ''}
-                onChange={(event) => handleChange('apellido', event.target.value)}
-              />
-            </div>
+      <Seccion titulo="Ficha del organigrama" descripcion="La persona que usa esta cuenta. Define su área y qué ve en su portal.">
+        {fichas ? (
+          <FichaPicker fichas={fichas} valor={fichaId} onCambio={setFichaId} usuarioId={usuarioId} />
+        ) : (
+          <p className="text-sm text-muted-foreground">Cargando fichas…</p>
+        )}
+      </Seccion>
 
-            <div className="space-y-2">
-              <Label htmlFor="rol">Rol</Label>
-              <select
-                id="rol"
-                value={formData.rol}
-                onChange={(event) => handleChange('rol', event.target.value)}
-                className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="admin">Admin</option>
-                <option value="empleado">Empleado (solo Mi asistencia y Recibos)</option>
-                <option value="ventas">Ventas (solo Leads y Padrón)</option>
-                {(soySuperadmin || formData.rol === 'superadmin') && (
-                  <option value="superadmin">Superadmin</option>
-                )}
-              </select>
-            </div>
+      {rol === 'superadmin' && (
+        <p className="rounded-lg border border-border px-4 py-3 text-sm text-muted-foreground">
+          Acceso total: ve todos los módulos, edita el organigrama y gestiona usuarios.
+        </p>
+      )}
 
-            <div className="space-y-2">
-              <Label htmlFor="empresa">Ficha del organigrama</Label>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <select
-                  id="empresa"
-                  value={orgSel}
-                  onChange={(event) => {
-                    setOrgSel(event.target.value);
-                    setEmpleadoSel('');
-                  }}
-                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <option value="">Todas las empresas</option>
-                  {organigramas.map((o) => (
-                    <option key={o.id} value={o.id}>{o.nombre}</option>
+      {rol === 'admin' && (
+        <Seccion
+          titulo="Módulos"
+          descripcion={restringido ? `Ve ${cantidadElegidos} de ${SLUGS_ADMIN.length} módulos.` : 'Ve todos los módulos, también los que se agreguen.'}
+          accion={
+            <div className="flex shrink-0 items-center gap-2">
+              <Label htmlFor="restringir">Restringir</Label>
+              <Switch id="restringir" checked={restringido} onCheckedChange={setRestringido} />
+            </div>
+          }
+        >
+          {restringido && GRUPOS_MODULOS.map((g) => {
+            const marcadosGrupo = g.slugs.filter((s) => elegidos.has(s)).length;
+            const todos = marcadosGrupo === g.slugs.length;
+            return (
+              <div key={g.titulo} role="group" aria-label={g.titulo} className="space-y-2">
+                <div className="flex items-center justify-between gap-2 border-b border-border pb-1.5">
+                  <span className="text-sm font-medium">
+                    {g.titulo} <span className="font-mono font-normal text-muted-foreground">{marcadosGrupo}/{g.slugs.length}</span>
+                  </span>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => marcar(g.slugs, !todos)}>
+                    {todos ? 'Quitar todos' : 'Marcar todos'}
+                  </Button>
+                </div>
+                <div className="grid gap-x-4 gap-y-1 sm:grid-cols-[repeat(auto-fill,minmax(190px,1fr))]">
+                  {g.slugs.map((s) => (
+                    <div key={s} className="flex min-h-8 items-center gap-2.5">
+                      <Checkbox id={`modulo-${s}`} checked={elegidos.has(s)} onCheckedChange={(v) => marcar([s], v === true)} />
+                      <Label htmlFor={`modulo-${s}`} className="cursor-pointer font-normal">{LABEL_MODULO.get(s)}</Label>
+                    </div>
                   ))}
-                </select>
-                <EmpleadoPicker
-                  empleados={empleados.filter(
-                    (e) =>
-                      (!orgSel || e.organigrama_id === Number(orgSel)) &&
-                      (e.id === formData.empleado_id || (!vinculados.has(e.id) && !e.oculto_en))
-                  )}
-                  valor={empleadoSel ? Number(empleadoSel) : null}
-                  onCambio={(id) => setEmpleadoSel(id != null ? String(id) : '')}
-                />
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Define el área del usuario (por ejemplo, qué proyectos puede ver).
-              </p>
-            </div>
-
-            {formData.rol === 'superadmin' && (
-              <div className="rounded-lg border border-border px-4 py-3 text-sm text-muted-foreground">
-                Acceso total: ve todos los módulos, puede editar el organigrama y ve todos los
-                proyectos.
-              </div>
-            )}
-
-            {/* Module access — only for admin users */}
-            {formData.rol === 'admin' && (
-              <div className="rounded-lg border border-border px-4 py-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Acceso a modulos</p>
-                    <p className="text-sm text-muted-foreground">
-                      Restriccion de secciones del panel de administracion
-                    </p>
-                  </div>
-                  <Switch
-                    checked={modulosRestricted}
-                    onCheckedChange={(value) => {
-                      setModulosRestricted(value);
-                      if (value && selectedModulos.size === 0) {
-                        setSelectedModulos(new Set(ADMIN_MODULOS.map((m) => m.slug)));
-                      }
-                    }}
-                  />
                 </div>
-
-                {modulosRestricted && (
-                  <div className="grid grid-cols-2 gap-3 pt-1">
-                    {ADMIN_MODULOS.map((modulo) => {
-                      const isUsuarios = modulo.slug === 'usuarios';
-                      const disabled = isUsuarios && isSelf;
-                      return (
-                        <div key={modulo.slug} className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            id={`modulo-${modulo.slug}`}
-                            checked={selectedModulos.has(modulo.slug)}
-                            disabled={disabled}
-                            onChange={(e) => toggleModulo(modulo.slug, e.target.checked)}
-                            className="h-4 w-4 rounded border-input accent-primary"
-                          />
-                          <Label
-                            htmlFor={`modulo-${modulo.slug}`}
-                            className={disabled ? 'text-muted-foreground cursor-default' : 'cursor-pointer'}
-                          >
-                            {modulo.label}
-                            {disabled && (
-                              <span className="ml-1 text-xs text-muted-foreground">(tu cuenta)</span>
-                            )}
-                          </Label>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
-            )}
+            );
+          })}
 
-            {formData.rol === 'admin' && (
-              <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-                <div>
-                  <p className="font-medium">Puede editar el organigrama</p>
-                  <p className="text-sm text-muted-foreground">
-                    Si está apagado, el usuario solo puede ver el organigrama (sin editar).
-                  </p>
-                </div>
-                <Switch checked={puedeEditarOrg} onCheckedChange={setPuedeEditarOrg} />
-              </div>
-            )}
-
-            <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-              <div>
-                <p className="font-medium">Usuario activo</p>
-                <p className="text-sm text-muted-foreground">
-                  Puede iniciar sesion en el manual
-                </p>
-              </div>
-              <Switch
-                checked={formData.isActive}
-                onCheckedChange={(value) => handleChange('isActive', value)}
-              />
+          <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
+            <div>
+              <Label htmlFor="edita-org">Puede editar el organigrama</Label>
+              <p className="text-sm text-muted-foreground">Apagado, solo lo ve: sin editar y sin el convenio.</p>
             </div>
+            <Switch id="edita-org" checked={editaOrg} onCheckedChange={setEditaOrg} />
+          </div>
+        </Seccion>
+      )}
 
-            {error && (
-              <div className="rounded-md border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-300">
-                {error}
-              </div>
-            )}
-
-            <div className="flex gap-4 pt-2">
-              <Button type="submit" disabled={saving}>
-                {saving ? 'Guardando...' : 'Guardar cambios'}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => router.back()}>
-                Cancelar
-              </Button>
-            </div>
-          </form>
+      <Card>
+        <CardContent className="flex items-center justify-between gap-4">
+          <div>
+            <Label htmlFor="activo">Usuario activo</Label>
+            <p className="text-sm text-muted-foreground">Inactivo no puede iniciar sesión. No se borra nada.</p>
+          </div>
+          <Switch id="activo" checked={activo} onCheckedChange={setActivo} />
         </CardContent>
       </Card>
-    </div>
+
+      <BarraGuardar guardando={guardando} texto="Guardar cambios" error={error} />
+    </form>
   );
 }

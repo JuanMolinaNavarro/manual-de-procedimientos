@@ -142,7 +142,7 @@ headers de seguridad y `poweredByHeader: false`.
   por eso es público y con CORS; se cargan y editan en `/admin/bonificaciones`.
 - `/admin/*` — admin panel (admin role required)
   - `bonificaciones/` — list, create (`nueva/`), edit (`[id]/editar/`)
-  - `usuarios/` — list, edit (`[id]/editar/`)
+  - `usuarios/` — Gestión de Usuarios: list, create (`nuevo/`), edit (`[id]/editar/`); la ficha se elige con `FichaPicker`
   - `proyectos/` — proyectos y finanzas: list, detail with 4 tabs (`[id]/`)
 
 ### Data Layer
@@ -498,7 +498,7 @@ de la columna Horario, `HorarioDialog`); la ficha del organigrama los muestra en
 ### Mi asistencia (vista personal)
 
 Módulo `mi-asistencia` (`/admin/mi-asistencia`, categoría RRHH): cada usuario ve **solo su propia** asistencia,
-la de la ficha del organigrama vinculada a su cuenta (`Usuario.empleado_id`, se vincula desde Usuarios ›
+la de la ficha del organigrama vinculada a su cuenta (`Usuario.empleado_id`, se vincula desde Gestión de Usuarios ›
 «Ficha del organigrama»). Sin vínculo la página lo explica y no muestra nada. Solo lectura. Permiso: entra en
 `modulos` como cualquier módulo (`isAdmin()` en la API).
 
